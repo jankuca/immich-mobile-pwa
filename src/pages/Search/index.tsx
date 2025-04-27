@@ -44,9 +44,10 @@ export function Search() {
       setIsSearching(true);
       setError(null);
 
+      saveRecentSearch(query);
+
       const results = await apiService.search(query);
       setSearchResults(results);
-      saveRecentSearch(query);
     } catch (err) {
       console.error('Error searching:', err);
       setError('Failed to search. Please try again.');
