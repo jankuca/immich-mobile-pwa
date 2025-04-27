@@ -70,10 +70,21 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
       if (diff > 10) {
         e.preventDefault();
 
+        // Calculate the swipe progress (0 to 1)
+        const maxSwipeDistance = window.innerHeight / 3; // 1/3 of screen height for full effect
+        const progress = Math.min(diff / maxSwipeDistance, 1);
+
         // Apply a transform to the container to follow the finger
         if (scrollContainerRef.current) {
           scrollContainerRef.current.style.transform = `translateY(${diff}px)`;
           scrollContainerRef.current.style.transition = 'none';
+        }
+
+        // Update the photo container background opacity based on the swipe progress
+        const photoContainer = document.querySelector('.photo-viewer-photo-container');
+        if (photoContainer) {
+          const newOpacity = 1 - progress;
+          (photoContainer as HTMLElement).style.backgroundColor = `rgba(255, 255, 255, ${newOpacity})`;
         }
       }
     }
@@ -85,13 +96,26 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
       const transform = scrollContainerRef.current.style.transform;
       const match = transform.match(/translateY\((\d+)px\)/);
 
-      if (match && parseInt(match[1]) > 50) {
-        // If swiped down more than 50px, close the viewer
-        onClose();
-      } else {
-        // Otherwise, reset the transform
-        scrollContainerRef.current.style.transform = '';
-        scrollContainerRef.current.style.transition = 'transform 0.3s ease';
+      if (match) {
+        const swipeDistance = parseInt(match[1]);
+        const maxSwipeDistance = window.innerHeight / 3;
+        const progress = swipeDistance / maxSwipeDistance;
+
+        if (progress > 0.1) {
+          // If swiped down more than 10% of the max distance, close the viewer
+          onClose();
+        } else {
+          // Otherwise, reset the transform and background
+          scrollContainerRef.current.style.transform = '';
+          scrollContainerRef.current.style.transition = 'transform 0.3s ease';
+
+          // Reset the photo container background color
+          const photoContainer = document.querySelector('.photo-viewer-photo-container');
+          if (photoContainer) {
+            (photoContainer as HTMLElement).style.backgroundColor = 'rgba(255, 255, 255, 1)';
+            (photoContainer as HTMLElement).style.transition = 'background-color 0.3s ease';
+          }
+        }
       }
     }
 
@@ -138,7 +162,6 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
         left: 0,
         right: 0,
         bottom: 0,
-        backgroundColor: 'var(--color-background)',
         zIndex: 1000,
         overflow: 'hidden' // Prevent content from being visible outside the container
       }}
@@ -167,7 +190,8 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
             alignItems: 'center',
             justifyContent: 'center',
             position: 'relative',
-            backgroundColor: 'var(--color-background)'
+            backgroundColor: 'rgba(255, 255, 255, 1)',
+            transition: 'background-color 0.3s ease'
           }}
         >
           {/* The actual photo/video */}
@@ -210,7 +234,7 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
             onClick={goToPrevious}
           >
             <div style={{
-              backgroundColor: 'rgba(0, 0, 0, 0.3)',
+              backgroundColor: 'rgba(255, 255, 255, 0.3)',
               borderRadius: '50%',
               width: '40px',
               height: '40px',
@@ -241,7 +265,7 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
             onClick={goToNext}
           >
             <div style={{
-              backgroundColor: 'rgba(0, 0, 0, 0.3)',
+              backgroundColor: 'rgba(255, 255, 255, 0.3)',
               borderRadius: '50%',
               width: '40px',
               height: '40px',
@@ -263,7 +287,7 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
               position: 'absolute',
               top: 'var(--spacing-md)',
               left: 'var(--spacing-md)',
-              backgroundColor: 'rgba(0, 0, 0, 0.3)',
+              backgroundColor: 'rgba(255, 255, 255, 0.3)',
               borderRadius: '50%',
               width: '40px',
               height: '40px',
@@ -292,7 +316,7 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
                 left: '50%',
                 transform: 'translateX(-50%)',
                 color: 'white',
-                backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                backgroundColor: 'rgba(255, 255, 255, 0.3)',
                 borderRadius: 'var(--radius-lg)',
                 padding: 'var(--spacing-xs) var(--spacing-md)',
                 display: 'flex',
