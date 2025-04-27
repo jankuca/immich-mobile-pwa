@@ -7,6 +7,19 @@
   padding: 0;
 }
 
+/* Prevent context menu and dragging on all images */
+img {
+  -webkit-touch-callout: none; /* Disable iOS context menu */
+  user-select: none; /* Prevent selection */
+  -webkit-user-drag: none; /* Prevent dragging on iOS/Safari */
+  -khtml-user-drag: none; /* For old browsers */
+  -moz-user-drag: none; /* Firefox */
+  -o-user-drag: none; /* Opera */
+  user-drag: none; /* Standard syntax */
+  pointer-events: auto !important; /* Ensure click events still work */
+  touch-action: pan-x pan-y; /* Allow panning but prevent other gestures */
+}
+
 html, body {
   height: 100%;
   width: 100%;

@@ -22,9 +22,12 @@ const TimelineThumbnail = ({ asset, size, onClick }: TimelineThumbnailProps) => 
         overflow: 'hidden',
         borderRadius: 'var(--radius-sm)',
         backgroundColor: 'var(--color-gray-light)',
-        cursor: 'pointer'
+        cursor: 'pointer',
+        WebkitTouchCallout: 'none', // Disable iOS context menu
+        userSelect: 'none' // Prevent selection
       }}
       onClick={onClick}
+      onContextMenu={(e) => e.preventDefault()} // Prevent context menu on right-click
     >
       <img
         src={thumbnailUrl}
@@ -33,9 +36,18 @@ const TimelineThumbnail = ({ asset, size, onClick }: TimelineThumbnailProps) => 
           width: '100%',
           height: '100%',
           objectFit: 'cover',
-          display: 'block'
+          display: 'block',
+          WebkitTouchCallout: 'none', // Disable iOS context menu
+          userSelect: 'none', // Prevent selection
+          WebkitUserDrag: 'none', // Prevent dragging in Safari
+          MozUserDrag: 'none', // Firefox
+          userDrag: 'none', // Standard
+          touchAction: 'pan-x pan-y' // Allow panning but prevent other gestures
         }}
+        draggable={false} // Prevent HTML5 drag and drop
         loading="lazy"
+        onContextMenu={(e) => e.preventDefault()} // Prevent context menu on right-click
+        onDragStart={(e) => e.preventDefault()} // Prevent drag start
         onError={(e) => {
           console.error(`Error loading thumbnail for asset ${asset.id}:`, e);
           (e.target as HTMLImageElement).style.display = 'none';

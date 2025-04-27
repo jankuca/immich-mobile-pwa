@@ -711,8 +711,11 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
         right: 0,
         bottom: 0,
         zIndex: 1000,
-        overflow: 'hidden' // Prevent content from being visible outside the container
+        overflow: 'hidden', // Prevent content from being visible outside the container
+        WebkitTouchCallout: 'none', // Disable iOS context menu globally
+        userSelect: 'none' // Prevent selection globally
       }}
+      onContextMenu={(e) => e.preventDefault()} // Prevent context menu on right-click
     >
       {/* Scrollable container for the entire content */}
       <div
@@ -780,8 +783,17 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
                     objectFit: 'contain',
                     filter: 'blur(8px)',
                     opacity: loadingStatus[currentAsset.id]?.fullImageLoaded ? 0 : 1,
-                    transition: 'opacity 0.3s ease'
+                    transition: 'opacity 0.3s ease',
+                    WebkitTouchCallout: 'none', // Disable iOS context menu
+                    userSelect: 'none', // Prevent selection
+                    WebkitUserDrag: 'none', // Prevent dragging in Safari
+                    MozUserDrag: 'none', // Firefox
+                    userDrag: 'none', // Standard
+                    touchAction: 'pan-x pan-y' // Allow panning but prevent other gestures
                   }}
+                  draggable={false} // Prevent HTML5 drag and drop
+                  onContextMenu={(e) => e.preventDefault()} // Prevent context menu on right-click
+                  onDragStart={(e) => e.preventDefault()} // Prevent drag start
                 />
 
                 {/* Full resolution version */}
@@ -793,8 +805,17 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
                     maxHeight: '100%',
                     objectFit: 'contain',
                     opacity: loadingStatus[currentAsset.id]?.fullImageLoaded ? 1 : 0,
-                    transition: 'opacity 0.3s ease'
+                    transition: 'opacity 0.3s ease',
+                    WebkitTouchCallout: 'none', // Disable iOS context menu
+                    userSelect: 'none', // Prevent selection
+                    WebkitUserDrag: 'none', // Prevent dragging in Safari
+                    MozUserDrag: 'none', // Firefox
+                    userDrag: 'none', // Standard
+                    touchAction: 'pan-x pan-y' // Allow panning but prevent other gestures
                   }}
+                  draggable={false} // Prevent HTML5 drag and drop
+                  onContextMenu={(e) => e.preventDefault()} // Prevent context menu on right-click
+                  onDragStart={(e) => e.preventDefault()} // Prevent drag start
                   onLoad={() => {
                     // Mark full image as loaded when it completes loading
                     setLoadingStatus(prev => ({
@@ -870,8 +891,17 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
                       objectFit: 'contain',
                       filter: 'blur(8px)',
                       opacity: loadingStatus[transitioningAsset.id]?.fullImageLoaded ? 0 : 1,
-                      transition: 'opacity 0.3s ease'
+                      transition: 'opacity 0.3s ease',
+                      WebkitTouchCallout: 'none', // Disable iOS context menu
+                      userSelect: 'none', // Prevent selection
+                      WebkitUserDrag: 'none', // Prevent dragging in Safari
+                      MozUserDrag: 'none', // Firefox
+                      userDrag: 'none', // Standard
+                      touchAction: 'pan-x pan-y' // Allow panning but prevent other gestures
                     }}
+                    draggable={false} // Prevent HTML5 drag and drop
+                    onContextMenu={(e) => e.preventDefault()} // Prevent context menu on right-click
+                    onDragStart={(e) => e.preventDefault()} // Prevent drag start
                   />
 
                   {/* Full resolution version of transitioning asset */}
@@ -883,8 +913,17 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
                       maxHeight: '100%',
                       objectFit: 'contain',
                       opacity: loadingStatus[transitioningAsset.id]?.fullImageLoaded ? 1 : 0,
-                      transition: 'opacity 0.3s ease'
+                      transition: 'opacity 0.3s ease',
+                      WebkitTouchCallout: 'none', // Disable iOS context menu
+                      userSelect: 'none', // Prevent selection
+                      WebkitUserDrag: 'none', // Prevent dragging in Safari
+                      MozUserDrag: 'none', // Firefox
+                      userDrag: 'none', // Standard
+                      touchAction: 'pan-x pan-y' // Allow panning but prevent other gestures
                     }}
+                    draggable={false} // Prevent HTML5 drag and drop
+                    onContextMenu={(e) => e.preventDefault()} // Prevent context menu on right-click
+                    onDragStart={(e) => e.preventDefault()} // Prevent drag start
                   />
                 </div>
               )}
