@@ -2,10 +2,11 @@ import { h } from 'preact';
 import { useState, useEffect, useRef } from 'preact/hooks';
 import { Asset } from '../../services/api';
 import TimelineThumbnail from './TimelineThumbnail';
+import { ThumbnailPosition } from '../../hooks/useZoomTransition';
 
 interface VirtualizedTimelineProps {
   assets: Asset[];
-  onAssetClick: (asset: Asset) => void;
+  onAssetClick: (asset: Asset, info: { position: ThumbnailPosition | null }) => void;
   columnCount?: number;
   showDateHeaders?: boolean;
 }
@@ -146,7 +147,7 @@ const VirtualizedTimeline = ({
               key={asset.id}
               asset={asset}
               size={thumbnailSize}
-              onClick={() => onAssetClick(asset)}
+              onClick={(info) => onAssetClick(asset, info)}
             />
           ))}
 

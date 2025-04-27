@@ -13,6 +13,8 @@ interface PhotoViewerCarouselItemProps {
   };
   onImageLoad?: () => void;
   style?: Record<string, string | number>;
+  imageTransform?: string;
+  isZooming?: boolean;
 }
 
 const PhotoViewerCarouselItem = ({
@@ -21,7 +23,9 @@ const PhotoViewerCarouselItem = ({
   isTransitioning = false,
   loadingStatus,
   onImageLoad,
-  style = {}
+  style = {},
+  imageTransform = '',
+  isZooming = false
 }: PhotoViewerCarouselItemProps) => {
   const assetThumbnailUrl = apiService.getAssetThumbnailUrl(asset.id, 'webp');
   const assetFullUrl = apiService.getAssetUrl(asset.id);
@@ -51,7 +55,19 @@ const PhotoViewerCarouselItem = ({
           }}
         />
       ) : (
-        <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+        <div
+          style={{
+            position: 'relative',
+            width: '100%',
+            height: '100%',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            transform: isZooming && isMain ? imageTransform : '',
+            transformOrigin: 'center',
+            willChange: isZooming ? 'transform' : 'auto'
+          }}
+        >
           {/* Thumbnail version (shown while full image loads) */}
           <AssetImage
             src={assetThumbnailUrl}
@@ -65,7 +81,9 @@ const PhotoViewerCarouselItem = ({
             src={assetFullUrl}
             alt={asset.originalFileName}
             isLoaded={loadingStatus?.fullImageLoaded}
-            style={{}}
+            style={{
+              willChange: isZooming ? 'transform' : 'auto'
+            }}
             onLoad={onImageLoad}
           />
 

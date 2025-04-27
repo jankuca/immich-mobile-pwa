@@ -5,6 +5,7 @@ import Header from '../../components/common/Header';
 import VirtualizedTimeline from '../../components/timeline/VirtualizedTimeline';
 import PhotoViewer from '../../components/photoView/PhotoViewer';
 import apiService, { Asset, Album } from '../../services/api';
+import { ThumbnailPosition } from '../../hooks/useZoomTransition';
 
 interface AlbumDetailProps {
   id?: string;
@@ -17,6 +18,7 @@ export function AlbumDetail({ id, albumId }: AlbumDetailProps) {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
+  const [selectedThumbnailPosition, setSelectedThumbnailPosition] = useState<ThumbnailPosition | null>(null);
   const location = useLocation();
 
   // Extract ID from URL if not provided as prop
@@ -96,13 +98,17 @@ export function AlbumDetail({ id, albumId }: AlbumDetailProps) {
   }, [effectiveId]);
 
   // Handle asset selection
-  const handleAssetClick = (asset: Asset) => {
+  const handleAssetClick = (asset: Asset, info: { position: ThumbnailPosition | null }) => {
+    // Store the thumbnail position for the selected asset
+    setSelectedThumbnailPosition(info.position);
     setSelectedAsset(asset);
   };
 
   // Close photo viewer
   const handleCloseViewer = () => {
     setSelectedAsset(null);
+    // Reset the selected thumbnail position
+    setSelectedThumbnailPosition(null);
   };
 
   // Handle back button
@@ -228,6 +234,7 @@ export function AlbumDetail({ id, albumId }: AlbumDetailProps) {
           asset={selectedAsset}
           assets={assets}
           onClose={handleCloseViewer}
+          thumbnailPosition={selectedThumbnailPosition}
         />
       )}
     </div>

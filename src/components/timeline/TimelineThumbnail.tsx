@@ -1,19 +1,43 @@
 import { h } from 'preact';
+import { useRef, useEffect } from 'preact/hooks';
 import { Asset } from '../../services/api';
 import apiService from '../../services/api';
+import { ThumbnailPosition } from '../../hooks/useZoomTransition';
 
 interface TimelineThumbnailProps {
   asset: Asset;
   size: number;
-  onClick: () => void;
+  onClick: (info: { position: ThumbnailPosition | null }) => void;
 }
 
 const TimelineThumbnail = ({ asset, size, onClick }: TimelineThumbnailProps) => {
   // Get the thumbnail URL
   const thumbnailUrl = apiService.getAssetThumbnailUrl(asset.id, 'webp');
+  const thumbnailRef = useRef<HTMLDivElement>(null);
+
+  // Function to update position
+  const getPosition = () => {
+    if (thumbnailRef.current) {
+      const rect = thumbnailRef.current.getBoundingClientRect();
+      return {
+        x: rect.left,
+        y: rect.top,
+        width: rect.width,
+        height: rect.height
+      }
+    }
+
+    return null
+  };
+
+  const handleClick = () => {
+    // Update position right before click to ensure accuracy
+    onClick({ position: getPosition() })
+  };
 
   return (
     <div
+      ref={thumbnailRef}
       class="timeline-thumbnail"
       style={{
         width: `${size}px`,
@@ -26,7 +50,7 @@ const TimelineThumbnail = ({ asset, size, onClick }: TimelineThumbnailProps) => 
         WebkitTouchCallout: 'none', // Disable iOS context menu
         userSelect: 'none' // Prevent selection
       }}
-      onClick={onClick}
+      onClick={handleClick}
       onContextMenu={(e) => e.preventDefault()} // Prevent context menu on right-click
     >
       <img

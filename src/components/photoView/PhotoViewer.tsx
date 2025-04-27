@@ -6,23 +6,49 @@ import PhotoViewerCarouselItem from './PhotoViewerCarouselItem';
 import { useImagePreloader } from '../../hooks/useImagePreloader';
 import { usePhotoViewerGestures } from '../../hooks/usePhotoViewerGestures';
 import { useSwipeDirection } from '../../hooks/useSwipeDirection';
+import { useZoomTransition, ThumbnailPosition } from '../../hooks/useZoomTransition';
 
 interface PhotoViewerProps {
   asset: Asset;
   assets: Asset[];
   onClose: () => void;
+  thumbnailPosition?: ThumbnailPosition;
 }
 
 
 
-const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
+const PhotoViewer = ({ asset, assets, onClose, thumbnailPosition }: PhotoViewerProps) => {
   const [scrollPosition, setScrollPosition] = useState<number>(0);
   const [isAtTop, setIsAtTop] = useState<boolean>(true);
   const [isClosing, setIsClosing] = useState<boolean>(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // Use the zoom transition hook
+  const {
+    isAnimating,
+    isZoomingIn,
+    isZoomingOut,
+    getImageTransform,
+    getBackgroundOpacity,
+    startZoomOut
+  } = useZoomTransition({
+    isOpen: true,
+    thumbnailPosition,
+    durationIn: 0.2,
+    durationOut: 0.3,
+    onZoomOutComplete: () => {
+      onClose();
+    }
+  });
+
   // Handle the closing transition
-  const handleClose = () => {
+  const handleClose = (state: { swipeDistance: number }) => {
+    if (thumbnailPosition) {
+      // Use zoom out animation if we have thumbnail position
+      startZoomOut({ offsetY: state.swipeDistance });
+    }
+
+    // Fallback to fade out animation
     setIsClosing(true);
     // Wait for the transition to complete before actually closing
     setTimeout(() => {
@@ -131,7 +157,7 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
         userSelect: 'none', // Prevent selection globally
         opacity: isClosing ? 0 : 1,
         transition: 'opacity 0.3s ease',
-        pointerEvents: isClosing ? 'none' : 'auto' // Disable interactions during closing
+        pointerEvents: (isClosing || isZoomingOut) ? 'none' : 'auto' // Disable interactions during closing
       }}
       onContextMenu={(e) => e.preventDefault()} // Prevent context menu on right-click
     >
@@ -167,9 +193,13 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
             alignItems: 'center',
             justifyContent: 'center',
             position: 'relative',
-            backgroundColor: isClosing ? 'rgba(255, 255, 255, 0)' : 'rgba(255, 255, 255, 1)',
-            transition: 'background-color 0.3s ease',
-            willChange: 'transform', // Optimize for animations
+            backgroundColor: isClosing
+              ? 'rgba(255, 255, 255, 0)'
+              : isZoomingOut
+                ? `rgba(255, 255, 255, ${getBackgroundOpacity()})`
+                : 'rgba(255, 255, 255, 1)',
+            transition: thumbnailPosition ? 'none' : 'background-color 0.3s ease',
+            willChange: 'transform, background-color', // Optimize for animations
             overflow: 'hidden' // Ensure content doesn't overflow during transitions
           }}
         >
@@ -179,6 +209,8 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
             isMain={true}
             loadingStatus={loadingStatus[currentAsset.id] || { thumbnailLoaded: false, fullImageLoaded: false }}
             onImageLoad={() => handleImageLoad(currentAsset.id)}
+            imageTransform={getImageTransform()}
+            isZooming={isZoomingIn || isZoomingOut}
           />
 
           {/* Transitioning asset (for seamless swiping) */}

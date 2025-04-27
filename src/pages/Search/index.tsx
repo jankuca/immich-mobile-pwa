@@ -6,6 +6,7 @@ import VirtualizedTimeline from '../../components/timeline/VirtualizedTimeline';
 import { default as PhotoViewer } from '../../components/photoView/PhotoViewer';
 import apiService, { Asset, Album, Person, SearchResult } from '../../services/api';
 import useAuth from '../../services/auth';
+import { ThumbnailPosition } from '../../hooks/useZoomTransition';
 
 export function Search() {
   const [query, setQuery] = useState<string>('');
@@ -14,6 +15,7 @@ export function Search() {
   const [searchResults, setSearchResults] = useState<SearchResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
+  const [selectedThumbnailPosition, setSelectedThumbnailPosition] = useState<ThumbnailPosition | null>(null);
   const location = useLocation();
   const { apiKey, isAuthenticated } = useAuth();
 
@@ -116,13 +118,17 @@ export function Search() {
   };
 
   // Handle asset click
-  const handleAssetClick = (asset: Asset) => {
+  const handleAssetClick = (asset: Asset, info: { position: ThumbnailPosition | null }) => {
+    // Store the thumbnail position for the selected asset
+    setSelectedThumbnailPosition(info.position);
     setSelectedAsset(asset);
   };
 
   // Close photo viewer
   const handleCloseViewer = () => {
     setSelectedAsset(null);
+    // Reset the selected thumbnail position
+    setSelectedThumbnailPosition(null);
   };
 
   return (
@@ -411,6 +417,7 @@ export function Search() {
                 <VirtualizedTimeline
                   assets={searchResults.assets}
                   onAssetClick={handleAssetClick}
+                  onThumbnailPosition={handleThumbnailPosition}
                   showDateHeaders={false}
                 />
               </div>
@@ -545,6 +552,7 @@ export function Search() {
           asset={selectedAsset}
           assets={searchResults.assets}
           onClose={handleCloseViewer}
+          thumbnailPosition={selectedThumbnailPosition}
         />
       )}
     </div>

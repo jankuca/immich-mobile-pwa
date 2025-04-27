@@ -23,7 +23,7 @@ interface UsePhotoViewerGesturesProps {
   /**
    * Callback when the viewer should close
    */
-  onClose: () => void;
+  onClose: (state: { swipeDistance: number }) => void;
   /**
    * Optional callback to preload an asset
    */
@@ -366,7 +366,7 @@ export function usePhotoViewerGestures({
 
         if (progress > 0.1) {
           // If swiped down more than 10% of the max distance, close the viewer
-          onClose();
+          onClose({ swipeDistance: swipeDistance });
         } else {
           // Otherwise, reset the transform and background
           scrollContainerRef.current.style.transform = '';

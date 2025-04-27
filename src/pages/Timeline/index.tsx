@@ -1,16 +1,18 @@
 import { h } from 'preact';
-import { useState, useEffect } from 'preact/hooks';
+import { useState, useEffect, useCallback } from 'preact/hooks';
 import Header from '../../components/common/Header';
 import VirtualizedTimeline from '../../components/timeline/VirtualizedTimeline';
 import PhotoViewer from '../../components/photoView/PhotoViewer';
 import apiService, { Asset } from '../../services/api';
 import useAuth from '../../services/auth';
+import { ThumbnailPosition } from '../../hooks/useZoomTransition';
 
 export function Timeline() {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
+  const [selectedThumbnailPosition, setSelectedThumbnailPosition] = useState<ThumbnailPosition | null>(null);
   const { logout, user } = useAuth();
 
   // Fetch timeline data
@@ -71,13 +73,17 @@ export function Timeline() {
   }, []);
 
   // Handle asset selection
-  const handleAssetClick = (asset: Asset) => {
+  const handleAssetClick = (asset: Asset, info: { position: ThumbnailPosition | null }) => {
+    // Store the thumbnail position for the selected asset
+    setSelectedThumbnailPosition(info.position);
     setSelectedAsset(asset);
   };
 
   // Close photo viewer
   const handleCloseViewer = () => {
     setSelectedAsset(null);
+    // Reset the selected thumbnail position
+    setSelectedThumbnailPosition(null);
   };
 
   // Handle logout
@@ -172,6 +178,7 @@ export function Timeline() {
           asset={selectedAsset}
           assets={assets}
           onClose={handleCloseViewer}
+          thumbnailPosition={selectedThumbnailPosition}
         />
       )}
     </div>
