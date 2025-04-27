@@ -37,7 +37,7 @@ export function Timeline() {
         const allAssets: Asset[] = [];
 
         // Limit to first 10 buckets for demo purposes
-        const limitedBuckets = buckets.slice(0, 10);
+        const limitedBuckets = buckets.slice(0, 100);
 
         for (const bucket of limitedBuckets) {
           try {
