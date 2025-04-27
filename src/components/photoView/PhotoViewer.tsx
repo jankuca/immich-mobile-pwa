@@ -948,32 +948,6 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
             <button onClick={goToNext}>Next</button>
           </div>
 
-          {/* Close button */}
-          <div
-            class="photo-viewer-close"
-            style={{
-              position: 'absolute',
-              top: 'var(--spacing-md)',
-              left: 'var(--spacing-md)',
-              backgroundColor: 'rgba(255, 255, 255, 0.3)',
-              borderRadius: '50%',
-              width: '40px',
-              height: '40px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'white',
-              cursor: 'pointer',
-              zIndex: 1
-            }}
-            onClick={onClose}
-          >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </div>
-
           {/* Swipe indicators - only shown when at the top */}
           {isAtTop && scrollPosition < 10 && (
             <div style={{ position: 'absolute', bottom: 'var(--spacing-lg)', left: 0, right: 0, display: 'flex', justifyContent: 'center', gap: 'var(--spacing-md)' }}>
