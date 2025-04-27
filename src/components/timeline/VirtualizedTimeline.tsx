@@ -7,6 +7,7 @@ interface VirtualizedTimelineProps {
   assets: Asset[];
   onAssetClick: (asset: Asset) => void;
   columnCount?: number;
+  showDateHeaders?: boolean;
 }
 
 interface TimelineSection {
@@ -17,7 +18,8 @@ interface TimelineSection {
 const VirtualizedTimeline = ({
   assets,
   onAssetClick,
-  columnCount = 3
+  columnCount = 3,
+  showDateHeaders = true
 }: VirtualizedTimelineProps) => {
   const [sections, setSections] = useState<TimelineSection[]>([]);
   const [containerWidth, setContainerWidth] = useState<number>(0);
@@ -91,19 +93,21 @@ const VirtualizedTimeline = ({
     const rowCount = Math.ceil(section.assets.length / columnCount);
     const rows = [];
 
-    // Add date header
-    rows.push(
-      <div key={`header-${section.date}`} class="timeline-date-header" style={{
-        padding: 'var(--spacing-md)',
-        fontWeight: 'var(--font-weight-semibold)',
-        position: 'sticky',
-        top: 0,
-        backgroundColor: 'var(--color-background)',
-        zIndex: 1
-      }}>
-        {formattedDate}
-      </div>
-    );
+    // Add date header if showDateHeaders is true
+    if (showDateHeaders) {
+      rows.push(
+        <div key={`header-${section.date}`} class="timeline-date-header" style={{
+          padding: 'var(--spacing-md)',
+          fontWeight: 'var(--font-weight-semibold)',
+          position: 'sticky',
+          top: 0,
+          backgroundColor: 'var(--color-background)',
+          zIndex: 1
+        }}>
+          {formattedDate}
+        </div>
+      );
+    }
 
     // Add asset rows
     for (let i = 0; i < rowCount; i++) {

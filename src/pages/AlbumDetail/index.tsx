@@ -179,6 +179,7 @@ export function AlbumDetail({ id }: AlbumDetailProps) {
           <VirtualizedTimeline
             assets={assets}
             onAssetClick={handleAssetClick}
+            showDateHeaders={false}
           />
         ) : (
           <div style={{
