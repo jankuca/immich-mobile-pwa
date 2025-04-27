@@ -4,7 +4,6 @@ import { Asset } from '../../services/api';
 import apiService from '../../services/api';
 import PhotoDetails from './PhotoDetails';
 import AssetImage from './AssetImage';
-import useVerticalSwipe from '../../hooks/useVerticalSwipe';
 
 interface PhotoViewerProps {
   asset: Asset;
@@ -23,10 +22,12 @@ interface ImageLoadingStatus {
 const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
   const [currentAsset, setCurrentAsset] = useState<Asset>(asset);
   const [scrollPosition, setScrollPosition] = useState<number>(0);
-  // Remove startY, startX, and swipeDirection as they're now handled by the hook
+  const [startY, setStartY] = useState<number | null>(null);
+  const [startX, setStartX] = useState<number | null>(null);
   const [lastX, setLastX] = useState<number | null>(null);
   const [lastMoveTime, setLastMoveTime] = useState<number | null>(null);
   const [swipeVelocity, setSwipeVelocity] = useState<number>(0);
+  const [swipeDirection, setSwipeDirection] = useState<'horizontal' | 'vertical' | null>(null);
   const [horizontalSwipeOffset, setHorizontalSwipeOffset] = useState<number>(0);
   const [isAtTop, setIsAtTop] = useState<boolean>(true);
   const [loadingStatus, setLoadingStatus] = useState<ImageLoadingStatus>({});
@@ -34,19 +35,6 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
   const [transitioningAsset, setTransitioningAsset] = useState<Asset | null>(null);
   const [transitionDirection, setTransitionDirection] = useState<'left' | 'right' | null>(null);
   const [isTransitioning, setIsTransitioning] = useState<boolean>(false);
-
-  // Use our custom vertical swipe hook
-  const {
-    swipeDirection,
-    handleTouchStart: handleVerticalTouchStart,
-    handleTouchMove: handleVerticalTouchMove,
-    handleTouchEnd: handleVerticalTouchEnd,
-    containerStyle,
-    backgroundOpacity
-  } = useVerticalSwipe({
-    onClose,
-    isAtTop
-  });
 
   // Refs for animation state
   const animationRef = useRef<{
@@ -103,16 +91,19 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
     }
   }, []);
 
-  // Combined touch start handler
+  // Handle touch start for swipe gestures
   const handleTouchStart = (e: TouchEvent) => {
-    // Call the vertical swipe hook's touch start handler
-    handleVerticalTouchStart(e);
-
-    // Record starting touch position for horizontal swipe
+    // Record starting touch position regardless of transition state
+    // This allows interrupting ongoing transitions
     const currentX = e.touches[0].clientX;
+    const currentY = e.touches[0].clientY;
+
+    setStartX(currentX);
+    setStartY(currentY);
     setLastX(currentX);
     setLastMoveTime(Date.now());
     setSwipeVelocity(0);
+    setSwipeDirection(null);
     setHorizontalSwipeOffset(0);
 
     // If we're in the middle of a transition, we'll allow interrupting it
@@ -122,21 +113,15 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
     }
   };
 
-  // Combined touch move handler
+  // Handle touch move for swipe gestures
   const handleTouchMove = (e: TouchEvent) => {
-    // Call the vertical swipe hook's touch move handler first
-    handleVerticalTouchMove(e);
-
-    // If vertical swipe is in progress, don't handle horizontal
-    if (swipeDirection === 'vertical') return;
-
-    // Handle horizontal swipe logic
-    if (lastX === null || lastMoveTime === null) return;
+    if (startX === null || startY === null || lastX === null || lastMoveTime === null) return;
 
     // If we're in a transition but it's marked as interruptible, we can continue
     if (isTransitioning && !animationRef.current.interruptible) return;
 
     const currentX = e.touches[0].clientX;
+    const currentY = e.touches[0].clientY;
     const currentTime = Date.now();
 
     // Calculate velocity (pixels per millisecond)
@@ -151,18 +136,35 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
     setLastX(currentX);
     setLastMoveTime(currentTime);
 
+    const diffX = currentX - startX;
+    const diffY = currentY - startY;
+    const absX = Math.abs(diffX);
+    const absY = Math.abs(diffY);
+
+    // Determine swipe direction if not already set
+    if (!swipeDirection) {
+      // If horizontal movement is greater than vertical and exceeds threshold
+      if (absX > absY && absX > 2) {
+        setSwipeDirection('horizontal');
+      }
+      // If vertical movement is greater than horizontal and exceeds threshold
+      else if (absY > absX && absY > 2 && isAtTop) {
+        setSwipeDirection('vertical');
+      }
+    }
+
     // Handle horizontal swipe
     if (swipeDirection === 'horizontal') {
       e.preventDefault(); // Prevent default scrolling behavior
 
-      // Calculate the cumulative swipe offset
-      const diffX = currentX - lastX; // Current movement
-      let swipeOffset = horizontalSwipeOffset + diffX; // Add to existing offset
+      // We'll use window.innerWidth directly where needed
+
+      // Limit the swipe distance and add resistance at edges
+      let swipeOffset = diffX;
 
       // Add resistance when swiping past the first or last image
-      if ((currentIndex === 0 && swipeOffset > 0) || (currentIndex === assets.length - 1 && swipeOffset < 0)) {
-        // Apply resistance by reducing the effect of the current movement
-        swipeOffset = horizontalSwipeOffset + (diffX / 3);
+      if ((currentIndex === 0 && diffX > 0) || (currentIndex === assets.length - 1 && diffX < 0)) {
+        swipeOffset = diffX / 3; // Add resistance by dividing the offset
       }
 
       // Set up transitioning asset immediately when swiping horizontally
@@ -210,17 +212,34 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
 
       setHorizontalSwipeOffset(swipeOffset);
     }
+    // Handle vertical swipe (existing swipe down to close functionality)
+    else if (swipeDirection === 'vertical' && isAtTop) {
+      // Only handle downward swipes when at the top
+      if (diffY > 10) {
+        e.preventDefault();
+
+        // Calculate the swipe progress (0 to 1)
+        const maxSwipeDistance = window.innerHeight / 3; // 1/3 of screen height for full effect
+        const progress = Math.min(diffY / maxSwipeDistance, 1);
+
+        // Move the scroll container down to follow the finger
+        if (scrollContainerRef.current) {
+          scrollContainerRef.current.style.transform = `translateY(${diffY}px)`;
+          scrollContainerRef.current.style.transition = 'none';
+        }
+
+        // Update the photo container background opacity based on the swipe progress
+        const photoContainer = document.querySelector('.photo-viewer-photo-container');
+        if (photoContainer) {
+          const newOpacity = 1 - progress;
+          (photoContainer as HTMLElement).style.backgroundColor = `rgba(255, 255, 255, ${newOpacity})`;
+        }
+      }
+    }
   };
 
-  // Combined touch end handler
+  // Handle touch end for swipe gestures
   const handleTouchEnd = () => {
-    // Call the vertical swipe hook's touch end handler first
-    handleVerticalTouchEnd();
-
-    // If vertical swipe was in progress, don't handle horizontal
-    if (swipeDirection === 'vertical') return;
-
-    // Handle horizontal swipe completion
     // If we're in a transition and it's not interruptible, ignore touch end
     if (isTransitioning && !animationRef.current.interruptible) return;
 
@@ -427,8 +446,38 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
         }, 150);
       }
     }
+    // Handle vertical swipe completion (existing swipe down to close functionality)
+    else if (swipeDirection === 'vertical' && startY !== null && isAtTop && scrollContainerRef.current) {
+      const transform = scrollContainerRef.current.style.transform;
+      const match = transform.match(/translateY\((\d+)px\)/);
 
-    // Reset horizontal swipe state
+      if (match) {
+        const swipeDistance = parseInt(match[1]);
+        const maxSwipeDistance = window.innerHeight / 3;
+        const progress = swipeDistance / maxSwipeDistance;
+
+        if (progress > 0.1) {
+          // If swiped down more than 10% of the max distance, close the viewer
+          onClose();
+        } else {
+          // Otherwise, reset the transform and background
+          scrollContainerRef.current.style.transform = '';
+          scrollContainerRef.current.style.transition = 'transform 0.3s ease';
+
+          // Reset the photo container background color
+          const photoContainer = document.querySelector('.photo-viewer-photo-container');
+          if (photoContainer) {
+            (photoContainer as HTMLElement).style.backgroundColor = 'rgba(255, 255, 255, 1)';
+            (photoContainer as HTMLElement).style.transition = 'background-color 0.3s ease';
+          }
+        }
+      }
+    }
+
+    // Reset touch tracking state
+    setStartX(null);
+    setStartY(null);
+    setSwipeDirection(null);
     setHorizontalSwipeOffset(0);
   };
 
@@ -695,8 +744,7 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
           overflowY: 'auto',
           overflowX: 'hidden',
           WebkitOverflowScrolling: 'touch', // Smooth scrolling on iOS
-          scrollBehavior: 'smooth',
-          ...containerStyle // Apply transform from the vertical swipe hook
+          scrollBehavior: 'smooth'
         }}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
@@ -712,7 +760,7 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
             alignItems: 'center',
             justifyContent: 'center',
             position: 'relative',
-            backgroundColor: `rgba(255, 255, 255, ${backgroundOpacity})`, // Use opacity from the hook
+            backgroundColor: 'rgba(255, 255, 255, 1)',
             transition: 'background-color 0.3s ease',
             willChange: 'transform', // Optimize for animations
             overflow: 'hidden' // Ensure content doesn't overflow during transitions
