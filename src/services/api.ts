@@ -218,9 +218,68 @@ class ApiService {
   }
 
   // Search
-  async search(query: string): Promise<SearchResult> {
-    const response = await this.api.get('/search', { params: { q: query } });
-    return response.data;
+  async search(query: string, options: {
+    page?: number;
+    size?: number;
+    isArchived?: boolean;
+    isFavorite?: boolean;
+    withArchived?: boolean;
+  } = {}): Promise<SearchResult> {
+    // Log the API key for debugging
+    console.log('Using API key for search:', this.apiKey ? 'API key is set' : 'No API key');
+
+    // Prepare the request payload
+    const payload = {
+      query, // Required parameter
+      page: options.page || 1,
+      size: options.size || 100,
+      isArchived: options.isArchived,
+      isFavorite: options.isFavorite,
+      withArchived: options.withArchived
+    };
+
+    console.log('Search payload:', payload);
+
+    try {
+      // Use the searchSmart endpoint with POST request
+      const response = await this.api.post('/search/smart', payload);
+
+      console.log('Search response status:', response.status);
+      console.log('Search response data:', response.data);
+
+      // The response format is different from what our app expects
+      // We need to transform it to match our SearchResult interface
+      const data = response.data;
+
+      const result = {
+        albums: data.albums?.items || [],
+        people: data.people?.items || [],
+        assets: data.assets?.items || []
+      };
+
+      console.log('Transformed search result:', result);
+
+      return result;
+    } catch (error) {
+      console.error('Search API error:', error);
+
+      // Log more details about the error
+      if (error.response) {
+        // The request was made and the server responded with a status code
+        // that falls out of the range of 2xx
+        console.error('Error response data:', error.response.data);
+        console.error('Error response status:', error.response.status);
+        console.error('Error response headers:', error.response.headers);
+      } else if (error.request) {
+        // The request was made but no response was received
+        console.error('Error request:', error.request);
+      } else {
+        // Something happened in setting up the request that triggered an Error
+        console.error('Error message:', error.message);
+      }
+
+      throw error;
+    }
   }
 
   // Asset URLs

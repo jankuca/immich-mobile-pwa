@@ -5,6 +5,7 @@ import Header from '../../components/common/Header';
 import VirtualizedTimeline from '../../components/timeline/VirtualizedTimeline';
 import { default as PhotoViewer } from '../../components/photoView/PhotoViewer';
 import apiService, { Asset, Album, Person, SearchResult } from '../../services/api';
+import useAuth from '../../services/auth';
 
 export function Search() {
   const [query, setQuery] = useState<string>('');
@@ -14,6 +15,7 @@ export function Search() {
   const [error, setError] = useState<string | null>(null);
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
   const location = useLocation();
+  const { apiKey, isAuthenticated } = useAuth();
 
   // Load recent searches from localStorage
   useEffect(() => {
@@ -40,17 +42,40 @@ export function Search() {
   const handleSearch = async () => {
     if (!query.trim()) return;
 
+    // Check if user is authenticated
+    if (!isAuthenticated) {
+      setError('You must be logged in to search. Please log in and try again.');
+      return;
+    }
+
+    // Check if API key is set
+    if (!apiKey) {
+      setError('API key is not set. Please log in again.');
+      return;
+    }
+
     try {
       setIsSearching(true);
       setError(null);
 
       saveRecentSearch(query);
 
-      const results = await apiService.search(query);
+      console.log('Searching for:', query);
+      console.log('Authentication status:', isAuthenticated ? 'Authenticated' : 'Not authenticated');
+      console.log('API key status:', apiKey ? 'API key is set' : 'No API key');
+
+      // Use the updated search method with options
+      const results = await apiService.search(query, {
+        page: 1,
+        size: 100,
+        withArchived: false
+      });
+
+      console.log('Search results:', results);
       setSearchResults(results);
     } catch (err) {
       console.error('Error searching:', err);
-      setError('Failed to search. Please try again.');
+      setError('Failed to search. Please try again. Error: ' + (err instanceof Error ? err.message : String(err)));
     } finally {
       setIsSearching(false);
     }
@@ -208,7 +233,9 @@ export function Search() {
           <div style={{
             padding: 'var(--spacing-md)',
             color: 'var(--color-danger)',
-            textAlign: 'center'
+            textAlign: 'center',
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-word'
           }}>
             {error}
           </div>
