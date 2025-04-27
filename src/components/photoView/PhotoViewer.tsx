@@ -5,6 +5,7 @@ import PhotoDetails from './PhotoDetails';
 import PhotoViewerCarouselItem from './PhotoViewerCarouselItem';
 import { useImagePreloader } from '../../hooks/useImagePreloader';
 import { usePhotoViewerGestures } from '../../hooks/usePhotoViewerGestures';
+import { useSwipeDirection } from '../../hooks/useSwipeDirection';
 
 interface PhotoViewerProps {
   asset: Asset;
@@ -22,6 +23,16 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
   // Use the image preloader hook
   const { loadingStatus, preloadImage, handleImageLoad } = useImagePreloader(assets, asset.id);
 
+  // Use a single instance of swipe direction hook
+  const {
+    swipeDirection,
+    startX,
+    startY,
+    handleTouchStart,
+    handleDirectionDetection,
+    resetSwipeDirection
+  } = useSwipeDirection();
+
   // Handle scroll events
   const handleScroll = () => {
     if (scrollContainerRef.current) {
@@ -36,7 +47,6 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
     currentAsset,
     transitioningAsset,
     transitionDirection,
-    handleTouchStart,
     handleTouchMove,
     handleTouchEnd,
     photoContainerRef,
@@ -50,7 +60,13 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
       preloadImage(newAsset.id);
     },
     onClose,
-    preloadAsset: preloadImage
+    preloadAsset: preloadImage,
+    swipeDirection,
+    startX,
+    startY,
+    handleTouchStart,
+    handleDirectionDetection,
+    resetSwipeDirection
   });
 
   // Calculate the photo container height based on scroll position

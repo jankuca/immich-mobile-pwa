@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'preact/hooks';
 import { Asset } from '../services/api';
-import { useSwipeDirection } from './useSwipeDirection';
+import { SwipeDirection } from './useSwipeDirection';
 import { useSwipeVelocity } from './useSwipeVelocity';
 
 interface UsePhotoViewerGesturesProps {
@@ -28,6 +28,30 @@ interface UsePhotoViewerGesturesProps {
    * Optional callback to preload an asset
    */
   preloadAsset?: (assetId: string) => void;
+  /**
+   * Current swipe direction
+   */
+  swipeDirection: SwipeDirection;
+  /**
+   * Start X coordinate
+   */
+  startX: number | null;
+  /**
+   * Start Y coordinate
+   */
+  startY: number | null;
+  /**
+   * Handler for touch start
+   */
+  handleTouchStart: (e: TouchEvent) => void;
+  /**
+   * Handler for direction detection
+   */
+  handleDirectionDetection: (currentX: number, currentY: number) => SwipeDirection;
+  /**
+   * Reset swipe direction
+   */
+  resetSwipeDirection: () => void;
 }
 
 interface UsePhotoViewerGesturesReturn {
@@ -43,10 +67,6 @@ interface UsePhotoViewerGesturesReturn {
    * Direction of the transition
    */
   transitionDirection: 'left' | 'right' | null;
-  /**
-   * Handler for touch start event
-   */
-  handleTouchStart: (e: TouchEvent) => void;
   /**
    * Handler for touch move event
    */
@@ -74,7 +94,13 @@ export function usePhotoViewerGestures({
   isAtTop,
   onAssetChange,
   onClose,
-  preloadAsset
+  preloadAsset,
+  swipeDirection,
+  startX,
+  startY,
+  handleTouchStart: directionTouchStart,
+  handleDirectionDetection,
+  resetSwipeDirection
 }: UsePhotoViewerGesturesProps): UsePhotoViewerGesturesReturn {
   const [currentAsset, setCurrentAsset] = useState<Asset>(asset);
   const [transitioningAsset, setTransitioningAsset] = useState<Asset | null>(null);
@@ -87,29 +113,12 @@ export function usePhotoViewerGestures({
   // Find the index of the current asset in the assets array
   const currentIndex = assets.findIndex(a => a.id === currentAsset.id);
 
-  // Use swipe direction hook
-  const {
-    swipeDirection,
-    startX,
-    startY,
-    handleTouchStart: directionTouchStart,
-    handleDirectionDetection,
-    resetSwipeDirection
-  } = useSwipeDirection();
-
   // Use swipe velocity hook
   const {
     swipeVelocity,
     updateVelocity,
     resetVelocity
   } = useSwipeVelocity();
-
-  // Combined touch handlers
-  const handleTouchStart = (e: TouchEvent) => {
-    directionTouchStart(e);
-    resetVelocity();
-    setHorizontalSwipeOffset(0);
-  };
 
   const handleTouchMove = (e: TouchEvent) => {
     if (startX === null || startY === null) return;
@@ -121,10 +130,10 @@ export function usePhotoViewerGestures({
     updateVelocity(currentX);
 
     // Detect swipe direction if not already determined
-    const direction = handleDirectionDetection(currentX, currentY);
+    handleDirectionDetection(currentX, currentY);
 
     // Handle horizontal swipe
-    if (direction === 'horizontal') {
+    if (swipeDirection === 'horizontal') {
       e.preventDefault(); // Prevent default scrolling behavior
 
       const diffX = currentX - startX;
@@ -184,7 +193,7 @@ export function usePhotoViewerGestures({
       setHorizontalSwipeOffset(swipeOffset);
     }
     // Handle vertical swipe (swipe down to close functionality)
-    else if (direction === 'vertical' && isAtTop) {
+    else if (swipeDirection === 'vertical' && isAtTop) {
       // Only handle downward swipes when at the top
       const diffY = currentY - startY;
       if (diffY > 10) {
@@ -393,7 +402,6 @@ export function usePhotoViewerGestures({
     currentAsset,
     transitioningAsset,
     transitionDirection,
-    handleTouchStart,
     handleTouchMove,
     handleTouchEnd,
     photoContainerRef,
