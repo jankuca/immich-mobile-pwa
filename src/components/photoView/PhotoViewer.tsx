@@ -260,17 +260,27 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
 
     // Handle horizontal swipe completion
     if (swipeDirection === 'horizontal' && photoContainerRef.current) {
-      const threshold = window.innerWidth * 0.5; // 50% of screen width as threshold
+      const threshold = window.innerWidth * 0.3; // 30% of screen width as threshold
 
       // Calculate momentum-based threshold
       // Convert velocity from pixels/ms to a 0-1 scale where 1 is a "fast" swipe
-      // A fast swipe is considered to be around 1-2 pixels per millisecond
-      const velocityThreshold = 0.5; // pixels per millisecond
+      // A fast swipe is considered to be around 0.8-1.5 pixels per millisecond
+      const velocityThreshold = 0.3; // Lower threshold to detect fast swipes more easily
+      const highVelocityThreshold = 0.8; // Threshold for very fast swipes
       const normalizedVelocity = Math.abs(swipeVelocity);
       const isFastSwipe = normalizedVelocity > velocityThreshold;
+      const isVeryFastSwipe = normalizedVelocity > highVelocityThreshold;
 
       // For fast swipes, we'll use a lower threshold (20% of screen width)
-      const effectiveThreshold = isFastSwipe ? window.innerWidth * 0.2 : threshold;
+      // For very fast swipes, we'll use an even lower threshold (10% of screen width)
+      let effectiveThreshold: number;
+      if (isVeryFastSwipe) {
+        effectiveThreshold = window.innerWidth * 0.1; // 10% for very fast swipes
+      } else if (isFastSwipe) {
+        effectiveThreshold = window.innerWidth * 0.2; // 20% for normal fast swipes
+      } else {
+        effectiveThreshold = threshold; // 30% for normal swipes
+      }
 
       // Find the main and transitioning containers
       const mainContainer = photoContainerRef.current.querySelector('[data-main="true"]') as HTMLElement;
@@ -278,7 +288,10 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
 
       // Determine if we should navigate to the next/previous image
       // Check both position threshold and velocity
-      if ((horizontalSwipeOffset < -effectiveThreshold || (swipeVelocity < -velocityThreshold && horizontalSwipeOffset < 0))
+      // For very fast swipes, we'll be more lenient with the distance requirement
+      if ((horizontalSwipeOffset < -effectiveThreshold ||
+          (swipeVelocity < -velocityThreshold && horizontalSwipeOffset < 0) ||
+          (swipeVelocity < -highVelocityThreshold && horizontalSwipeOffset < 0)) // Very fast swipes need minimal distance
           && currentIndex < assets.length - 1 && transitioningAsset) {
         // Swiped left past threshold - complete transition to next image
         // Set transition lock but mark animation as interruptible
@@ -294,17 +307,18 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
         if (mainContainer && transitioningContainer) {
           // Calculate animation duration based on velocity
           // Faster swipes = faster animations
-          const baseDuration = 0.2; // seconds
-          const minDuration = 0.1; // seconds
-          const velocityFactor = Math.min(Math.abs(swipeVelocity) / 2, 1); // normalize to 0-1
+          const baseDuration = 0.3; // seconds
+          const minDuration = 0.1; // seconds - even faster for very fast swipes
+          // Normalize velocity to 0-1 scale, but with higher sensitivity
+          const velocityFactor = Math.min(Math.abs(swipeVelocity) / 1.5, 1);
           const duration = Math.max(baseDuration - (velocityFactor * (baseDuration - minDuration)), minDuration);
 
           // Animate both containers to their final positions with velocity-based transition
           mainContainer.style.transform = 'translateX(-100%)';
-          mainContainer.style.transition = `transform ${duration}s ease-out`;
+          mainContainer.style.transition = `transform ${duration}s ease`;
 
           transitioningContainer.style.transform = 'translateX(0)';
-          transitioningContainer.style.transition = `transform ${duration}s ease-out`;
+          transitioningContainer.style.transition = `transform ${duration}s ease`;
 
           // After animation completes, update the current asset
           setTimeout(() => {
@@ -343,7 +357,9 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
           setIsTransitioning(false);
         }
       }
-      else if ((horizontalSwipeOffset > effectiveThreshold || (swipeVelocity > velocityThreshold && horizontalSwipeOffset > 0))
+      else if ((horizontalSwipeOffset > effectiveThreshold ||
+          (swipeVelocity > velocityThreshold && horizontalSwipeOffset > 0) ||
+          (swipeVelocity > highVelocityThreshold && horizontalSwipeOffset > 0)) // Very fast swipes need minimal distance
           && currentIndex > 0 && transitioningAsset) {
         // Swiped right past threshold - complete transition to previous image
         // Set transition lock but mark animation as interruptible
@@ -360,16 +376,17 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
           // Calculate animation duration based on velocity
           // Faster swipes = faster animations
           const baseDuration = 0.2; // seconds
-          const minDuration = 0.1; // seconds
-          const velocityFactor = Math.min(Math.abs(swipeVelocity) / 2, 1); // normalize to 0-1
+          const minDuration = 0.08; // seconds - even faster for very fast swipes
+          // Normalize velocity to 0-1 scale, but with higher sensitivity
+          const velocityFactor = Math.min(Math.abs(swipeVelocity) / 1.5, 1);
           const duration = Math.max(baseDuration - (velocityFactor * (baseDuration - minDuration)), minDuration);
 
           // Animate both containers to their final positions with velocity-based transition
           mainContainer.style.transform = 'translateX(100%)';
-          mainContainer.style.transition = `transform ${duration}s ease-out`;
+          mainContainer.style.transition = `transform ${duration}s ease`;
 
           transitioningContainer.style.transform = 'translateX(0)';
-          transitioningContainer.style.transition = `transform ${duration}s ease-out`;
+          transitioningContainer.style.transition = `transform ${duration}s ease`;
 
           // After animation completes, update the current asset
           setTimeout(() => {
@@ -412,12 +429,12 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
         // Reset position with animation - no transition lock needed for cancellation
         if (mainContainer) {
           mainContainer.style.transform = '';
-          mainContainer.style.transition = 'transform 0.15s ease-out';
+          mainContainer.style.transition = 'transform 0.3s ease';
         }
 
         // Also reset the transitioning container if it exists
         if (transitioningContainer) {
-          transitioningContainer.style.transition = 'transform 0.15s ease-out';
+          transitioningContainer.style.transition = 'transform 0.3s ease';
           transitioningContainer.style.transform = transitionDirection === 'left' ?
             'translateX(100%)' : 'translateX(-100%)';
         }
@@ -501,10 +518,10 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
         if (mainContainer && transitioningContainer) {
           // Animate both containers to their final positions with faster transition
           mainContainer.style.transform = 'translateX(100%)';
-          mainContainer.style.transition = 'transform 0.2s ease-out';
+          mainContainer.style.transition = 'transform 0.2s ease';
 
           transitioningContainer.style.transform = 'translateX(0)';
-          transitioningContainer.style.transition = 'transform 0.2s ease-out';
+          transitioningContainer.style.transition = 'transform 0.2s ease';
 
           // After animation completes, update the current asset
           setTimeout(() => {
@@ -590,10 +607,10 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
         if (mainContainer && transitioningContainer) {
           // Animate both containers to their final positions with faster transition
           mainContainer.style.transform = 'translateX(-100%)';
-          mainContainer.style.transition = 'transform 0.2s ease-out';
+          mainContainer.style.transition = 'transform 0.2s ease';
 
           transitioningContainer.style.transform = 'translateX(0)';
-          transitioningContainer.style.transition = 'transform 0.2s ease-out';
+          transitioningContainer.style.transition = 'transform 0.2s ease';
 
           // After animation completes, update the current asset
           setTimeout(() => {
