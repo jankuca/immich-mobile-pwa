@@ -20,7 +20,7 @@ const TabBar = () => {
               stroke-width="2"
               stroke-linecap="round"
               stroke-linejoin="round"
-              fill={url === '/' ? 'currentColor' : 'none'}
+              fill="none"
             />
           </svg>
         </div>
@@ -38,14 +38,14 @@ const TabBar = () => {
               stroke-width="2"
               stroke-linecap="round"
               stroke-linejoin="round"
-              fill={isInAlbumsSection ? 'currentColor' : 'none'}
+              fill="none"
             />
             <path d="M8.5 10C9.32843 10 10 9.32843 10 8.5C10 7.67157 9.32843 7 8.5 7C7.67157 7 7 7.67157 7 8.5C7 9.32843 7.67157 10 8.5 10Z"
               stroke="currentColor"
               stroke-width="2"
               stroke-linecap="round"
               stroke-linejoin="round"
-              fill={url === '/albums' ? 'currentColor' : 'none'}
+              fill="none"
             />
             <path d="M21 15L16 10L5 21"
               stroke="currentColor"
@@ -69,14 +69,14 @@ const TabBar = () => {
               stroke-width="2"
               stroke-linecap="round"
               stroke-linejoin="round"
-              fill={url === '/people' ? 'currentColor' : 'none'}
+              fill="none"
             />
             <path d="M12 11C14.2091 11 16 9.20914 16 7C16 4.79086 14.2091 3 12 3C9.79086 3 8 4.79086 8 7C8 9.20914 9.79086 11 12 11Z"
               stroke="currentColor"
               stroke-width="2"
               stroke-linecap="round"
               stroke-linejoin="round"
-              fill={url === '/people' ? 'currentColor' : 'none'}
+              fill="none"
             />
           </svg>
         </div>
@@ -94,7 +94,7 @@ const TabBar = () => {
               stroke-width="2"
               stroke-linecap="round"
               stroke-linejoin="round"
-              fill={url === '/search' ? 'currentColor' : 'none'}
+              fill="none"
             />
             <path d="M21 21L16.65 16.65"
               stroke="currentColor"
