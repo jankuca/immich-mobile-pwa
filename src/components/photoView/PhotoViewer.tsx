@@ -3,6 +3,7 @@ import { useState, useRef, useEffect } from 'preact/hooks';
 import { Asset } from '../../services/api';
 import apiService from '../../services/api';
 import PhotoDetails from './PhotoDetails';
+import AssetImage from './AssetImage';
 
 interface PhotoViewerProps {
   asset: Asset;
@@ -773,49 +774,19 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
             ) : (
               <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                 {/* Thumbnail version (shown while full image loads) */}
-                <img
+                <AssetImage
                   src={assetThumbnailUrl}
                   alt={currentAsset.originalFileName}
-                  style={{
-                    position: 'absolute',
-                    maxWidth: '100%',
-                    maxHeight: '100%',
-                    objectFit: 'contain',
-                    filter: 'blur(8px)',
-                    opacity: loadingStatus[currentAsset.id]?.fullImageLoaded ? 0 : 1,
-                    transition: 'opacity 0.3s ease',
-                    WebkitTouchCallout: 'none', // Disable iOS context menu
-                    userSelect: 'none', // Prevent selection
-                    WebkitUserDrag: 'none', // Prevent dragging in Safari
-                    MozUserDrag: 'none', // Firefox
-                    userDrag: 'none', // Standard
-                    touchAction: 'pan-x pan-y' // Allow panning but prevent other gestures
-                  }}
-                  draggable={false} // Prevent HTML5 drag and drop
-                  onContextMenu={(e) => e.preventDefault()} // Prevent context menu on right-click
-                  onDragStart={(e) => e.preventDefault()} // Prevent drag start
+                  isBlurred={true}
+                  isLoaded={!loadingStatus[currentAsset.id]?.fullImageLoaded}
                 />
 
                 {/* Full resolution version */}
-                <img
+                <AssetImage
                   src={assetFullUrl}
                   alt={currentAsset.originalFileName}
-                  style={{
-                    maxWidth: '100%',
-                    maxHeight: '100%',
-                    objectFit: 'contain',
-                    opacity: loadingStatus[currentAsset.id]?.fullImageLoaded ? 1 : 0,
-                    transition: 'opacity 0.3s ease',
-                    WebkitTouchCallout: 'none', // Disable iOS context menu
-                    userSelect: 'none', // Prevent selection
-                    WebkitUserDrag: 'none', // Prevent dragging in Safari
-                    MozUserDrag: 'none', // Firefox
-                    userDrag: 'none', // Standard
-                    touchAction: 'pan-x pan-y' // Allow panning but prevent other gestures
-                  }}
-                  draggable={false} // Prevent HTML5 drag and drop
-                  onContextMenu={(e) => e.preventDefault()} // Prevent context menu on right-click
-                  onDragStart={(e) => e.preventDefault()} // Prevent drag start
+                  isLoaded={loadingStatus[currentAsset.id]?.fullImageLoaded}
+                  style={{}}
                   onLoad={() => {
                     // Mark full image as loaded when it completes loading
                     setLoadingStatus(prev => ({
@@ -881,49 +852,18 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
               ) : (
                 <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                   {/* Thumbnail version of transitioning asset */}
-                  <img
+                  <AssetImage
                     src={apiService.getAssetThumbnailUrl(transitioningAsset.id, 'webp')}
                     alt={transitioningAsset.originalFileName}
-                    style={{
-                      position: 'absolute',
-                      maxWidth: '100%',
-                      maxHeight: '100%',
-                      objectFit: 'contain',
-                      filter: 'blur(8px)',
-                      opacity: loadingStatus[transitioningAsset.id]?.fullImageLoaded ? 0 : 1,
-                      transition: 'opacity 0.3s ease',
-                      WebkitTouchCallout: 'none', // Disable iOS context menu
-                      userSelect: 'none', // Prevent selection
-                      WebkitUserDrag: 'none', // Prevent dragging in Safari
-                      MozUserDrag: 'none', // Firefox
-                      userDrag: 'none', // Standard
-                      touchAction: 'pan-x pan-y' // Allow panning but prevent other gestures
-                    }}
-                    draggable={false} // Prevent HTML5 drag and drop
-                    onContextMenu={(e) => e.preventDefault()} // Prevent context menu on right-click
-                    onDragStart={(e) => e.preventDefault()} // Prevent drag start
+                    isBlurred={true}
+                    isLoaded={!loadingStatus[transitioningAsset.id]?.fullImageLoaded}
                   />
 
                   {/* Full resolution version of transitioning asset */}
-                  <img
+                  <AssetImage
                     src={apiService.getAssetUrl(transitioningAsset.id)}
                     alt={transitioningAsset.originalFileName}
-                    style={{
-                      maxWidth: '100%',
-                      maxHeight: '100%',
-                      objectFit: 'contain',
-                      opacity: loadingStatus[transitioningAsset.id]?.fullImageLoaded ? 1 : 0,
-                      transition: 'opacity 0.3s ease',
-                      WebkitTouchCallout: 'none', // Disable iOS context menu
-                      userSelect: 'none', // Prevent selection
-                      WebkitUserDrag: 'none', // Prevent dragging in Safari
-                      MozUserDrag: 'none', // Firefox
-                      userDrag: 'none', // Standard
-                      touchAction: 'pan-x pan-y' // Allow panning but prevent other gestures
-                    }}
-                    draggable={false} // Prevent HTML5 drag and drop
-                    onContextMenu={(e) => e.preventDefault()} // Prevent context menu on right-click
-                    onDragStart={(e) => e.preventDefault()} // Prevent drag start
+                    isLoaded={loadingStatus[transitioningAsset.id]?.fullImageLoaded}
                   />
                 </div>
               )}
