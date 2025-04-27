@@ -1,9 +1,9 @@
 import { h } from 'preact';
 import { useState, useRef, useEffect } from 'preact/hooks';
 import { Asset } from '../../services/api';
-import apiService from '../../services/api';
 import PhotoDetails from './PhotoDetails';
 import PhotoViewerCarouselItem from './PhotoViewerCarouselItem';
+import { useImagePreloader } from '../../hooks/useImagePreloader';
 
 interface PhotoViewerProps {
   asset: Asset;
@@ -11,13 +11,7 @@ interface PhotoViewerProps {
   onClose: () => void;
 }
 
-// Interface for tracking image loading status
-interface ImageLoadingStatus {
-  [assetId: string]: {
-    thumbnailLoaded: boolean;
-    fullImageLoaded: boolean;
-  };
-}
+
 
 const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
   const [currentAsset, setCurrentAsset] = useState<Asset>(asset);
@@ -30,11 +24,12 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
   const [swipeDirection, setSwipeDirection] = useState<'horizontal' | 'vertical' | null>(null);
   const [horizontalSwipeOffset, setHorizontalSwipeOffset] = useState<number>(0);
   const [isAtTop, setIsAtTop] = useState<boolean>(true);
-  const [loadingStatus, setLoadingStatus] = useState<ImageLoadingStatus>({});
-  const [preloadedImages, setPreloadedImages] = useState<Set<string>>(new Set());
   const [transitioningAsset, setTransitioningAsset] = useState<Asset | null>(null);
   const [transitionDirection, setTransitionDirection] = useState<'left' | 'right' | null>(null);
   const [isTransitioning, setIsTransitioning] = useState<boolean>(false);
+
+  // Use the image preloader hook
+  const { loadingStatus, preloadImage, handleImageLoad } = useImagePreloader(assets, currentAsset.id);
 
   // Refs for animation state
   const animationRef = useRef<{
@@ -648,63 +643,7 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
     }
   };
 
-  // Preload an image and track its loading status
-  const preloadImage = (assetId: string) => {
-    if (!assetId || preloadedImages.has(assetId)) return;
 
-    // Initialize loading status for this asset if not already set
-    if (!loadingStatus[assetId]) {
-      setLoadingStatus(prev => ({
-        ...prev,
-        [assetId]: { thumbnailLoaded: false, fullImageLoaded: false }
-      }));
-    }
-
-    // Preload thumbnail
-    const thumbnailUrl = apiService.getAssetThumbnailUrl(assetId, 'webp');
-    const thumbnailImg = new Image();
-    thumbnailImg.onload = () => {
-      setLoadingStatus(prev => ({
-        ...prev,
-        [assetId]: { ...prev[assetId], thumbnailLoaded: true }
-      }));
-
-      // After thumbnail loads, preload the full image
-      const fullUrl = apiService.getAssetUrl(assetId);
-      const fullImg = new Image();
-      fullImg.onload = () => {
-        setLoadingStatus(prev => ({
-          ...prev,
-          [assetId]: { ...prev[assetId], fullImageLoaded: true }
-        }));
-      };
-      fullImg.src = fullUrl;
-    };
-    thumbnailImg.src = thumbnailUrl;
-
-    // Mark this asset as being preloaded
-    setPreloadedImages(prev => new Set(prev).add(assetId));
-  };
-
-  // Preload neighboring images when current asset changes
-  useEffect(() => {
-    // Preload current image if not already loaded
-    preloadImage(currentAsset.id);
-
-    // Preload next 2 images if available
-    for (let i = 1; i <= 2; i++) {
-      if (currentIndex + i < assets.length) {
-        preloadImage(assets[currentIndex + i].id);
-      }
-    }
-
-    // Preload previous 2 images if available
-    for (let i = 1; i <= 2; i++) {
-      if (currentIndex - i >= 0) {
-        preloadImage(assets[currentIndex - i].id);
-      }
-    }
-  }, [currentAsset.id]);
 
   // Prevent body scrolling when the photo viewer is open
   useEffect(() => {
@@ -767,16 +706,7 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
             asset={currentAsset}
             isMain={true}
             loadingStatus={loadingStatus[currentAsset.id] || { thumbnailLoaded: false, fullImageLoaded: false }}
-            onImageLoad={() => {
-              // Mark full image as loaded when it completes loading
-              setLoadingStatus(prev => ({
-                ...prev,
-                [currentAsset.id]: {
-                  thumbnailLoaded: true,
-                  fullImageLoaded: true
-                }
-              }));
-            }}
+            onImageLoad={() => handleImageLoad(currentAsset.id)}
           />
 
           {/* Transitioning asset (for seamless swiping) */}
