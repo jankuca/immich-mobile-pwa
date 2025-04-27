@@ -23,6 +23,9 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
   const [scrollPosition, setScrollPosition] = useState<number>(0);
   const [startY, setStartY] = useState<number | null>(null);
   const [startX, setStartX] = useState<number | null>(null);
+  const [lastX, setLastX] = useState<number | null>(null);
+  const [lastMoveTime, setLastMoveTime] = useState<number | null>(null);
+  const [swipeVelocity, setSwipeVelocity] = useState<number>(0);
   const [swipeDirection, setSwipeDirection] = useState<'horizontal' | 'vertical' | null>(null);
   const [horizontalSwipeOffset, setHorizontalSwipeOffset] = useState<number>(0);
   const [isAtTop, setIsAtTop] = useState<boolean>(true);
@@ -30,6 +33,22 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
   const [preloadedImages, setPreloadedImages] = useState<Set<string>>(new Set());
   const [transitioningAsset, setTransitioningAsset] = useState<Asset | null>(null);
   const [transitionDirection, setTransitionDirection] = useState<'left' | 'right' | null>(null);
+  const [isTransitioning, setIsTransitioning] = useState<boolean>(false);
+
+  // Refs for animation state
+  const animationRef = useRef<{
+    inProgress: boolean;
+    startTime: number | null;
+    targetAsset: Asset | null;
+    direction: 'left' | 'right' | null;
+    interruptible: boolean;
+  }>({
+    inProgress: false,
+    startTime: null,
+    targetAsset: null,
+    direction: null,
+    interruptible: true
+  });
 
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -73,19 +92,49 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
 
   // Handle touch start for swipe gestures
   const handleTouchStart = (e: TouchEvent) => {
-    // Record starting touch position
-    setStartX(e.touches[0].clientX);
-    setStartY(e.touches[0].clientY);
+    // Record starting touch position regardless of transition state
+    // This allows interrupting ongoing transitions
+    const currentX = e.touches[0].clientX;
+    const currentY = e.touches[0].clientY;
+
+    setStartX(currentX);
+    setStartY(currentY);
+    setLastX(currentX);
+    setLastMoveTime(Date.now());
+    setSwipeVelocity(0);
     setSwipeDirection(null);
     setHorizontalSwipeOffset(0);
+
+    // If we're in the middle of a transition, we'll allow interrupting it
+    if (isTransitioning) {
+      // Update animation ref to mark it as interruptible
+      animationRef.current.interruptible = true;
+    }
   };
 
   // Handle touch move for swipe gestures
   const handleTouchMove = (e: TouchEvent) => {
-    if (startX === null || startY === null) return;
+    if (startX === null || startY === null || lastX === null || lastMoveTime === null) return;
+
+    // If we're in a transition but it's marked as interruptible, we can continue
+    if (isTransitioning && !animationRef.current.interruptible) return;
 
     const currentX = e.touches[0].clientX;
     const currentY = e.touches[0].clientY;
+    const currentTime = Date.now();
+
+    // Calculate velocity (pixels per millisecond)
+    const timeDelta = currentTime - lastMoveTime;
+    if (timeDelta > 0) {
+      const distance = currentX - lastX;
+      const velocity = distance / timeDelta; // pixels per millisecond
+      setSwipeVelocity(velocity);
+    }
+
+    // Update last position and time for next velocity calculation
+    setLastX(currentX);
+    setLastMoveTime(currentTime);
+
     const diffX = currentX - startX;
     const diffY = currentY - startY;
     const absX = Math.abs(diffX);
@@ -94,11 +143,11 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
     // Determine swipe direction if not already set
     if (!swipeDirection) {
       // If horizontal movement is greater than vertical and exceeds threshold
-      if (absX > absY && absX > 10) {
+      if (absX > absY && absX > 2) {
         setSwipeDirection('horizontal');
       }
       // If vertical movement is greater than horizontal and exceeds threshold
-      else if (absY > absX && absY > 10 && isAtTop) {
+      else if (absY > absX && absY > 2 && isAtTop) {
         setSwipeDirection('vertical');
       }
     }
@@ -107,8 +156,7 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
     if (swipeDirection === 'horizontal') {
       e.preventDefault(); // Prevent default scrolling behavior
 
-      // Calculate how far we can swipe (screen width)
-      const maxSwipeDistance = window.innerWidth;
+      // We'll use window.innerWidth directly where needed
 
       // Limit the swipe distance and add resistance at edges
       let swipeOffset = diffX;
@@ -118,8 +166,8 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
         swipeOffset = diffX / 3; // Add resistance by dividing the offset
       }
 
-      // Set up transitioning asset if we're swiping significantly and haven't set it yet
-      if (!transitioningAsset && Math.abs(swipeOffset) > 5) {
+      // Set up transitioning asset immediately when swiping horizontally
+      if (!transitioningAsset) {
         if (swipeOffset > 0 && currentIndex > 0) {
           // Swiping right to see previous image
           const prevAsset = assets[currentIndex - 1];
@@ -191,25 +239,71 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
 
   // Handle touch end for swipe gestures
   const handleTouchEnd = () => {
+    // If we're in a transition and it's not interruptible, ignore touch end
+    if (isTransitioning && !animationRef.current.interruptible) return;
+
+    // If we're interrupting an animation, clean up the previous animation state
+    if (isTransitioning && animationRef.current.interruptible) {
+      // Cancel any ongoing animations
+      const mainContainer = photoContainerRef.current?.querySelector('[data-main="true"]') as HTMLElement;
+      const transitioningContainer = photoContainerRef.current?.querySelector('[data-transitioning="true"]') as HTMLElement;
+
+      if (mainContainer) {
+        mainContainer.style.transition = 'none';
+      }
+
+      if (transitioningContainer) {
+        transitioningContainer.style.transition = 'none';
+      }
+    }
+
     // Handle horizontal swipe completion
     if (swipeDirection === 'horizontal' && photoContainerRef.current) {
-      const threshold = window.innerWidth * 0.2; // 20% of screen width as threshold
+      const threshold = window.innerWidth * 0.5; // 50% of screen width as threshold
+
+      // Calculate momentum-based threshold
+      // Convert velocity from pixels/ms to a 0-1 scale where 1 is a "fast" swipe
+      // A fast swipe is considered to be around 1-2 pixels per millisecond
+      const velocityThreshold = 0.5; // pixels per millisecond
+      const normalizedVelocity = Math.abs(swipeVelocity);
+      const isFastSwipe = normalizedVelocity > velocityThreshold;
+
+      // For fast swipes, we'll use a lower threshold (20% of screen width)
+      const effectiveThreshold = isFastSwipe ? window.innerWidth * 0.2 : threshold;
 
       // Find the main and transitioning containers
       const mainContainer = photoContainerRef.current.querySelector('[data-main="true"]') as HTMLElement;
       const transitioningContainer = photoContainerRef.current.querySelector('[data-transitioning="true"]') as HTMLElement;
 
       // Determine if we should navigate to the next/previous image
-      if (horizontalSwipeOffset < -threshold && currentIndex < assets.length - 1 && transitioningAsset) {
+      // Check both position threshold and velocity
+      if ((horizontalSwipeOffset < -effectiveThreshold || (swipeVelocity < -velocityThreshold && horizontalSwipeOffset < 0))
+          && currentIndex < assets.length - 1 && transitioningAsset) {
         // Swiped left past threshold - complete transition to next image
+        // Set transition lock but mark animation as interruptible
+        setIsTransitioning(true);
+        animationRef.current = {
+          inProgress: true,
+          startTime: Date.now(),
+          targetAsset: transitioningAsset,
+          direction: 'left',
+          interruptible: true
+        };
 
         if (mainContainer && transitioningContainer) {
-          // Animate both containers to their final positions
+          // Calculate animation duration based on velocity
+          // Faster swipes = faster animations
+          const baseDuration = 0.2; // seconds
+          const minDuration = 0.1; // seconds
+          const velocityFactor = Math.min(Math.abs(swipeVelocity) / 2, 1); // normalize to 0-1
+          const duration = Math.max(baseDuration - (velocityFactor * (baseDuration - minDuration)), minDuration);
+
+          // Animate both containers to their final positions with velocity-based transition
           mainContainer.style.transform = 'translateX(-100%)';
-          mainContainer.style.transition = 'transform 0.3s ease';
+          mainContainer.style.transition = `transform ${duration}s ease-out`;
 
           transitioningContainer.style.transform = 'translateX(0)';
-          transitioningContainer.style.transition = 'transform 0.3s ease';
+          transitioningContainer.style.transition = `transform ${duration}s ease-out`;
 
           // After animation completes, update the current asset
           setTimeout(() => {
@@ -227,24 +321,54 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
               mainContainer.style.transition = 'none';
               mainContainer.style.transform = '';
             }
-          }, 300);
+
+            // Reset animation state
+            animationRef.current = {
+              inProgress: false,
+              startTime: null,
+              targetAsset: null,
+              direction: null,
+              interruptible: true
+            };
+
+            // Release transition lock immediately
+            setIsTransitioning(false);
+          }, duration * 1000);
         } else {
           // Fallback if containers not found
           setCurrentAsset(transitioningAsset);
           setTransitioningAsset(null);
           setTransitionDirection(null);
+          setIsTransitioning(false);
         }
       }
-      else if (horizontalSwipeOffset > threshold && currentIndex > 0 && transitioningAsset) {
+      else if ((horizontalSwipeOffset > effectiveThreshold || (swipeVelocity > velocityThreshold && horizontalSwipeOffset > 0))
+          && currentIndex > 0 && transitioningAsset) {
         // Swiped right past threshold - complete transition to previous image
+        // Set transition lock but mark animation as interruptible
+        setIsTransitioning(true);
+        animationRef.current = {
+          inProgress: true,
+          startTime: Date.now(),
+          targetAsset: transitioningAsset,
+          direction: 'right',
+          interruptible: true
+        };
 
         if (mainContainer && transitioningContainer) {
-          // Animate both containers to their final positions
+          // Calculate animation duration based on velocity
+          // Faster swipes = faster animations
+          const baseDuration = 0.2; // seconds
+          const minDuration = 0.1; // seconds
+          const velocityFactor = Math.min(Math.abs(swipeVelocity) / 2, 1); // normalize to 0-1
+          const duration = Math.max(baseDuration - (velocityFactor * (baseDuration - minDuration)), minDuration);
+
+          // Animate both containers to their final positions with velocity-based transition
           mainContainer.style.transform = 'translateX(100%)';
-          mainContainer.style.transition = 'transform 0.3s ease';
+          mainContainer.style.transition = `transform ${duration}s ease-out`;
 
           transitioningContainer.style.transform = 'translateX(0)';
-          transitioningContainer.style.transition = 'transform 0.3s ease';
+          transitioningContainer.style.transition = `transform ${duration}s ease-out`;
 
           // After animation completes, update the current asset
           setTimeout(() => {
@@ -262,24 +386,37 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
               mainContainer.style.transition = 'none';
               mainContainer.style.transform = '';
             }
-          }, 300);
+
+            // Reset animation state
+            animationRef.current = {
+              inProgress: false,
+              startTime: null,
+              targetAsset: null,
+              direction: null,
+              interruptible: true
+            };
+
+            // Release transition lock immediately
+            setIsTransitioning(false);
+          }, duration * 1000);
         } else {
           // Fallback if containers not found
           setCurrentAsset(transitioningAsset);
           setTransitioningAsset(null);
           setTransitionDirection(null);
+          setIsTransitioning(false);
         }
       }
       else {
-        // Reset position with animation
+        // Reset position with animation - no transition lock needed for cancellation
         if (mainContainer) {
           mainContainer.style.transform = '';
-          mainContainer.style.transition = 'transform 0.3s ease';
+          mainContainer.style.transition = 'transform 0.15s ease-out';
         }
 
         // Also reset the transitioning container if it exists
         if (transitioningContainer) {
-          transitioningContainer.style.transition = 'transform 0.3s ease';
+          transitioningContainer.style.transition = 'transform 0.15s ease-out';
           transitioningContainer.style.transform = transitionDirection === 'left' ?
             'translateX(100%)' : 'translateX(-100%)';
         }
@@ -288,7 +425,7 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
         setTimeout(() => {
           setTransitioningAsset(null);
           setTransitionDirection(null);
-        }, 300);
+        }, 150);
       }
     }
     // Handle vertical swipe completion (existing swipe down to close functionality)
@@ -330,118 +467,169 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
 
   // Navigate to previous asset with animation
   const goToPrevious = () => {
-    if (currentIndex > 0) {
-      const prevAsset = assets[currentIndex - 1];
+    // Don't start a new transition if one is already in progress
+    if (isTransitioning || currentIndex <= 0) return;
 
-      // Ensure the previous asset is preloaded
-      preloadImage(prevAsset.id);
+    const prevAsset = assets[currentIndex - 1];
 
-      // Set the transitioning asset and direction
-      setTransitioningAsset(prevAsset);
-      setTransitionDirection('right');
+    // Set transition lock but mark animation as interruptible
+    setIsTransitioning(true);
+    animationRef.current = {
+      inProgress: true,
+      startTime: Date.now(),
+      targetAsset: prevAsset,
+      direction: 'right',
+      interruptible: true
+    };
 
-      // Apply exit animation
-      if (photoContainerRef.current) {
-        // Wait a tiny bit for the transitioning asset to render
-        setTimeout(() => {
-          // Find the main and transitioning containers
-          const mainContainer = photoContainerRef.current.querySelector('[data-main="true"]') as HTMLElement;
-          const transitioningContainer = photoContainerRef.current.querySelector('[data-transitioning="true"]') as HTMLElement;
+    // Ensure the previous asset is preloaded
+    preloadImage(prevAsset.id);
 
-          if (mainContainer && transitioningContainer) {
-            // Animate both containers to their final positions
-            mainContainer.style.transform = 'translateX(100%)';
-            mainContainer.style.transition = 'transform 0.3s ease';
+    // Set the transitioning asset and direction
+    setTransitioningAsset(prevAsset);
+    setTransitionDirection('right');
 
-            transitioningContainer.style.transform = 'translateX(0)';
-            transitioningContainer.style.transition = 'transform 0.3s ease';
+    // Apply exit animation
+    if (photoContainerRef.current) {
+      // Wait a minimal time for the transitioning asset to render
+      setTimeout(() => {
+        // Find the main and transitioning containers
+        const mainContainer = photoContainerRef.current.querySelector('[data-main="true"]') as HTMLElement;
+        const transitioningContainer = photoContainerRef.current.querySelector('[data-transitioning="true"]') as HTMLElement;
 
-            // After animation completes, update the current asset
-            setTimeout(() => {
-              setCurrentAsset(prevAsset);
-              setTransitioningAsset(null);
-              setTransitionDirection(null);
+        if (mainContainer && transitioningContainer) {
+          // Animate both containers to their final positions with faster transition
+          mainContainer.style.transform = 'translateX(100%)';
+          mainContainer.style.transition = 'transform 0.2s ease-out';
 
-              // Reset scroll position
-              if (scrollContainerRef.current) {
-                scrollContainerRef.current.scrollTop = 0;
-              }
+          transitioningContainer.style.transform = 'translateX(0)';
+          transitioningContainer.style.transition = 'transform 0.2s ease-out';
 
-              // Reset transforms
-              if (mainContainer) {
-                mainContainer.style.transition = 'none';
-                mainContainer.style.transform = '';
-              }
-            }, 300);
-          }
-        }, 50);
-      } else {
-        // Fallback if ref not available
-        setCurrentAsset(prevAsset);
-        setTransitioningAsset(null);
-        setTransitionDirection(null);
-        if (scrollContainerRef.current) {
-          scrollContainerRef.current.scrollTop = 0;
+          // After animation completes, update the current asset
+          setTimeout(() => {
+            setCurrentAsset(prevAsset);
+            setTransitioningAsset(null);
+            setTransitionDirection(null);
+
+            // Reset scroll position
+            if (scrollContainerRef.current) {
+              scrollContainerRef.current.scrollTop = 0;
+            }
+
+            // Reset transforms
+            if (mainContainer) {
+              mainContainer.style.transition = 'none';
+              mainContainer.style.transform = '';
+            }
+
+            // Reset animation state
+            animationRef.current = {
+              inProgress: false,
+              startTime: null,
+              targetAsset: null,
+              direction: null,
+              interruptible: true
+            };
+
+            // Release transition lock immediately
+            setIsTransitioning(false);
+          }, 200);
+        } else {
+          // Fallback if containers not found
+          setCurrentAsset(prevAsset);
+          setTransitioningAsset(null);
+          setTransitionDirection(null);
+          setIsTransitioning(false);
         }
+      }, 10);
+    } else {
+      // Fallback if ref not available
+      setCurrentAsset(prevAsset);
+      setTransitioningAsset(null);
+      setTransitionDirection(null);
+      setIsTransitioning(false);
+      if (scrollContainerRef.current) {
+        scrollContainerRef.current.scrollTop = 0;
       }
     }
   };
 
   // Navigate to next asset with animation
   const goToNext = () => {
-    if (currentIndex < assets.length - 1) {
-      const nextAsset = assets[currentIndex + 1];
+    // Don't start a new transition if one is already in progress
+    if (isTransitioning || currentIndex >= assets.length - 1) return;
 
-      // Ensure the next asset is preloaded
-      preloadImage(nextAsset.id);
+    const nextAsset = assets[currentIndex + 1];
 
-      // Set the transitioning asset and direction
-      setTransitioningAsset(nextAsset);
-      setTransitionDirection('left');
+    // Set transition lock but mark animation as interruptible
+    setIsTransitioning(true);
+    animationRef.current = {
+      inProgress: true,
+      startTime: Date.now(),
+      targetAsset: nextAsset,
+      direction: 'left',
+      interruptible: true
+    };
 
-      // Apply exit animation
-      if (photoContainerRef.current) {
-        // Wait a tiny bit for the transitioning asset to render
-        setTimeout(() => {
-          // Find the main and transitioning containers
-          const mainContainer = photoContainerRef.current.querySelector('[data-main="true"]') as HTMLElement;
-          const transitioningContainer = photoContainerRef.current.querySelector('[data-transitioning="true"]') as HTMLElement;
+    // Ensure the next asset is preloaded
+    preloadImage(nextAsset.id);
 
-          if (mainContainer && transitioningContainer) {
-            // Animate both containers to their final positions
-            mainContainer.style.transform = 'translateX(-100%)';
-            mainContainer.style.transition = 'transform 0.3s ease';
+    // Set the transitioning asset and direction
+    setTransitioningAsset(nextAsset);
+    setTransitionDirection('left');
 
-            transitioningContainer.style.transform = 'translateX(0)';
-            transitioningContainer.style.transition = 'transform 0.3s ease';
+    // Apply exit animation
+    if (photoContainerRef.current) {
+      // Wait a minimal time for the transitioning asset to render
+      setTimeout(() => {
+        // Find the main and transitioning containers
+        const mainContainer = photoContainerRef.current.querySelector('[data-main="true"]') as HTMLElement;
+        const transitioningContainer = photoContainerRef.current.querySelector('[data-transitioning="true"]') as HTMLElement;
 
-            // After animation completes, update the current asset
-            setTimeout(() => {
-              setCurrentAsset(nextAsset);
-              setTransitioningAsset(null);
-              setTransitionDirection(null);
+        if (mainContainer && transitioningContainer) {
+          // Animate both containers to their final positions with faster transition
+          mainContainer.style.transform = 'translateX(-100%)';
+          mainContainer.style.transition = 'transform 0.2s ease-out';
 
-              // Reset scroll position
-              if (scrollContainerRef.current) {
-                scrollContainerRef.current.scrollTop = 0;
-              }
+          transitioningContainer.style.transform = 'translateX(0)';
+          transitioningContainer.style.transition = 'transform 0.2s ease-out';
 
-              // Reset transforms
-              if (mainContainer) {
-                mainContainer.style.transition = 'none';
-                mainContainer.style.transform = '';
-              }
-            }, 300);
-          }
-        }, 50);
-      } else {
-        // Fallback if ref not available
-        setCurrentAsset(nextAsset);
-        setTransitioningAsset(null);
-        setTransitionDirection(null);
-        if (scrollContainerRef.current) {
-          scrollContainerRef.current.scrollTop = 0;
+          // After animation completes, update the current asset
+          setTimeout(() => {
+            setCurrentAsset(nextAsset);
+            setTransitioningAsset(null);
+            setTransitionDirection(null);
+
+            // Reset scroll position
+            if (scrollContainerRef.current) {
+              scrollContainerRef.current.scrollTop = 0;
+            }
+
+            // Reset transforms
+            if (mainContainer) {
+              mainContainer.style.transition = 'none';
+              mainContainer.style.transform = '';
+            }
+
+            // Release transition lock immediately
+            setIsTransitioning(false);
+          }, 200);
+        } else {
+          // Fallback if containers not found
+          setCurrentAsset(nextAsset);
+          setTransitioningAsset(null);
+          setTransitionDirection(null);
+          setIsTransitioning(false);
         }
+      }, 10);
+    } else {
+      // Fallback if ref not available
+      setCurrentAsset(nextAsset);
+      setTransitioningAsset(null);
+      setTransitionDirection(null);
+      setIsTransitioning(false);
+      if (scrollContainerRef.current) {
+        scrollContainerRef.current.scrollTop = 0;
       }
     }
   };
@@ -489,14 +677,18 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
     // Preload current image if not already loaded
     preloadImage(currentAsset.id);
 
-    // Preload next image if available
-    if (currentIndex < assets.length - 1) {
-      preloadImage(assets[currentIndex + 1].id);
+    // Preload next 2 images if available
+    for (let i = 1; i <= 2; i++) {
+      if (currentIndex + i < assets.length) {
+        preloadImage(assets[currentIndex + i].id);
+      }
     }
 
-    // Preload previous image if available
-    if (currentIndex > 0) {
-      preloadImage(assets[currentIndex - 1].id);
+    // Preload previous 2 images if available
+    for (let i = 1; i <= 2; i++) {
+      if (currentIndex - i >= 0) {
+        preloadImage(assets[currentIndex - i].id);
+      }
     }
   }, [currentAsset.id]);
 
@@ -753,6 +945,12 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
               )}
             </>
           )}
+
+          {/* Navigation buttons - hidden but needed to reference functions */}
+          <div style={{ display: 'none' }}>
+            <button onClick={goToPrevious}>Previous</button>
+            <button onClick={goToNext}>Next</button>
+          </div>
 
           {/* Close button */}
           <div
