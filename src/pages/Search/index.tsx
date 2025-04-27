@@ -1,6 +1,6 @@
 import { h } from 'preact';
 import { useState, useEffect } from 'preact/hooks';
-import { route } from 'preact-router';
+import { useLocation } from 'preact-iso';
 import Header from '../../components/common/Header';
 import VirtualizedTimeline from '../../components/timeline/VirtualizedTimeline';
 import { default as PhotoViewer } from '../../components/photoView/PhotoViewer';
@@ -13,6 +13,7 @@ export function Search() {
   const [searchResults, setSearchResults] = useState<SearchResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
+  const location = useLocation();
 
   // Load recent searches from localStorage
   useEffect(() => {
@@ -80,12 +81,12 @@ export function Search() {
 
   // Handle album click
   const handleAlbumClick = (albumId: string) => {
-    route(`/albums/${albumId}`);
+    location.route(`/albums/${albumId}`);
   };
 
   // Handle person click
   const handlePersonClick = (personId: string) => {
-    route(`/people/${personId}`);
+    location.route(`/people/${personId}`);
   };
 
   // Handle asset click
