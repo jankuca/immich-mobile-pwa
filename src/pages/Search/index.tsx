@@ -138,7 +138,7 @@ export function Search() {
             position: 'sticky',
             top: 0,
             backgroundColor: 'var(--color-background)',
-            zIndex: 1
+            zIndex: 20
           }}
         >
           <div style={{
@@ -243,7 +243,7 @@ export function Search() {
 
         {/* Search results */}
         {searchResults && !isSearching && (
-          <div class="search-results" style={{ padding: 'var(--spacing-md)' }}>
+          <div class="search-results" style={{ padding: 'var(--spacing-md) var(--spacing-md) 0' }}>
             {/* Albums results */}
             {searchResults.albums && searchResults.albums.length > 0 && (
               <div class="search-section">
@@ -395,11 +395,17 @@ export function Search() {
 
             {/* Photos results */}
             {searchResults.assets && searchResults.assets.length > 0 && (
-              <div class="search-section" style={{ marginTop: 'var(--spacing-lg)' }}>
+              <div class="search-section" style={{
+                marginTop: 'var(--spacing-lg)',
+                marginLeft: '-var(--spacing-md)',
+                marginRight: '-var(--spacing-md)'
+              }}>
                 <h2 style={{
                   fontSize: 'var(--font-size-lg)',
                   fontWeight: 'var(--font-weight-semibold)',
-                  marginBottom: 'var(--spacing-md)'
+                  marginBottom: 'var(--spacing-md)',
+                  paddingLeft: 'var(--spacing-md)',
+                  paddingRight: 'var(--spacing-md)'
                 }}>
                   Photos
                 </h2>
@@ -407,6 +413,7 @@ export function Search() {
                 <VirtualizedTimeline
                   assets={searchResults.assets}
                   onAssetClick={handleAssetClick}
+                  showDateHeaders={false}
                 />
               </div>
             )}

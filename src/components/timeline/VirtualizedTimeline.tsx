@@ -34,6 +34,27 @@ const VirtualizedTimeline = ({
       return;
     }
 
+    // If showDateHeaders is false, merge all assets into a single section
+    if (!showDateHeaders) {
+      // Sort assets by date (newest first)
+      const sortedAssets = [...assets].sort((a, b) => {
+        const dateA = a.localDateTime ? new Date(a.localDateTime).getTime() : 0;
+        const dateB = b.localDateTime ? new Date(b.localDateTime).getTime() : 0;
+        return dateB - dateA;
+      });
+
+      // Create a single section with all assets
+      const mergedSection = {
+        date: 'all-assets',
+        assets: sortedAssets
+      };
+
+      console.log('Created merged section for all assets:', mergedSection);
+      setSections([mergedSection]);
+      return;
+    }
+
+    // If showDateHeaders is true, group by date as before
     const groupedByDate: { [key: string]: Asset[] } = {};
 
     assets.forEach(asset => {
@@ -59,7 +80,7 @@ const VirtualizedTimeline = ({
 
     console.log('Grouped assets into sections:', sortedSections);
     setSections(sortedSections);
-  }, [assets]);
+  }, [assets, showDateHeaders]);
 
   // Update container width on resize
   useEffect(() => {
