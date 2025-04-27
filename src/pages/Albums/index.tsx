@@ -268,8 +268,8 @@ export function Albums() {
                             fontSize: 'var(--font-size-xs)',
                             color: 'var(--color-gray)'
                           }}>
-                            {new Date(album.startDate).toLocaleDateString()}
-                            {album.endDate && ` - ${new Date(album.endDate).toLocaleDateString()}`}
+                            {new Date(album.startDate).toLocaleDateString(undefined, { localeMatcher: 'best fit' })}
+                            {album.endDate && ` - ${new Date(album.endDate).toLocaleDateString(undefined, { localeMatcher: 'best fit' })}`}
                           </p>
                         )}
                       </div>
