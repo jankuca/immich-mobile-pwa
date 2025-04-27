@@ -123,6 +123,7 @@ const VirtualizedTimeline = ({
           position: 'sticky',
           top: 0,
           backgroundColor: 'var(--color-background)',
+          color: 'var(--color-text)',
           zIndex: 1
         }}>
           {formattedDate}
@@ -175,9 +176,17 @@ const VirtualizedTimeline = ({
   console.log('Container width:', containerWidth);
 
   return (
-    <div ref={containerRef} class="virtualized-timeline" style={{ height: '100%', overflow: 'hidden' }}>
+    <div ref={containerRef} class="virtualized-timeline" style={{
+      height: '100%',
+      overflow: 'hidden',
+      backgroundColor: 'var(--color-background)'
+    }}>
       {containerWidth > 0 && sections.length > 0 ? (
-        <div style={{ height: '100%', overflow: 'auto' }}>
+        <div style={{
+          height: '100%',
+          overflow: 'auto',
+          backgroundColor: 'var(--color-background)'
+        }}>
           {sections.map((section, index) => renderRow(section, index))}
         </div>
       ) : (
@@ -187,7 +196,8 @@ const VirtualizedTimeline = ({
           justifyContent: 'center',
           height: '100%',
           flexDirection: 'column',
-          color: 'var(--color-gray)'
+          color: 'var(--color-gray)',
+          backgroundColor: 'var(--color-background)'
         }}>
           {assets.length > 0 && sections.length === 0 ? (
             <>

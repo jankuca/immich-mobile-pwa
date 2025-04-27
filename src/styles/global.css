@@ -103,11 +103,6 @@ body {
 
 /* Dark mode support */
 @media (prefers-color-scheme: dark) {
-  body {
-    background-color: var(--color-background-dark);
-    color: var(--color-text-dark);
-  }
-  
   .ios-tabbar {
     border-top-color: var(--color-gray-dark);
   }

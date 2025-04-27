@@ -1,6 +1,6 @@
 import { render } from 'preact';
-import { LocationProvider, Router, Route } from 'preact-iso';
-import { useEffect } from 'preact/hooks';
+import { LocationProvider, Router, Route, useLocation } from 'preact-iso';
+import { useState, useEffect } from 'preact/hooks';
 import 'preact/debug'; // Enable Preact DevTools
 
 import Timeline from './pages/Timeline';
@@ -65,6 +65,147 @@ const ProtectedRoute = ({ component: Component, ...rest }: any) => {
   return isAuthenticated ? <Component {...rest} /> : null;
 };
 
+// Main app with persistent tabs
+const PersistentTabsApp = () => {
+  const { url, ...rest } = useLocation();
+  const [timelineMounted, setTimelineMounted] = useState<boolean>(false);
+  const [albumsMounted, setAlbumsMounted] = useState<boolean>(false);
+  const [albumDetailMounted, setAlbumDetailMounted] = useState<boolean>(false);
+  const [albumDetailId, setAlbumDetailId] = useState<string | null>(null);
+  const [peopleMounted, setPeopleMounted] = useState<boolean>(false);
+  const [searchMounted, setSearchMounted] = useState<boolean>(false);
+
+  // Determine which tab is active based on the URL
+  const basePath = '/' + (url.split('/')[1] || '');
+  const isAlbumDetail = url.startsWith('/albums/') && url !== '/albums';
+
+  // Extract album ID from URL if on album detail page
+  useEffect(() => {
+    if (isAlbumDetail) {
+      const id = url.split('/')[2];
+      setAlbumDetailId(id);
+      setAlbumDetailMounted(true);
+      setAlbumsMounted(true); // Ensure albums list is also mounted
+    }
+  }, [isAlbumDetail, url]);
+
+  // Mount components when they're first visited
+  console.debug('URL changed to:', url);
+  useEffect(() => {
+    console.debug('URL changed to:', url);
+    if (url === '/') setTimelineMounted(true);
+    else if (url === '/albums' || isAlbumDetail) setAlbumsMounted(true);
+    else if (url === '/people') setPeopleMounted(true);
+    else if (url === '/search') setSearchMounted(true);
+  }, [url, isAlbumDetail]);
+
+  // Determine which tab is active for styling
+  const activeTab = isAlbumDetail ? '/albums' : basePath;
+
+  return (
+    <div style={{
+      height: '100%',
+      width: '100%',
+      position: 'relative',
+      backgroundColor: 'var(--color-background)'
+    }}>
+      {/* Timeline Tab */}
+      <div
+        style={{
+          height: '100%',
+          width: '100%',
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          visibility: activeTab === '/' ? 'visible' : 'hidden',
+          zIndex: activeTab === '/' ? 1 : 0,
+          backgroundColor: 'var(--color-background)'
+        }}
+      >
+        {timelineMounted && <Timeline />}
+      </div>
+
+      {/* Albums Tab with Navigation Stack */}
+      <div
+        style={{
+          height: '100%',
+          width: '100%',
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          visibility: activeTab === '/albums' ? 'visible' : 'hidden',
+          zIndex: activeTab === '/albums' ? 1 : 0,
+          backgroundColor: 'var(--color-background)'
+        }}
+      >
+        {/* Album List */}
+        <div
+          style={{
+            height: '100%',
+            width: '100%',
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            visibility: !isAlbumDetail ? 'visible' : 'hidden',
+            zIndex: !isAlbumDetail ? 1 : 0,
+            backgroundColor: 'var(--color-background)'
+          }}
+        >
+          {albumsMounted && <Albums />}
+        </div>
+
+        {/* Album Detail */}
+        <div
+          style={{
+            height: '100%',
+            width: '100%',
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            visibility: isAlbumDetail ? 'visible' : 'hidden',
+            zIndex: isAlbumDetail ? 1 : 0,
+            backgroundColor: 'var(--color-background)'
+          }}
+        >
+          {albumDetailMounted && albumDetailId && <AlbumDetail albumId={albumDetailId} />}
+        </div>
+      </div>
+
+      {/* People Tab */}
+      <div
+        style={{
+          height: '100%',
+          width: '100%',
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          visibility: activeTab === '/people' ? 'visible' : 'hidden',
+          zIndex: activeTab === '/people' ? 1 : 0,
+          backgroundColor: 'var(--color-background)'
+        }}
+      >
+        {peopleMounted && <People />}
+      </div>
+
+      {/* Search Tab */}
+      <div
+        style={{
+          height: '100%',
+          width: '100%',
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          visibility: activeTab === '/search' ? 'visible' : 'hidden',
+          zIndex: activeTab === '/search' ? 1 : 0,
+          backgroundColor: 'var(--color-background)'
+        }}
+      >
+        {searchMounted && <Search />}
+      </div>
+    </div>
+  );
+};
+
 export function App() {
   const { isAuthenticated } = useAuth();
 
@@ -73,16 +214,20 @@ export function App() {
 
 	return (
 		<LocationProvider>
-			<div id="app-container" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-				<main style={{ flex: 1, overflow: 'hidden' }}>
+			<div id="app-container" style={{
+				height: '100%',
+				display: 'flex',
+				flexDirection: 'column',
+				backgroundColor: 'var(--color-background)'
+			}}>
+				<main style={{
+					flex: 1,
+					overflow: 'hidden',
+					backgroundColor: 'var(--color-background)'
+				}}>
 					<Router>
 						<Route path="/login" component={Login} />
-						<Route path="/" component={props => <ProtectedRoute component={Timeline} {...props} />} />
-						<Route path="/albums" component={props => <ProtectedRoute component={Albums} {...props} />} />
-						<Route path="/albums/:id" component={props => <ProtectedRoute component={AlbumDetail} {...props} />} />
-						<Route path="/people" component={props => <ProtectedRoute component={People} {...props} />} />
-						<Route path="/search" component={props => <ProtectedRoute component={Search} {...props} />} />
-						<Route default component={NotFound} />
+						<Route default component={props => <ProtectedRoute component={PersistentTabsApp} {...props} />} />
 					</Router>
 				</main>
 				{isAuthenticated && <TabBar />}

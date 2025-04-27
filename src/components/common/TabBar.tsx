@@ -2,16 +2,24 @@ import { h } from 'preact';
 import { useLocation } from 'preact-iso';
 
 const TabBar = () => {
-  const { url } = useLocation();
+  const { url, route } = useLocation();
 
   // Check if the current URL is in the albums section
   const isInAlbumsSection = url === '/albums' || url.startsWith('/albums/');
+  const isInPeopleSection = url === '/people' || url.startsWith('/people/');
+
+  // Handle tab click without reloading the page
+  const handleTabClick = (e: MouseEvent, path: string) => {
+    e.preventDefault();
+    route(path);
+  };
 
   return (
     <nav class="ios-tabbar">
       <a
         href="/"
         class={`ios-tabbar-item ${url === '/' ? 'active' : ''}`}
+        onClick={(e) => handleTabClick(e, '/')}
       >
         <div class="ios-tabbar-icon">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -30,6 +38,7 @@ const TabBar = () => {
       <a
         href="/albums"
         class={`ios-tabbar-item ${isInAlbumsSection ? 'active' : ''}`}
+        onClick={(e) => handleTabClick(e, '/albums')}
       >
         <div class="ios-tabbar-icon">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -60,7 +69,8 @@ const TabBar = () => {
 
       <a
         href="/people"
-        class={`ios-tabbar-item ${url === '/people' ? 'active' : ''}`}
+        class={`ios-tabbar-item ${isInPeopleSection ? 'active' : ''}`}
+        onClick={(e) => handleTabClick(e, '/people')}
       >
         <div class="ios-tabbar-icon">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -86,6 +96,7 @@ const TabBar = () => {
       <a
         href="/search"
         class={`ios-tabbar-item ${url === '/search' ? 'active' : ''}`}
+        onClick={(e) => handleTabClick(e, '/search')}
       >
         <div class="ios-tabbar-icon">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">

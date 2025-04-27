@@ -8,9 +8,10 @@ import apiService, { Asset, Album } from '../../services/api';
 
 interface AlbumDetailProps {
   id?: string;
+  albumId?: string;
 }
 
-export function AlbumDetail({ id }: AlbumDetailProps) {
+export function AlbumDetail({ id, albumId }: AlbumDetailProps) {
   const [album, setAlbum] = useState<Album | null>(null);
   const [assets, setAssets] = useState<Asset[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -18,10 +19,17 @@ export function AlbumDetail({ id }: AlbumDetailProps) {
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
   const location = useLocation();
 
+  // Extract ID from URL if not provided as prop
+  const { url } = location;
+  const urlId = url.startsWith('/albums/') ? url.split('/')[2] : null;
+
+  // Use albumId prop, id prop, or extract from URL
+  const effectiveId = albumId || id || urlId;
+
   // Fetch album data
   useEffect(() => {
     const fetchAlbum = async () => {
-      if (!id) {
+      if (!effectiveId) {
         setError('Album ID is missing');
         setIsLoading(false);
         return;
@@ -32,14 +40,14 @@ export function AlbumDetail({ id }: AlbumDetailProps) {
         setError(null);
 
         // Get album details
-        const albumData = await apiService.getAlbum(id);
+        const albumData = await apiService.getAlbum(effectiveId);
         setAlbum(albumData);
 
         // Get time buckets for this album
         const timeBucketsResponse = await apiService.getTimeBuckets({
           size: 'DAY',
           isTrashed: false,
-          albumId: id
+          albumId: effectiveId
         });
 
         console.log('Album time buckets response:', timeBucketsResponse);
@@ -59,7 +67,7 @@ export function AlbumDetail({ id }: AlbumDetailProps) {
               timeBucket: bucket,
               size: 'DAY',
               isTrashed: false,
-              albumId: id
+              albumId: effectiveId
             });
 
             console.log(`Album bucket ${bucket} assets:`, bucketAssets);
@@ -85,7 +93,7 @@ export function AlbumDetail({ id }: AlbumDetailProps) {
     };
 
     fetchAlbum();
-  }, [id]);
+  }, [effectiveId]);
 
   // Handle asset selection
   const handleAssetClick = (asset: Asset) => {

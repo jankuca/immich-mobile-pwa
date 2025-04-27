@@ -13,24 +13,24 @@
   --color-gray-dark: #48484a;
   --color-background: #ffffff;
   --color-text: #000000;
-  
+
   /* Dark mode colors */
   --color-background-dark: #000000;
   --color-text-dark: #ffffff;
-  
+
   /* Spacing */
   --spacing-xs: 4px;
   --spacing-sm: 8px;
   --spacing-md: 16px;
   --spacing-lg: 24px;
   --spacing-xl: 32px;
-  
+
   /* Border radius */
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 14px;
   --radius-xl: 20px;
-  
+
   /* Font sizes */
   --font-size-xs: 12px;
   --font-size-sm: 14px;
@@ -38,33 +38,33 @@
   --font-size-lg: 18px;
   --font-size-xl: 20px;
   --font-size-xxl: 24px;
-  
+
   /* Font weights */
   --font-weight-regular: 400;
   --font-weight-medium: 500;
   --font-weight-semibold: 600;
   --font-weight-bold: 700;
-  
+
   /* Shadows */
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
   --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.05);
   --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.05);
-  
+
   /* Transitions */
   --transition-fast: 150ms ease;
   --transition-normal: 250ms ease;
   --transition-slow: 350ms ease;
-  
+
   /* Z-index */
   --z-index-tabbar: 100;
   --z-index-header: 90;
   --z-index-modal: 1000;
-  
+
   /* Dimensions */
   --tabbar-height: 50px;
   --header-height: 44px;
   --safe-area-bottom: env(safe-area-inset-bottom, 0px);
-  
+
   /* Add RGB versions of colors for rgba usage */
   --color-background-rgb: 255, 255, 255;
   --color-text-rgb: 0, 0, 0;
@@ -72,6 +72,8 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
+    --color-background: var(--color-background-dark);
+    --color-text: var(--color-text-dark);
     --color-background-rgb: 0, 0, 0;
     --color-text-rgb: 255, 255, 255;
   }
