@@ -3,26 +3,30 @@ import { h } from 'preact';
 interface HeaderProps {
   title: string;
   showBackButton?: boolean;
+  leftAction?: {
+    icon: preact.ComponentChildren;
+    onClick: () => void;
+  };
   rightAction?: {
     icon: preact.ComponentChildren;
     onClick: () => void;
   };
 }
 
-const Header = ({ title, showBackButton = false, rightAction }: HeaderProps) => {
+const Header = ({ title, showBackButton = false, leftAction, rightAction }: HeaderProps) => {
   const handleBack = () => {
     window.history.back();
   };
 
   return (
     <header class="ios-header">
-      {showBackButton && (
-        <button 
-          class="ios-header-back-button" 
+      {showBackButton && !leftAction && (
+        <button
+          class="ios-header-back-button"
           onClick={handleBack}
-          style={{ 
-            background: 'none', 
-            border: 'none', 
+          style={{
+            background: 'none',
+            border: 'none',
             color: 'var(--color-primary)',
             fontSize: 'var(--font-size-md)',
             display: 'flex',
@@ -37,22 +41,40 @@ const Header = ({ title, showBackButton = false, rightAction }: HeaderProps) => 
           <span style={{ marginLeft: 'var(--spacing-xs)' }}>Back</span>
         </button>
       )}
-      
-      <h1 class="ios-header-title" style={{ 
-        flex: 1, 
-        textAlign: showBackButton ? 'center' : 'left',
-        marginLeft: showBackButton ? 0 : 'var(--spacing-md)'
+
+      {leftAction && (
+        <button
+          class="ios-header-left-action"
+          onClick={leftAction.onClick}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: 'var(--color-primary)',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+        >
+          {leftAction.icon}
+        </button>
+      )}
+
+      <h1 class="ios-header-title" style={{
+        flex: 1,
+        textAlign: (showBackButton || leftAction) ? 'center' : 'left',
+        marginLeft: (showBackButton || leftAction) ? 0 : 'var(--spacing-md)'
       }}>
         {title}
       </h1>
-      
+
       {rightAction && (
-        <button 
-          class="ios-header-action" 
+        <button
+          class="ios-header-action"
           onClick={rightAction.onClick}
-          style={{ 
-            background: 'none', 
-            border: 'none', 
+          style={{
+            background: 'none',
+            border: 'none',
             color: 'var(--color-primary)',
             cursor: 'pointer',
             display: 'flex',

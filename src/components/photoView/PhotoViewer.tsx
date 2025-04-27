@@ -74,7 +74,7 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
         const maxSwipeDistance = window.innerHeight / 3; // 1/3 of screen height for full effect
         const progress = Math.min(diff / maxSwipeDistance, 1);
 
-        // Apply a transform to the container to follow the finger
+        // Move the scroll container down to follow the finger
         if (scrollContainerRef.current) {
           scrollContainerRef.current.style.transform = `translateY(${diff}px)`;
           scrollContainerRef.current.style.transition = 'none';

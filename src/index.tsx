@@ -5,6 +5,7 @@ import 'preact/debug'; // Enable Preact DevTools
 
 import Timeline from './pages/Timeline';
 import Albums from './pages/Albums';
+import AlbumDetail from './pages/AlbumDetail';
 import People from './pages/People';
 import Search from './pages/Search';
 import Login from './pages/Login';
@@ -78,6 +79,7 @@ export function App() {
 						<Route path="/login" component={Login} />
 						<Route path="/" component={props => <ProtectedRoute component={Timeline} {...props} />} />
 						<Route path="/albums" component={props => <ProtectedRoute component={Albums} {...props} />} />
+						<Route path="/albums/:id" component={props => <ProtectedRoute component={AlbumDetail} {...props} />} />
 						<Route path="/people" component={props => <ProtectedRoute component={People} {...props} />} />
 						<Route path="/search" component={props => <ProtectedRoute component={Search} {...props} />} />
 						<Route default component={NotFound} />

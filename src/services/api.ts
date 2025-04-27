@@ -196,8 +196,13 @@ class ApiService {
     return response.data;
   }
 
-  async getAlbumInfo(albumId: string): Promise<Album> {
+  async getAlbum(albumId: string): Promise<Album> {
     const response = await this.api.get(`/albums/${albumId}`);
+    return response.data;
+  }
+
+  async getAlbumAssets(albumId: string): Promise<Asset[]> {
+    const response = await this.api.get(`/albums/${albumId}/assets`);
     return response.data;
   }
 
