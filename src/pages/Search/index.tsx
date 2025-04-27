@@ -243,7 +243,7 @@ export function Search() {
 
         {/* Search results */}
         {searchResults && !isSearching && (
-          <div class="search-results" style={{ padding: 'var(--spacing-md) var(--spacing-md) 0' }}>
+          <div class="search-results" style={{ padding: 'var(--spacing-md) 0 0' }}>
             {/* Albums results */}
             {searchResults.albums && searchResults.albums.length > 0 && (
               <div class="search-section">
@@ -397,8 +397,6 @@ export function Search() {
             {searchResults.assets && searchResults.assets.length > 0 && (
               <div class="search-section" style={{
                 marginTop: 'var(--spacing-lg)',
-                marginLeft: '-var(--spacing-md)',
-                marginRight: '-var(--spacing-md)'
               }}>
                 <h2 style={{
                   fontSize: 'var(--font-size-lg)',
