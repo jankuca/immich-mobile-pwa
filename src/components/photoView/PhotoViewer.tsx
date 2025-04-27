@@ -18,7 +18,17 @@ interface PhotoViewerProps {
 const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
   const [scrollPosition, setScrollPosition] = useState<number>(0);
   const [isAtTop, setIsAtTop] = useState<boolean>(true);
+  const [isClosing, setIsClosing] = useState<boolean>(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Handle the closing transition
+  const handleClose = () => {
+    setIsClosing(true);
+    // Wait for the transition to complete before actually closing
+    setTimeout(() => {
+      onClose();
+    }, 300); // Match this with the transition duration
+  };
 
   // Use the image preloader hook
   const { loadingStatus, preloadImage, handleImageLoad } = useImagePreloader(assets, asset.id);
@@ -26,11 +36,13 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
   // Use a single instance of swipe direction hook
   const {
     swipeDirection,
-    startX,
-    startY,
+    currentX,
+    currentY,
     handleTouchStart,
-    handleDirectionDetection,
-    resetSwipeDirection
+    handleTouchMove: directionTouchMove,
+    resetSwipeDirection,
+    getHorizontalSwipeDistance,
+    getVerticalSwipeDistance
   } = useSwipeDirection();
 
   // Handle scroll events
@@ -47,7 +59,7 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
     currentAsset,
     transitioningAsset,
     transitionDirection,
-    handleTouchMove,
+    handleTouchMove: gesturesTouchMove,
     handleTouchEnd,
     photoContainerRef,
     scrollContainerRef
@@ -59,15 +71,21 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
       // Update the preloader with the new asset ID
       preloadImage(newAsset.id);
     },
-    onClose,
+    onClose: handleClose, // Use our transition handler instead of direct onClose
     preloadAsset: preloadImage,
     swipeDirection,
-    startX,
-    startY,
-    handleTouchStart,
-    handleDirectionDetection,
+    currentX,
+    currentY,
+    getHorizontalSwipeDistance,
+    getVerticalSwipeDistance,
     resetSwipeDirection
   });
+
+  // Combined touch move handler
+  const handleTouchMove = (e: TouchEvent) => {
+    directionTouchMove(e);
+    gesturesTouchMove(e);
+  };
 
   // Calculate the photo container height based on scroll position
   // As we scroll down, the photo container shrinks from 100vh to a minimum height
@@ -110,7 +128,10 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
         zIndex: 1000,
         overflow: 'hidden', // Prevent content from being visible outside the container
         WebkitTouchCallout: 'none', // Disable iOS context menu globally
-        userSelect: 'none' // Prevent selection globally
+        userSelect: 'none', // Prevent selection globally
+        opacity: isClosing ? 0 : 1,
+        transition: 'opacity 0.3s ease',
+        pointerEvents: isClosing ? 'none' : 'auto' // Disable interactions during closing
       }}
       onContextMenu={(e) => e.preventDefault()} // Prevent context menu on right-click
     >
@@ -123,7 +144,14 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
           overflowY: 'auto',
           overflowX: 'hidden',
           WebkitOverflowScrolling: 'touch', // Smooth scrolling on iOS
-          scrollBehavior: 'smooth'
+          scrollBehavior: 'smooth',
+          // Keep the container in place during closing transition
+          position: isClosing ? 'fixed' : 'relative',
+          top: isClosing ? 0 : 'auto',
+          left: isClosing ? 0 : 'auto',
+          right: isClosing ? 0 : 'auto',
+          bottom: isClosing ? 0 : 'auto',
+          width: isClosing ? '100%' : 'auto'
         }}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
@@ -139,7 +167,7 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
             alignItems: 'center',
             justifyContent: 'center',
             position: 'relative',
-            backgroundColor: 'rgba(255, 255, 255, 1)',
+            backgroundColor: isClosing ? 'rgba(255, 255, 255, 0)' : 'rgba(255, 255, 255, 1)',
             transition: 'background-color 0.3s ease',
             willChange: 'transform', // Optimize for animations
             overflow: 'hidden' // Ensure content doesn't overflow during transitions

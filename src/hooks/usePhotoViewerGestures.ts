@@ -33,21 +33,21 @@ interface UsePhotoViewerGesturesProps {
    */
   swipeDirection: SwipeDirection;
   /**
-   * Start X coordinate
+   * Current X coordinate
    */
-  startX: number | null;
+  currentX: number | null;
   /**
-   * Start Y coordinate
+   * Current Y coordinate
    */
-  startY: number | null;
+  currentY: number | null;
   /**
-   * Handler for touch start
+   * Get horizontal swipe distance
    */
-  handleTouchStart: (e: TouchEvent) => void;
+  getHorizontalSwipeDistance: () => number;
   /**
-   * Handler for direction detection
+   * Get vertical swipe distance
    */
-  handleDirectionDetection: (currentX: number, currentY: number) => SwipeDirection;
+  getVerticalSwipeDistance: () => number;
   /**
    * Reset swipe direction
    */
@@ -96,10 +96,10 @@ export function usePhotoViewerGestures({
   onClose,
   preloadAsset,
   swipeDirection,
-  startX,
-  startY,
-  handleTouchStart: directionTouchStart,
-  handleDirectionDetection,
+  currentX,
+  currentY,
+  getHorizontalSwipeDistance,
+  getVerticalSwipeDistance,
   resetSwipeDirection
 }: UsePhotoViewerGesturesProps): UsePhotoViewerGesturesReturn {
   const [currentAsset, setCurrentAsset] = useState<Asset>(asset);
@@ -121,22 +121,16 @@ export function usePhotoViewerGestures({
   } = useSwipeVelocity();
 
   const handleTouchMove = (e: TouchEvent) => {
-    if (startX === null || startY === null) return;
-
-    const currentX = e.touches[0].clientX;
-    const currentY = e.touches[0].clientY;
+    if (currentX === null || currentY === null) return;
 
     // Update velocity for momentum calculations
     updateVelocity(currentX);
-
-    // Detect swipe direction if not already determined
-    handleDirectionDetection(currentX, currentY);
 
     // Handle horizontal swipe
     if (swipeDirection === 'horizontal') {
       e.preventDefault(); // Prevent default scrolling behavior
 
-      const diffX = currentX - startX;
+      const diffX = getHorizontalSwipeDistance();
 
       // Add resistance when swiping past the first or last image
       let swipeOffset = diffX;
@@ -195,7 +189,7 @@ export function usePhotoViewerGestures({
     // Handle vertical swipe (swipe down to close functionality)
     else if (swipeDirection === 'vertical' && isAtTop) {
       // Only handle downward swipes when at the top
-      const diffY = currentY - startY;
+      const diffY = getVerticalSwipeDistance();
       if (diffY > 10) {
         e.preventDefault();
 
@@ -361,7 +355,7 @@ export function usePhotoViewerGestures({
       }
     }
     // Handle vertical swipe completion (swipe down to close functionality)
-    else if (swipeDirection === 'vertical' && startY !== null && isAtTop && scrollContainerRef.current) {
+    else if (swipeDirection === 'vertical' && isAtTop && scrollContainerRef.current) {
       const transform = scrollContainerRef.current.style.transform;
       const match = transform.match(/translateY\((\d+)px\)/);
 
