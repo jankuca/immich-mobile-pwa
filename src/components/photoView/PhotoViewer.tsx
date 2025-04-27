@@ -3,7 +3,7 @@ import { useState, useRef, useEffect } from 'preact/hooks';
 import { Asset } from '../../services/api';
 import apiService from '../../services/api';
 import PhotoDetails from './PhotoDetails';
-import AssetImage from './AssetImage';
+import PhotoViewerCarouselItem from './PhotoViewerCarouselItem';
 
 interface PhotoViewerProps {
   asset: Asset;
@@ -57,10 +57,6 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
 
   // Find the index of the current asset in the assets array
   const currentIndex = assets.findIndex(a => a.id === currentAsset.id);
-
-  // Get the URLs for the current asset
-  const assetThumbnailUrl = apiService.getAssetThumbnailUrl(currentAsset.id, 'webp');
-  const assetFullUrl = apiService.getAssetUrl(currentAsset.id);
 
   // Calculate the photo container height based on scroll position
   // As we scroll down, the photo container shrinks from 100vh to a minimum height
@@ -767,124 +763,34 @@ const PhotoViewer = ({ asset, assets, onClose }: PhotoViewerProps) => {
           }}
         >
           {/* Main photo/video content */}
-          <div
-            data-main="true"
-            style={{
-              position: 'absolute',
-              width: '100%',
-              height: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
+          <PhotoViewerCarouselItem
+            asset={currentAsset}
+            isMain={true}
+            loadingStatus={loadingStatus[currentAsset.id] || { thumbnailLoaded: false, fullImageLoaded: false }}
+            onImageLoad={() => {
+              // Mark full image as loaded when it completes loading
+              setLoadingStatus(prev => ({
+                ...prev,
+                [currentAsset.id]: {
+                  thumbnailLoaded: true,
+                  fullImageLoaded: true
+                }
+              }));
             }}
-          >
-            {currentAsset.type === 'VIDEO' ? (
-              <video
-                src={assetFullUrl}
-                controls
-                style={{
-                  maxWidth: '100%',
-                  maxHeight: '100%',
-                  objectFit: 'contain'
-                }}
-              />
-            ) : (
-              <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                {/* Thumbnail version (shown while full image loads) */}
-                <AssetImage
-                  src={assetThumbnailUrl}
-                  alt={currentAsset.originalFileName}
-                  isBlurred={true}
-                  isLoaded={!loadingStatus[currentAsset.id]?.fullImageLoaded}
-                />
-
-                {/* Full resolution version */}
-                <AssetImage
-                  src={assetFullUrl}
-                  alt={currentAsset.originalFileName}
-                  isLoaded={loadingStatus[currentAsset.id]?.fullImageLoaded}
-                  style={{}}
-                  onLoad={() => {
-                    // Mark full image as loaded when it completes loading
-                    setLoadingStatus(prev => ({
-                      ...prev,
-                      [currentAsset.id]: {
-                        thumbnailLoaded: true,
-                        fullImageLoaded: true
-                      }
-                    }));
-                  }}
-                />
-
-                {/* Loading indicator (shown while neither image is loaded) */}
-                {!loadingStatus[currentAsset.id]?.thumbnailLoaded && !loadingStatus[currentAsset.id]?.fullImageLoaded && (
-                  <div style={{
-                    position: 'absolute',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 'var(--spacing-md)'
-                  }}>
-                    <div class="loading-spinner" style={{
-                      width: '40px',
-                      height: '40px',
-                      border: '4px solid var(--color-gray-light)',
-                      borderTopColor: 'var(--color-primary)',
-                      borderRadius: '50%',
-                      animation: 'spin 1s linear infinite'
-                    }} />
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+          />
 
           {/* Transitioning asset (for seamless swiping) */}
           {transitioningAsset && (
-            <div
-              data-transitioning="true"
+            <PhotoViewerCarouselItem
+              asset={transitioningAsset}
+              isTransitioning={true}
+              loadingStatus={loadingStatus[transitioningAsset.id] || { thumbnailLoaded: false, fullImageLoaded: false }}
               style={{
-                position: 'absolute',
-                width: '100%',
-                height: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
                 left: 0,
                 top: 0,
                 transform: transitionDirection === 'left' ? 'translateX(100%)' : 'translateX(-100%)'
               }}
-            >
-              {transitioningAsset.type === 'VIDEO' ? (
-                <video
-                  src={apiService.getAssetUrl(transitioningAsset.id)}
-                  controls
-                  style={{
-                    maxWidth: '100%',
-                    maxHeight: '100%',
-                    objectFit: 'contain'
-                  }}
-                />
-              ) : (
-                <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                  {/* Thumbnail version of transitioning asset */}
-                  <AssetImage
-                    src={apiService.getAssetThumbnailUrl(transitioningAsset.id, 'webp')}
-                    alt={transitioningAsset.originalFileName}
-                    isBlurred={true}
-                    isLoaded={!loadingStatus[transitioningAsset.id]?.fullImageLoaded}
-                  />
-
-                  {/* Full resolution version of transitioning asset */}
-                  <AssetImage
-                    src={apiService.getAssetUrl(transitioningAsset.id)}
-                    alt={transitioningAsset.originalFileName}
-                    isLoaded={loadingStatus[transitioningAsset.id]?.fullImageLoaded}
-                  />
-                </div>
-              )}
-            </div>
+            />
           )}
         </div>
 
