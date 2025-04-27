@@ -12,9 +12,6 @@ const TimelineThumbnail = ({ asset, size, onClick }: TimelineThumbnailProps) => 
   // Get the thumbnail URL
   const thumbnailUrl = apiService.getAssetThumbnailUrl(asset.id, 'webp');
 
-  // For debugging
-  console.log(`Rendering thumbnail for asset ${asset.id} with URL: ${thumbnailUrl}`);
-
   return (
     <div
       class="timeline-thumbnail"

@@ -3,10 +3,9 @@ import { Asset } from '../../services/api';
 
 interface PhotoDetailsProps {
   asset: Asset;
-  onClose: () => void;
 }
 
-const PhotoDetails = ({ asset, onClose }: PhotoDetailsProps) => {
+const PhotoDetails = ({ asset }: PhotoDetailsProps) => {
   // Format date for display
   const formatDate = (dateString: string): string => {
     const date = new Date(dateString);
@@ -28,33 +27,9 @@ const PhotoDetails = ({ asset, onClose }: PhotoDetailsProps) => {
         borderTopLeftRadius: 'var(--radius-lg)',
         borderTopRightRadius: 'var(--radius-lg)',
         padding: 'var(--spacing-lg)',
-        maxHeight: '70vh',
-        height: '100%',
-        overflowY: 'auto',
-        overflowX: 'hidden',
-        WebkitOverflowScrolling: 'touch', // Smooth scrolling on iOS
-        boxShadow: 'var(--shadow-lg)',
-        // Add a subtle indicator at the top to show users they can swipe down
-        borderTop: '4px solid var(--color-primary-light)'
-      }}
-      // Add a handle for better touch interaction
-      onScroll={(e) => {
-        // Update the data-at-top attribute when scrolling
-        const target = e.currentTarget;
-        target.setAttribute('data-at-top', target.scrollTop <= 0 ? 'true' : 'false');
+        overflowX: 'hidden'
       }}
     >
-      {/* Handle for swiping down */}
-      <div
-        style={{
-          width: '40px',
-          height: '5px',
-          backgroundColor: 'var(--color-gray)',
-          borderRadius: '2.5px',
-          margin: '0 auto 15px auto',
-          opacity: 0.5
-        }}
-      />
 
       {/* File name */}
       <h2 style={{
@@ -225,25 +200,6 @@ const PhotoDetails = ({ asset, onClose }: PhotoDetailsProps) => {
           <span>{asset.isFavorite ? 'Unfavorite' : 'Favorite'}</span>
         </button>
       </div>
-
-      {/* Close button */}
-      <button
-        onClick={onClose}
-        style={{
-          display: 'block',
-          width: '100%',
-          padding: 'var(--spacing-md)',
-          backgroundColor: 'transparent',
-          color: 'var(--color-gray)',
-          border: 'none',
-          borderRadius: 'var(--radius-md)',
-          fontWeight: 'var(--font-weight-medium)',
-          cursor: 'pointer',
-          marginTop: 'var(--spacing-md)'
-        }}
-      >
-        Close
-      </button>
     </div>
   );
 };

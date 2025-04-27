@@ -2,7 +2,7 @@ import { h } from 'preact';
 import { useState, useEffect } from 'preact/hooks';
 import Header from '../../components/common/Header';
 import VirtualizedTimeline from '../../components/timeline/VirtualizedTimeline';
-import { default as PhotoViewer } from '../../components/photoView/PhotoViewer';
+import PhotoViewer from '../../components/photoView/PhotoViewer';
 import apiService, { Asset } from '../../services/api';
 import useAuth from '../../services/auth';
 
