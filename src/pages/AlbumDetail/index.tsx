@@ -35,9 +35,47 @@ export function AlbumDetail({ id }: AlbumDetailProps) {
         const albumData = await apiService.getAlbum(id);
         setAlbum(albumData);
 
-        // Get album assets
-        const albumAssets = await apiService.getAlbumAssets(id);
-        setAssets(albumAssets);
+        // Get time buckets for this album
+        const timeBucketsResponse = await apiService.getTimeBuckets({
+          size: 'DAY',
+          isTrashed: false,
+          albumId: id
+        });
+
+        console.log('Album time buckets response:', timeBucketsResponse);
+
+        // Extract buckets from the response
+        const buckets = timeBucketsResponse.map(bucket => bucket.timeBucket) || [];
+
+        // Fetch assets for each bucket
+        const allAssets: Asset[] = [];
+
+        // Limit to first 10 buckets for demo purposes
+        const limitedBuckets = buckets.slice(0, 10);
+
+        for (const bucket of limitedBuckets) {
+          try {
+            const bucketAssets = await apiService.getTimeBucket({
+              timeBucket: bucket,
+              size: 'DAY',
+              isTrashed: false,
+              albumId: id
+            });
+
+            console.log(`Album bucket ${bucket} assets:`, bucketAssets);
+
+            if (Array.isArray(bucketAssets)) {
+              allAssets.push(...bucketAssets);
+            } else {
+              console.warn(`Unexpected response format for bucket ${bucket}:`, bucketAssets);
+            }
+          } catch (bucketError) {
+            console.error(`Error fetching assets for bucket ${bucket}:`, bucketError);
+          }
+        }
+
+        console.log('All album assets:', allAssets);
+        setAssets(allAssets);
       } catch (err) {
         console.error('Error fetching album:', err);
         setError('Failed to load album. Please try again.');
