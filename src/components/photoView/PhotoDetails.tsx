@@ -19,48 +19,55 @@ const PhotoDetails = ({ asset, onClose }: PhotoDetailsProps) => {
       minute: '2-digit'
     });
   };
-  
+
   return (
-    <div 
+    <div
       class="photo-details"
-      style={{ 
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
+      style={{
         backgroundColor: 'var(--color-background)',
         borderTopLeftRadius: 'var(--radius-lg)',
         borderTopRightRadius: 'var(--radius-lg)',
         padding: 'var(--spacing-lg)',
-        maxHeight: '70%',
+        maxHeight: '70vh',
+        height: '100%',
         overflowY: 'auto',
+        overflowX: 'hidden',
+        WebkitOverflowScrolling: 'touch', // Smooth scrolling on iOS
         boxShadow: 'var(--shadow-lg)',
-        zIndex: 2
+        // Add a subtle indicator at the top to show users they can swipe down
+        borderTop: '4px solid var(--color-primary-light)'
+      }}
+      // Add a handle for better touch interaction
+      onScroll={(e) => {
+        // Update the data-at-top attribute when scrolling
+        const target = e.currentTarget;
+        target.setAttribute('data-at-top', target.scrollTop <= 0 ? 'true' : 'false');
       }}
     >
       {/* Handle for swiping down */}
-      <div 
-        style={{ 
+      <div
+        style={{
           width: '40px',
           height: '5px',
-          backgroundColor: 'var(--color-gray-light)',
-          borderRadius: '10px',
-          margin: '0 auto var(--spacing-lg) auto'
+          backgroundColor: 'var(--color-gray)',
+          borderRadius: '2.5px',
+          margin: '0 auto 15px auto',
+          opacity: 0.5
         }}
       />
-      
+
       {/* File name */}
-      <h2 style={{ 
+      <h2 style={{
         fontSize: 'var(--font-size-lg)',
         fontWeight: 'var(--font-weight-semibold)',
         marginBottom: 'var(--spacing-md)'
       }}>
         {asset.originalFileName}
       </h2>
-      
+
       {/* Date taken */}
       <div style={{ marginBottom: 'var(--spacing-md)' }}>
-        <h3 style={{ 
+        <h3 style={{
           fontSize: 'var(--font-size-md)',
           fontWeight: 'var(--font-weight-medium)',
           color: 'var(--color-gray)',
@@ -70,11 +77,11 @@ const PhotoDetails = ({ asset, onClose }: PhotoDetailsProps) => {
         </h3>
         <p>{formatDate(asset.localDateTime)}</p>
       </div>
-      
+
       {/* Location if available */}
       {asset.exifInfo?.city && (
         <div style={{ marginBottom: 'var(--spacing-md)' }}>
-          <h3 style={{ 
+          <h3 style={{
             fontSize: 'var(--font-size-md)',
             fontWeight: 'var(--font-weight-medium)',
             color: 'var(--color-gray)',
@@ -89,14 +96,14 @@ const PhotoDetails = ({ asset, onClose }: PhotoDetailsProps) => {
               asset.exifInfo.country
             ].filter(Boolean).join(', ')}
           </p>
-          
+
           {/* Map link if coordinates are available */}
           {asset.exifInfo.latitude && asset.exifInfo.longitude && (
-            <a 
+            <a
               href={`https://maps.google.com/?q=${asset.exifInfo.latitude},${asset.exifInfo.longitude}`}
               target="_blank"
               rel="noopener noreferrer"
-              style={{ 
+              style={{
                 display: 'inline-block',
                 marginTop: 'var(--spacing-xs)',
                 color: 'var(--color-primary)',
@@ -108,11 +115,11 @@ const PhotoDetails = ({ asset, onClose }: PhotoDetailsProps) => {
           )}
         </div>
       )}
-      
+
       {/* Camera info if available */}
       {(asset.exifInfo?.make || asset.exifInfo?.model) && (
         <div style={{ marginBottom: 'var(--spacing-md)' }}>
-          <h3 style={{ 
+          <h3 style={{
             fontSize: 'var(--font-size-md)',
             fontWeight: 'var(--font-weight-medium)',
             color: 'var(--color-gray)',
@@ -126,11 +133,11 @@ const PhotoDetails = ({ asset, onClose }: PhotoDetailsProps) => {
           </p>
         </div>
       )}
-      
+
       {/* Technical details if available */}
       {(asset.exifInfo?.fNumber || asset.exifInfo?.exposureTime || asset.exifInfo?.iso) && (
         <div style={{ marginBottom: 'var(--spacing-md)' }}>
-          <h3 style={{ 
+          <h3 style={{
             fontSize: 'var(--font-size-md)',
             fontWeight: 'var(--font-weight-medium)',
             color: 'var(--color-gray)',
@@ -145,16 +152,16 @@ const PhotoDetails = ({ asset, onClose }: PhotoDetailsProps) => {
             {asset.exifInfo.focalLength && ` ${asset.exifInfo.focalLength}mm`}
           </p>
           <p style={{ marginTop: 'var(--spacing-xs)' }}>
-            {asset.exifInfo.exifImageWidth && asset.exifInfo.exifImageHeight && 
+            {asset.exifInfo.exifImageWidth && asset.exifInfo.exifImageHeight &&
               `${asset.exifInfo.exifImageWidth} × ${asset.exifInfo.exifImageHeight}`}
           </p>
         </div>
       )}
-      
+
       {/* Description if available */}
       {asset.exifInfo?.description && (
         <div style={{ marginBottom: 'var(--spacing-md)' }}>
-          <h3 style={{ 
+          <h3 style={{
             fontSize: 'var(--font-size-md)',
             fontWeight: 'var(--font-weight-medium)',
             color: 'var(--color-gray)',
@@ -165,15 +172,15 @@ const PhotoDetails = ({ asset, onClose }: PhotoDetailsProps) => {
           <p>{asset.exifInfo.description}</p>
         </div>
       )}
-      
+
       {/* Actions */}
-      <div style={{ 
+      <div style={{
         display: 'flex',
         gap: 'var(--spacing-md)',
         marginTop: 'var(--spacing-lg)'
       }}>
-        <button 
-          style={{ 
+        <button
+          style={{
             flex: 1,
             padding: 'var(--spacing-md)',
             backgroundColor: 'var(--color-primary)',
@@ -195,9 +202,9 @@ const PhotoDetails = ({ asset, onClose }: PhotoDetailsProps) => {
           </svg>
           <span>Download</span>
         </button>
-        
-        <button 
-          style={{ 
+
+        <button
+          style={{
             flex: 1,
             padding: 'var(--spacing-md)',
             backgroundColor: asset.isFavorite ? 'var(--color-danger)' : 'var(--color-light)',
@@ -218,11 +225,11 @@ const PhotoDetails = ({ asset, onClose }: PhotoDetailsProps) => {
           <span>{asset.isFavorite ? 'Unfavorite' : 'Favorite'}</span>
         </button>
       </div>
-      
+
       {/* Close button */}
-      <button 
+      <button
         onClick={onClose}
-        style={{ 
+        style={{
           display: 'block',
           width: '100%',
           padding: 'var(--spacing-md)',
