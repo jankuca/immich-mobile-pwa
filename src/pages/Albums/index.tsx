@@ -214,7 +214,7 @@ export function Albums() {
                       <div style={{
                         position: 'relative',
                         paddingBottom: '100%', // 1:1 aspect ratio
-                        backgroundColor: 'var(--color-gray-light)'
+                        backgroundColor: 'var(--color-gray)'
                       }}>
                         {album.albumThumbnailAssetId && (
                           <img
@@ -251,7 +251,7 @@ export function Albums() {
                         </div>
                       </div>
 
-                      <div style={{ padding: 'var(--spacing-sm)' }}>
+                      <div style={{ padding: 'var(--spacing-sm)', backgroundColor: 'var(--color-dark)' }}>
                         <h3 style={{
                           fontSize: 'var(--font-size-md)',
                           fontWeight: 'var(--font-weight-semibold)',
@@ -263,15 +263,17 @@ export function Albums() {
                           {album.albumName}
                         </h3>
 
-                        {album.startDate && (
                           <p style={{
                             fontSize: 'var(--font-size-xs)',
                             color: 'var(--color-gray)'
                           }}>
+                        {album.startDate ? (
+                          <>
                             {new Date(album.startDate).toLocaleDateString(undefined, { localeMatcher: 'best fit' })}
                             {album.endDate && ` - ${new Date(album.endDate).toLocaleDateString(undefined, { localeMatcher: 'best fit' })}`}
+                          </>
+                        ):'No photos'}
                           </p>
-                        )}
                       </div>
                     </div>
                   ))}
