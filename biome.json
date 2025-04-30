@@ -1,0 +1,96 @@
+{
+  "$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
+  "organizeImports": {
+    "enabled": true
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "all": true,
+      "correctness": {
+        "all": true,
+        "useExhaustiveDependencies": "error",
+        "noUndeclaredVariables": "error",
+        "noUnusedVariables": "error",
+        "noUnusedImports": "error",
+        "useImportExtensions": "off"
+      },
+      "suspicious": {
+        "all": true,
+        "noExplicitAny": "error",
+        "noArrayIndexKey": "off",
+        "noAssignInExpressions": "error",
+        "noConsole": "off",
+        "noConsoleLog": "off",
+        "noImplicitAnyLet": "error",
+        "noThenProperty": "error",
+        "noConfusingVoidType": "error"
+      },
+      "style": {
+        "all": true,
+        "noNonNullAssertion": "error",
+        "useTemplate": "error",
+        "useConst": "error",
+        "useDefaultParameterLast": "error",
+        "useNamingConvention": "off",
+        "useSingleCaseStatement": "error",
+        "useShorthandArrayType": "off",
+        "useConsistentArrayType": "off"
+      },
+      "complexity": {
+        "all": true,
+        "noExcessiveCognitiveComplexity": "warn",
+        "noForEach": "error",
+        "useLiteralKeys": "off",
+        "useSimplifiedLogicExpression": "off"
+      },
+      "performance": {
+        "all": true,
+        "noDelete": "error",
+        "useTopLevelRegex": "off"
+      },
+      "security": {
+        "all": true
+      },
+      "a11y": {
+        "all": false,
+        "useKeyWithClickEvents": "off",
+        "useKeyWithMouseEvents": "off"
+      },
+      "nursery": {
+        "all": true,
+        "noImgElement": "off",
+        "noNestedTernary": "warn",
+        "useExplicitType": "off",
+        "useImportRestrictions": "off"
+      }
+    },
+    "ignore": ["node_modules", "dist", ".git"]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "single",
+      "semicolons": "asNeeded",
+      "arrowParentheses": "always",
+      "bracketSpacing": true
+    },
+    "parser": {
+      "unsafeParameterDecoratorsEnabled": true
+    }
+  },
+  "files": {
+    "include": ["**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx"],
+    "ignore": ["node_modules", "dist", ".git"]
+  },
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  }
+}

@@ -1,23 +1,22 @@
-import { h } from 'preact';
-import { Asset } from '../../services/api';
-import apiService from '../../services/api';
-import AssetImage from './AssetImage';
+import type { Asset } from '../../services/api'
+import { apiService } from '../../services/api'
+import { AssetImage } from './AssetImage'
 
 interface PhotoViewerCarouselItemProps {
-  asset: Asset;
-  isMain?: boolean;
-  isTransitioning?: boolean;
+  asset: Asset
+  isMain?: boolean
+  isTransitioning?: boolean
   loadingStatus: {
-    thumbnailLoaded: boolean;
-    fullImageLoaded: boolean;
-  };
-  onImageLoad?: () => void;
-  style?: Record<string, string | number>;
-  imageTransform?: string;
-  isZooming?: boolean;
+    thumbnailLoaded: boolean
+    fullImageLoaded: boolean
+  }
+  onImageLoad?: () => void
+  style?: Record<string, string | number>
+  imageTransform?: string
+  isZooming?: boolean
 }
 
-const PhotoViewerCarouselItem = ({
+export const PhotoViewerCarouselItem = ({
   asset,
   isMain = false,
   isTransitioning = false,
@@ -25,15 +24,15 @@ const PhotoViewerCarouselItem = ({
   onImageLoad,
   style = {},
   imageTransform = '',
-  isZooming = false
+  isZooming = false,
 }: PhotoViewerCarouselItemProps) => {
-  const assetThumbnailUrl = apiService.getAssetThumbnailUrl(asset.id, 'webp');
-  const assetFullUrl = apiService.getAssetUrl(asset.id);
+  const assetThumbnailUrl = apiService.getAssetThumbnailUrl(asset.id, 'webp')
+  const assetFullUrl = apiService.getAssetUrl(asset.id)
 
   return (
     <div
-      data-main={isMain ? "true" : undefined}
-      data-transitioning={isTransitioning ? "true" : undefined}
+      data-main={isMain ? 'true' : undefined}
+      data-transitioning={isTransitioning ? 'true' : undefined}
       style={{
         position: 'absolute',
         width: '100%',
@@ -41,17 +40,17 @@ const PhotoViewerCarouselItem = ({
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        ...style
+        ...style,
       }}
     >
       {asset.type === 'VIDEO' ? (
         <video
           src={assetFullUrl}
-          controls
+          controls={true}
           style={{
             maxWidth: '100%',
             maxHeight: '100%',
-            objectFit: 'contain'
+            objectFit: 'contain',
           }}
         />
       ) : (
@@ -65,7 +64,7 @@ const PhotoViewerCarouselItem = ({
             alignItems: 'center',
             transform: isZooming && isMain ? imageTransform : '',
             transformOrigin: 'center',
-            willChange: isZooming ? 'transform' : 'auto'
+            willChange: isZooming ? 'transform' : 'auto',
           }}
         >
           {/* Thumbnail version (shown while full image loads) */}
@@ -82,35 +81,38 @@ const PhotoViewerCarouselItem = ({
             alt={asset.originalFileName}
             isLoaded={loadingStatus?.fullImageLoaded}
             style={{
-              willChange: isZooming ? 'transform' : 'auto'
+              willChange: isZooming ? 'transform' : 'auto',
             }}
-            onLoad={onImageLoad}
+            onLoad={onImageLoad ?? null}
           />
 
           {/* Loading indicator (shown while neither image is loaded) */}
-          {!loadingStatus?.thumbnailLoaded && !loadingStatus?.fullImageLoaded && (
-            <div style={{
-              position: 'absolute',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 'var(--spacing-md)'
-            }}>
-              <div class="loading-spinner" style={{
-                width: '40px',
-                height: '40px',
-                border: '4px solid var(--color-gray-light)',
-                borderTopColor: 'var(--color-primary)',
-                borderRadius: '50%',
-                animation: 'spin 1s linear infinite'
-              }} />
+          {!(loadingStatus?.thumbnailLoaded || loadingStatus?.fullImageLoaded) && (
+            <div
+              style={{
+                position: 'absolute',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 'var(--spacing-md)',
+              }}
+            >
+              <div
+                class="loading-spinner"
+                style={{
+                  width: '40px',
+                  height: '40px',
+                  border: '4px solid var(--color-gray-light)',
+                  borderTopColor: 'var(--color-primary)',
+                  borderRadius: '50%',
+                  animation: 'spin 1s linear infinite',
+                }}
+              />
             </div>
           )}
         </div>
       )}
     </div>
-  );
-};
-
-export default PhotoViewerCarouselItem;
+  )
+}

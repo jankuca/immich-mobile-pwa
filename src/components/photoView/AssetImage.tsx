@@ -1,15 +1,20 @@
-import { h } from 'preact';
-
 interface AssetImageProps {
-  src: string;
-  alt: string;
-  isBlurred?: boolean;
-  isLoaded?: boolean;
-  style?: Record<string, string | number>;
-  onLoad?: () => void;
+  src: string
+  alt: string
+  isBlurred?: boolean
+  isLoaded?: boolean
+  style?: Record<string, string | number>
+  onLoad?: (() => void) | null
 }
 
-const AssetImage = ({ src, alt, isBlurred = false, isLoaded = true, style = {}, onLoad }: AssetImageProps) => {
+export const AssetImage = ({
+  src,
+  alt,
+  isBlurred = false,
+  isLoaded = true,
+  style = {},
+  onLoad,
+}: AssetImageProps) => {
   return (
     <img
       src={src}
@@ -27,14 +32,12 @@ const AssetImage = ({ src, alt, isBlurred = false, isLoaded = true, style = {}, 
         userDrag: 'none', // Standard
         touchAction: 'pan-x pan-y', // Allow panning but prevent other gestures
         ...(isBlurred ? { position: 'absolute', filter: 'blur(8px)' } : {}),
-        ...style
+        ...style,
       }}
       draggable={false} // Prevent HTML5 drag and drop
       onContextMenu={(e) => e.preventDefault()} // Prevent context menu on right-click
       onDragStart={(e) => e.preventDefault()} // Prevent drag start
-      onLoad={onLoad}
+      onLoad={onLoad ?? undefined}
     />
-  );
-};
-
-export default AssetImage;
+  )
+}

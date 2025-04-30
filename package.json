@@ -4,7 +4,10 @@
 	"scripts": {
 		"dev": "vite",
 		"build": "vite build",
-		"preview": "vite preview"
+		"preview": "vite preview",
+		"lint": "biome lint .",
+		"format": "biome format . --write",
+		"check": "biome check --apply ."
 	},
 	"dependencies": {
 		"@types/pluralize": "^0.0.33",
@@ -17,6 +20,7 @@
 		"preact-virtual-list": "^0.3.1"
 	},
 	"devDependencies": {
+		"@biomejs/biome": "^1.9.4",
 		"@preact/preset-vite": "^2.9.3",
 		"cors": "^2.8.5",
 		"eslint": "^8.57.1",

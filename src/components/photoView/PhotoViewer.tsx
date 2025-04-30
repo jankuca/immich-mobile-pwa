@@ -1,63 +1,59 @@
-import { h } from 'preact';
-import { useState, useRef, useEffect } from 'preact/hooks';
-import { Asset } from '../../services/api';
-import PhotoDetails from './PhotoDetails';
-import PhotoViewerCarouselItem from './PhotoViewerCarouselItem';
-import { useImagePreloader } from '../../hooks/useImagePreloader';
-import { usePhotoViewerGestures } from '../../hooks/usePhotoViewerGestures';
-import { useSwipeDirection } from '../../hooks/useSwipeDirection';
-import { useZoomTransition, ThumbnailPosition } from '../../hooks/useZoomTransition';
+import { useCallback, useEffect, useRef, useState } from 'preact/hooks'
+import { useImagePreloader } from '../../hooks/useImagePreloader'
+import { usePhotoViewerGestures } from '../../hooks/usePhotoViewerGestures'
+import { useSwipeDirection } from '../../hooks/useSwipeDirection'
+import { type ThumbnailPosition, useZoomTransition } from '../../hooks/useZoomTransition'
+import type { Asset } from '../../services/api'
+import { PhotoDetails } from './PhotoDetails'
+import { PhotoViewerCarouselItem } from './PhotoViewerCarouselItem'
 
 interface PhotoViewerProps {
-  asset: Asset;
-  assets: Asset[];
-  onClose: () => void;
-  thumbnailPosition?: ThumbnailPosition;
+  asset: Asset
+  assets: Asset[]
+  onClose: () => void
+  thumbnailPosition?: ThumbnailPosition | null
 }
 
-
-
-const PhotoViewer = ({ asset, assets, onClose, thumbnailPosition }: PhotoViewerProps) => {
-  const [scrollPosition, setScrollPosition] = useState<number>(0);
-  const [isAtTop, setIsAtTop] = useState<boolean>(true);
-  const [isClosing, setIsClosing] = useState<boolean>(false);
-  const containerRef = useRef<HTMLDivElement>(null);
+export const PhotoViewer = ({
+  asset,
+  assets,
+  onClose,
+  thumbnailPosition = null,
+}: PhotoViewerProps) => {
+  const [scrollPosition, setScrollPosition] = useState<number>(0)
+  const [isAtTop, setIsAtTop] = useState<boolean>(true)
+  const [isClosing, setIsClosing] = useState<boolean>(false)
+  const containerRef = useRef<HTMLDivElement>(null)
 
   // Use the zoom transition hook
-  const {
-    isAnimating,
-    isZoomingIn,
-    isZoomingOut,
-    getImageTransform,
-    getBackgroundOpacity,
-    startZoomOut
-  } = useZoomTransition({
-    isOpen: true,
-    thumbnailPosition,
-    durationIn: 0.2,
-    durationOut: 0.3,
-    onZoomOutComplete: () => {
-      onClose();
-    }
-  });
+  const { isZoomingIn, isZoomingOut, getImageTransform, getBackgroundOpacity, startZoomOut } =
+    useZoomTransition({
+      isOpen: true,
+      thumbnailPosition,
+      durationIn: 0.2,
+      durationOut: 0.3,
+      onZoomOutComplete: () => {
+        onClose()
+      },
+    })
 
   // Handle the closing transition
   const handleClose = (state: { swipeDistance: number }) => {
     if (thumbnailPosition) {
       // Use zoom out animation if we have thumbnail position
-      startZoomOut({ offsetY: state.swipeDistance });
+      startZoomOut({ offsetY: state.swipeDistance })
     }
 
     // Fallback to fade out animation
-    setIsClosing(true);
+    setIsClosing(true)
     // Wait for the transition to complete before actually closing
     setTimeout(() => {
-      onClose();
-    }, 300); // Match this with the transition duration
-  };
+      onClose()
+    }, 300) // Match this with the transition duration
+  }
 
   // Use the image preloader hook
-  const { loadingStatus, preloadImage, handleImageLoad } = useImagePreloader(assets, asset.id);
+  const { loadingStatus, preloadImage, handleImageLoad } = useImagePreloader(assets, asset.id)
 
   // Use a single instance of swipe direction hook
   const {
@@ -68,17 +64,8 @@ const PhotoViewer = ({ asset, assets, onClose, thumbnailPosition }: PhotoViewerP
     handleTouchMove: directionTouchMove,
     resetSwipeDirection,
     getHorizontalSwipeDistance,
-    getVerticalSwipeDistance
-  } = useSwipeDirection();
-
-  // Handle scroll events
-  const handleScroll = () => {
-    if (scrollContainerRef.current) {
-      const scrollTop = scrollContainerRef.current.scrollTop;
-      setScrollPosition(scrollTop);
-      setIsAtTop(scrollTop <= 10);
-    }
-  };
+    getVerticalSwipeDistance,
+  } = useSwipeDirection()
 
   // Use the photo viewer gestures hook
   const {
@@ -88,14 +75,14 @@ const PhotoViewer = ({ asset, assets, onClose, thumbnailPosition }: PhotoViewerP
     handleTouchMove: gesturesTouchMove,
     handleTouchEnd,
     photoContainerRef,
-    scrollContainerRef
+    scrollContainerRef,
   } = usePhotoViewerGestures({
     asset,
     assets,
     isAtTop,
     onAssetChange: (newAsset) => {
       // Update the preloader with the new asset ID
-      preloadImage(newAsset.id);
+      preloadImage(newAsset.id)
     },
     onClose: handleClose, // Use our transition handler instead of direct onClose
     preloadAsset: preloadImage,
@@ -104,42 +91,55 @@ const PhotoViewer = ({ asset, assets, onClose, thumbnailPosition }: PhotoViewerP
     currentY,
     getHorizontalSwipeDistance,
     getVerticalSwipeDistance,
-    resetSwipeDirection
-  });
+    resetSwipeDirection,
+  })
 
   // Combined touch move handler
-  const handleTouchMove = (e: TouchEvent) => {
-    directionTouchMove(e);
-    gesturesTouchMove(e);
-  };
+  const handleTouchMove = useCallback(
+    (e: TouchEvent) => {
+      directionTouchMove(e)
+      gesturesTouchMove(e)
+    },
+    [directionTouchMove, gesturesTouchMove],
+  )
 
   // Calculate the photo container height based on scroll position
   // As we scroll down, the photo container shrinks from 100vh to a minimum height
-  const maxScrollForEffect = 300; // The scroll amount at which the effect is complete
-  const minPhotoHeight = 300; // Minimum height of the photo container in pixels
+  const maxScrollForEffect = 300 // The scroll amount at which the effect is complete
+  const minPhotoHeight = 300 // Minimum height of the photo container in pixels
   const photoContainerHeight = Math.max(
     minPhotoHeight,
-    window.innerHeight - (scrollPosition * (window.innerHeight - minPhotoHeight) / maxScrollForEffect)
-  );
+    window.innerHeight -
+      (scrollPosition * (window.innerHeight - minPhotoHeight)) / maxScrollForEffect,
+  )
 
   // Set up scroll event listener
   useEffect(() => {
-    const scrollContainer = scrollContainerRef.current;
+    const scrollContainer = scrollContainerRef.current
     if (scrollContainer) {
-      scrollContainer.addEventListener('scroll', handleScroll);
+      // Handle scroll events
+      const handleScroll = () => {
+        if (scrollContainerRef.current) {
+          const scrollTop = scrollContainerRef.current.scrollTop
+          setScrollPosition(scrollTop)
+          setIsAtTop(scrollTop <= 10)
+        }
+      }
+
+      scrollContainer.addEventListener('scroll', handleScroll)
       return () => {
-        scrollContainer.removeEventListener('scroll', handleScroll);
-      };
+        scrollContainer.removeEventListener('scroll', handleScroll)
+      }
     }
-  }, []);
+  }, [scrollContainerRef])
 
   // Prevent body scrolling when the photo viewer is open
   useEffect(() => {
-    document.body.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden'
     return () => {
-      document.body.style.overflow = '';
-    };
-  }, []);
+      document.body.style.overflow = ''
+    }
+  }, [])
 
   return (
     <div
@@ -157,7 +157,7 @@ const PhotoViewer = ({ asset, assets, onClose, thumbnailPosition }: PhotoViewerP
         userSelect: 'none', // Prevent selection globally
         opacity: isClosing ? 0 : 1,
         transition: 'opacity 0.3s ease',
-        pointerEvents: (isClosing || isZoomingOut) ? 'none' : 'auto' // Disable interactions during closing
+        pointerEvents: isClosing || isZoomingOut ? 'none' : 'auto', // Disable interactions during closing
       }}
       onContextMenu={(e) => e.preventDefault()} // Prevent context menu on right-click
     >
@@ -177,7 +177,7 @@ const PhotoViewer = ({ asset, assets, onClose, thumbnailPosition }: PhotoViewerP
           left: isClosing ? 0 : 'auto',
           right: isClosing ? 0 : 'auto',
           bottom: isClosing ? 0 : 'auto',
-          width: isClosing ? '100%' : 'auto'
+          width: isClosing ? '100%' : 'auto',
         }}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
@@ -200,14 +200,16 @@ const PhotoViewer = ({ asset, assets, onClose, thumbnailPosition }: PhotoViewerP
                 : 'rgba(255, 255, 255, 1)',
             transition: thumbnailPosition ? 'none' : 'background-color 0.3s ease',
             willChange: 'transform, background-color', // Optimize for animations
-            overflow: 'hidden' // Ensure content doesn't overflow during transitions
+            overflow: 'hidden', // Ensure content doesn't overflow during transitions
           }}
         >
           {/* Main photo/video content */}
           <PhotoViewerCarouselItem
             asset={currentAsset}
             isMain={true}
-            loadingStatus={loadingStatus[currentAsset.id] || { thumbnailLoaded: false, fullImageLoaded: false }}
+            loadingStatus={
+              loadingStatus[currentAsset.id] || { thumbnailLoaded: false, fullImageLoaded: false }
+            }
             onImageLoad={() => handleImageLoad(currentAsset.id)}
             imageTransform={getImageTransform()}
             isZooming={isZoomingIn || isZoomingOut}
@@ -218,11 +220,17 @@ const PhotoViewer = ({ asset, assets, onClose, thumbnailPosition }: PhotoViewerP
             <PhotoViewerCarouselItem
               asset={transitioningAsset}
               isTransitioning={true}
-              loadingStatus={loadingStatus[transitioningAsset.id] || { thumbnailLoaded: false, fullImageLoaded: false }}
+              loadingStatus={
+                loadingStatus[transitioningAsset.id] || {
+                  thumbnailLoaded: false,
+                  fullImageLoaded: false,
+                }
+              }
               style={{
                 left: 0,
                 top: 0,
-                transform: transitionDirection === 'left' ? 'translateX(100%)' : 'translateX(-100%)'
+                transform:
+                  transitionDirection === 'left' ? 'translateX(100%)' : 'translateX(-100%)',
               }}
             />
           )}
@@ -232,7 +240,5 @@ const PhotoViewer = ({ asset, assets, onClose, thumbnailPosition }: PhotoViewerP
         <PhotoDetails asset={currentAsset} />
       </div>
     </div>
-  );
-};
-
-export default PhotoViewer;
+  )
+}

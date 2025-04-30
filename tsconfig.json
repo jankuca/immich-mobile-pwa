@@ -7,9 +7,28 @@
 		"allowJs": true,
 		"checkJs": true,
 
+		/* Strict Type Checking */
+		"strict": true,
+		"noImplicitAny": true,
+		"strictNullChecks": true,
+		"strictFunctionTypes": true,
+		"strictBindCallApply": true,
+		"strictPropertyInitialization": true,
+		"noImplicitThis": true,
+		"alwaysStrict": true,
+		"noUncheckedIndexedAccess": true,
+		"exactOptionalPropertyTypes": true,
+
+		/* Additional Checks */
+		"noUnusedLocals": true,
+		"noUnusedParameters": true,
+		"noFallthroughCasesInSwitch": true,
+		"noImplicitOverride": true,
+		"forceConsistentCasingInFileNames": true,
+
 		/* Preact Config */
 		"jsx": "react-jsx",
-		"jsxImportSource": "preact",
+    "jsxImportSource": "preact",
 		"skipLibCheck": true,
 		"paths": {
 			"react": ["./node_modules/preact/compat/"],

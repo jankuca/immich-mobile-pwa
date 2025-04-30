@@ -1,23 +1,22 @@
-import { h } from 'preact';
-import { Asset } from '../../services/api';
+import type { Asset } from '../../services/api'
 
 interface PhotoDetailsProps {
-  asset: Asset;
+  asset: Asset
 }
 
-const PhotoDetails = ({ asset }: PhotoDetailsProps) => {
+export const PhotoDetails = ({ asset }: PhotoDetailsProps) => {
   // Format date for display
   const formatDate = (dateString: string): string => {
-    const date = new Date(dateString);
+    const date = new Date(dateString)
     return date.toLocaleDateString(undefined, {
       weekday: 'long',
       year: 'numeric',
       month: 'long',
       day: 'numeric',
       hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
+      minute: '2-digit',
+    })
+  }
 
   return (
     <div
@@ -27,27 +26,30 @@ const PhotoDetails = ({ asset }: PhotoDetailsProps) => {
         borderTopLeftRadius: 'var(--radius-lg)',
         borderTopRightRadius: 'var(--radius-lg)',
         padding: 'var(--spacing-lg)',
-        overflowX: 'hidden'
+        overflowX: 'hidden',
       }}
     >
-
       {/* File name */}
-      <h2 style={{
-        fontSize: 'var(--font-size-lg)',
-        fontWeight: 'var(--font-weight-semibold)',
-        marginBottom: 'var(--spacing-md)'
-      }}>
+      <h2
+        style={{
+          fontSize: 'var(--font-size-lg)',
+          fontWeight: 'var(--font-weight-semibold)',
+          marginBottom: 'var(--spacing-md)',
+        }}
+      >
         {asset.originalFileName}
       </h2>
 
       {/* Date taken */}
       <div style={{ marginBottom: 'var(--spacing-md)' }}>
-        <h3 style={{
-          fontSize: 'var(--font-size-md)',
-          fontWeight: 'var(--font-weight-medium)',
-          color: 'var(--color-gray)',
-          marginBottom: 'var(--spacing-xs)'
-        }}>
+        <h3
+          style={{
+            fontSize: 'var(--font-size-md)',
+            fontWeight: 'var(--font-weight-medium)',
+            color: 'var(--color-gray)',
+            marginBottom: 'var(--spacing-xs)',
+          }}
+        >
           Date
         </h3>
         <p>{formatDate(asset.localDateTime)}</p>
@@ -56,20 +58,20 @@ const PhotoDetails = ({ asset }: PhotoDetailsProps) => {
       {/* Location if available */}
       {asset.exifInfo?.city && (
         <div style={{ marginBottom: 'var(--spacing-md)' }}>
-          <h3 style={{
-            fontSize: 'var(--font-size-md)',
-            fontWeight: 'var(--font-weight-medium)',
-            color: 'var(--color-gray)',
-            marginBottom: 'var(--spacing-xs)'
-          }}>
+          <h3
+            style={{
+              fontSize: 'var(--font-size-md)',
+              fontWeight: 'var(--font-weight-medium)',
+              color: 'var(--color-gray)',
+              marginBottom: 'var(--spacing-xs)',
+            }}
+          >
             Location
           </h3>
           <p>
-            {[
-              asset.exifInfo.city,
-              asset.exifInfo.state,
-              asset.exifInfo.country
-            ].filter(Boolean).join(', ')}
+            {[asset.exifInfo.city, asset.exifInfo.state, asset.exifInfo.country]
+              .filter(Boolean)
+              .join(', ')}
           </p>
 
           {/* Map link if coordinates are available */}
@@ -82,7 +84,7 @@ const PhotoDetails = ({ asset }: PhotoDetailsProps) => {
                 display: 'inline-block',
                 marginTop: 'var(--spacing-xs)',
                 color: 'var(--color-primary)',
-                textDecoration: 'none'
+                textDecoration: 'none',
               }}
             >
               View on map
@@ -94,12 +96,14 @@ const PhotoDetails = ({ asset }: PhotoDetailsProps) => {
       {/* Camera info if available */}
       {(asset.exifInfo?.make || asset.exifInfo?.model) && (
         <div style={{ marginBottom: 'var(--spacing-md)' }}>
-          <h3 style={{
-            fontSize: 'var(--font-size-md)',
-            fontWeight: 'var(--font-weight-medium)',
-            color: 'var(--color-gray)',
-            marginBottom: 'var(--spacing-xs)'
-          }}>
+          <h3
+            style={{
+              fontSize: 'var(--font-size-md)',
+              fontWeight: 'var(--font-weight-medium)',
+              color: 'var(--color-gray)',
+              marginBottom: 'var(--spacing-xs)',
+            }}
+          >
             Camera
           </h3>
           <p>
@@ -112,12 +116,14 @@ const PhotoDetails = ({ asset }: PhotoDetailsProps) => {
       {/* Technical details if available */}
       {(asset.exifInfo?.fNumber || asset.exifInfo?.exposureTime || asset.exifInfo?.iso) && (
         <div style={{ marginBottom: 'var(--spacing-md)' }}>
-          <h3 style={{
-            fontSize: 'var(--font-size-md)',
-            fontWeight: 'var(--font-weight-medium)',
-            color: 'var(--color-gray)',
-            marginBottom: 'var(--spacing-xs)'
-          }}>
+          <h3
+            style={{
+              fontSize: 'var(--font-size-md)',
+              fontWeight: 'var(--font-weight-medium)',
+              color: 'var(--color-gray)',
+              marginBottom: 'var(--spacing-xs)',
+            }}
+          >
             Details
           </h3>
           <p>
@@ -127,7 +133,8 @@ const PhotoDetails = ({ asset }: PhotoDetailsProps) => {
             {asset.exifInfo.focalLength && ` ${asset.exifInfo.focalLength}mm`}
           </p>
           <p style={{ marginTop: 'var(--spacing-xs)' }}>
-            {asset.exifInfo.exifImageWidth && asset.exifInfo.exifImageHeight &&
+            {asset.exifInfo.exifImageWidth &&
+              asset.exifInfo.exifImageHeight &&
               `${asset.exifInfo.exifImageWidth} × ${asset.exifInfo.exifImageHeight}`}
           </p>
         </div>
@@ -136,12 +143,14 @@ const PhotoDetails = ({ asset }: PhotoDetailsProps) => {
       {/* Description if available */}
       {asset.exifInfo?.description && (
         <div style={{ marginBottom: 'var(--spacing-md)' }}>
-          <h3 style={{
-            fontSize: 'var(--font-size-md)',
-            fontWeight: 'var(--font-weight-medium)',
-            color: 'var(--color-gray)',
-            marginBottom: 'var(--spacing-xs)'
-          }}>
+          <h3
+            style={{
+              fontSize: 'var(--font-size-md)',
+              fontWeight: 'var(--font-weight-medium)',
+              color: 'var(--color-gray)',
+              marginBottom: 'var(--spacing-xs)',
+            }}
+          >
             Description
           </h3>
           <p>{asset.exifInfo.description}</p>
@@ -149,11 +158,13 @@ const PhotoDetails = ({ asset }: PhotoDetailsProps) => {
       )}
 
       {/* Actions */}
-      <div style={{
-        display: 'flex',
-        gap: 'var(--spacing-md)',
-        marginTop: 'var(--spacing-lg)'
-      }}>
+      <div
+        style={{
+          display: 'flex',
+          gap: 'var(--spacing-md)',
+          marginTop: 'var(--spacing-lg)',
+        }}
+      >
         <button
           style={{
             flex: 1,
@@ -167,13 +178,37 @@ const PhotoDetails = ({ asset }: PhotoDetailsProps) => {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: 'var(--spacing-xs)'
+            gap: 'var(--spacing-xs)',
           }}
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M7 10l5 5 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M12 15V3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+            <path
+              d="M7 10l5 5 5-5"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+            <path
+              d="M12 15V3"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
           </svg>
           <span>Download</span>
         </button>
@@ -191,17 +226,27 @@ const PhotoDetails = ({ asset }: PhotoDetailsProps) => {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: 'var(--spacing-xs)'
+            gap: 'var(--spacing-xs)',
           }}
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill={asset.isFavorite ? 'currentColor' : 'none'} xmlns="http://www.w3.org/2000/svg">
-            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill={asset.isFavorite ? 'currentColor' : 'none'}
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
           </svg>
           <span>{asset.isFavorite ? 'Unfavorite' : 'Favorite'}</span>
         </button>
       </div>
     </div>
-  );
-};
-
-export default PhotoDetails;
+  )
+}
