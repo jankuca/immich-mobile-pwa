@@ -416,8 +416,8 @@ export function Search() {
 
                 <VirtualizedTimeline
                   assets={searchResults.assets}
-                  onAssetClick={handleAssetClick}
                   showDateHeaders={false}
+                  onAssetOpenRequest={handleAssetClick}
                 />
               </div>
             )}

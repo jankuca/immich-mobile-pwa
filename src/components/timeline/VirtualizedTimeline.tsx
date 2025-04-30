@@ -6,9 +6,9 @@ import { ThumbnailPosition } from '../../hooks/useZoomTransition';
 
 interface VirtualizedTimelineProps {
   assets: Asset[];
-  onAssetClick: (asset: Asset, info: { position: ThumbnailPosition | null }) => void;
   columnCount?: number;
   showDateHeaders?: boolean;
+  onAssetOpenRequest: (asset: Asset, info: { position: ThumbnailPosition | null }) => void;
 }
 
 interface TimelineSection {
@@ -18,9 +18,9 @@ interface TimelineSection {
 
 const VirtualizedTimeline = ({
   assets,
-  onAssetClick,
   columnCount = 3,
   showDateHeaders = true
+  onAssetOpenRequest,
 }: VirtualizedTimelineProps) => {
   const [sections, setSections] = useState<TimelineSection[]>([]);
   const [containerWidth, setContainerWidth] = useState<number>(0);
@@ -147,7 +147,7 @@ const VirtualizedTimeline = ({
               key={asset.id}
               asset={asset}
               size={thumbnailSize}
-              onClick={(info) => onAssetClick(asset, info)}
+              onClick={(info) => onAssetOpenRequest(asset, info)}
             />
           ))}
 

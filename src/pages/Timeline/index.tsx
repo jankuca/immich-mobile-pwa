@@ -168,7 +168,7 @@ export function Timeline() {
         ) : (
           <VirtualizedTimeline
             assets={assets}
-            onAssetClick={handleAssetClick}
+            onAssetOpenRequest={handleAssetClick}
           />
         )}
       </div>

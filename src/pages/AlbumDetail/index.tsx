@@ -192,8 +192,8 @@ export function AlbumDetail({ id, albumId }: AlbumDetailProps) {
         ) : assets.length > 0 ? (
           <VirtualizedTimeline
             assets={assets}
-            onAssetClick={handleAssetClick}
             showDateHeaders={false}
+            onAssetOpenRequest={handleAssetClick}
           />
         ) : (
           <div style={{
