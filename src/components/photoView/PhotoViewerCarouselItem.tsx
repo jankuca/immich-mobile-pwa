@@ -71,6 +71,7 @@ export const PhotoViewerCarouselItem = ({
           <AssetImage
             src={assetThumbnailUrl}
             alt={asset.originalFileName}
+            assetWidth={asset.exifInfo?.exifImageWidth ?? null}
             isBlurred={true}
             isLoaded={!loadingStatus?.fullImageLoaded}
           />
@@ -79,10 +80,8 @@ export const PhotoViewerCarouselItem = ({
           <AssetImage
             src={assetFullUrl}
             alt={asset.originalFileName}
+            assetWidth={asset.exifInfo?.exifImageWidth ?? null}
             isLoaded={loadingStatus?.fullImageLoaded}
-            style={{
-              willChange: isZooming ? 'transform' : 'auto',
-            }}
             onLoad={onImageLoad ?? null}
           />
 

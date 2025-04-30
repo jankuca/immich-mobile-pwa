@@ -1,6 +1,7 @@
 interface AssetImageProps {
   src: string
   alt: string
+  assetWidth?: number | null
   isBlurred?: boolean
   isLoaded?: boolean
   style?: Record<string, string | number>
@@ -10,6 +11,7 @@ interface AssetImageProps {
 export const AssetImage = ({
   src,
   alt,
+  assetWidth,
   isBlurred = false,
   isLoaded = true,
   style = {},
@@ -20,6 +22,7 @@ export const AssetImage = ({
       src={src}
       alt={alt}
       style={{
+        width: assetWidth ? `min(100%, ${assetWidth}px)` : '100%',
         maxWidth: '100%',
         maxHeight: '100%',
         objectFit: 'contain',
