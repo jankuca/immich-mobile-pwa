@@ -44,7 +44,6 @@ const TimelineThumbnail = ({ asset, size, onClick }: TimelineThumbnailProps) => 
         height: `${size}px`,
         position: 'relative',
         overflow: 'hidden',
-        borderRadius: 'var(--radius-sm)',
         backgroundColor: 'var(--color-gray-light)',
         cursor: 'pointer',
         WebkitTouchCallout: 'none', // Disable iOS context menu

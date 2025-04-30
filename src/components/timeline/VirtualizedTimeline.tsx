@@ -100,7 +100,7 @@ const VirtualizedTimeline = ({
   }, []);
 
   // Calculate thumbnail size based on container width and column count
-  const thumbnailSize = containerWidth ? Math.floor(containerWidth / columnCount) - 2 : 0; // 2px for gap
+  const thumbnailSize = containerWidth ? Math.floor(containerWidth / columnCount) - 1 : 0; // 2px for gap
 
   // Render a row in the virtual list
   const renderRow = (section: TimelineSection, _index: number) => {
@@ -139,7 +139,7 @@ const VirtualizedTimeline = ({
       rows.push(
         <div key={`row-${section.date}-${i}`} class="timeline-row" style={{
           display: 'flex',
-          gap: '2px',
+          gap: '1px',
           marginBottom: '2px'
         }}>
           {rowAssets.map(asset => (
