@@ -10,14 +10,21 @@ import { ThumbnailPosition } from '../../hooks/useZoomTransition';
 export function Timeline() {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
   const [selectedThumbnailPosition, setSelectedThumbnailPosition] = useState<ThumbnailPosition | null>(null);
+  const [allBuckets, setAllBuckets] = useState<string[]>([]);
+  const [loadedBucketCount, setLoadedBucketCount] = useState<number>(0);
+  const [hasMoreContent, setHasMoreContent] = useState<boolean>(true);
   const { logout, user } = useAuth();
 
-  // Fetch timeline data
+  // Number of buckets to load at once
+  const BUCKETS_PER_LOAD = 1;
+
+  // Fetch initial timeline data
   useEffect(() => {
-    const fetchTimeline = async () => {
+    const fetchInitialTimeline = async () => {
       try {
         setIsLoading(true);
         setError(null);
@@ -30,47 +37,94 @@ export function Timeline() {
 
         console.log('Time buckets response:', timeBucketsResponse);
 
-        // Extract buckets from the response (new format)
+        // Extract buckets from the response
         const buckets = timeBucketsResponse.map(bucket => bucket.timeBucket) || [];
+        setAllBuckets(buckets);
 
-        // Fetch assets for each bucket (in a real app, you'd implement pagination)
-        const allAssets: Asset[] = [];
-
-        // Limit to first 10 buckets for demo purposes
-        const limitedBuckets = buckets.slice(0, 100);
-
-        for (const bucket of limitedBuckets) {
-          try {
-            const bucketAssets = await apiService.getTimeBucket({
-              timeBucket: bucket,
-              size: 'DAY',
-              isTrashed: false,
-            });
-
-            console.log(`Bucket ${bucket} assets:`, bucketAssets);
-
-            if (Array.isArray(bucketAssets)) {
-              allAssets.push(...bucketAssets);
-            } else {
-              console.warn(`Unexpected response format for bucket ${bucket}:`, bucketAssets);
-            }
-          } catch (bucketError) {
-            console.error(`Error fetching assets for bucket ${bucket}:`, bucketError);
-          }
+        // If no buckets, set hasMoreContent to false
+        if (buckets.length === 0) {
+          setHasMoreContent(false);
+          setIsLoading(false);
+          return;
         }
 
-        console.log('All assets:', allAssets);
-        setAssets(allAssets);
+        // Load the first batch of buckets
+        await loadMoreBuckets(buckets, 0);
       } catch (err) {
         console.error('Error fetching timeline:', err);
         setError('Failed to load photos. Please try again.');
-      } finally {
         setIsLoading(false);
       }
     };
 
-    fetchTimeline();
+    fetchInitialTimeline();
   }, []);
+
+  // Function to load more buckets
+  const loadMoreBuckets = async (buckets: string[], startIndex: number) => {
+    if (startIndex >= buckets.length) {
+      setHasMoreContent(false);
+      setIsLoadingMore(false);
+      return;
+    }
+
+    try {
+      if (startIndex > 0) {
+        setIsLoadingMore(true);
+      }
+
+      // Get the next batch of buckets
+      const endIndex = Math.min(startIndex + BUCKETS_PER_LOAD, buckets.length);
+      const bucketsToLoad = buckets.slice(startIndex, endIndex);
+
+      console.log(`Loading buckets ${startIndex} to ${endIndex - 1}...`);
+
+      const newAssets: Asset[] = [];
+
+      // Load assets for each bucket
+      for (const bucket of bucketsToLoad) {
+        try {
+          const bucketAssets = await apiService.getTimeBucket({
+            timeBucket: bucket,
+            size: 'DAY',
+            isTrashed: false,
+          });
+
+          console.log(`Bucket ${bucket} assets:`, bucketAssets);
+
+          if (Array.isArray(bucketAssets)) {
+            newAssets.push(...bucketAssets);
+          } else {
+            console.warn(`Unexpected response format for bucket ${bucket}:`, bucketAssets);
+          }
+        } catch (bucketError) {
+          console.error(`Error fetching assets for bucket ${bucket}:`, bucketError);
+        }
+      }
+
+      // Update state with new assets
+      setAssets(prevAssets => [...prevAssets, ...newAssets]);
+      setLoadedBucketCount(endIndex);
+
+      // Check if we've loaded all buckets
+      if (endIndex >= buckets.length) {
+        setHasMoreContent(false);
+      }
+    } catch (err) {
+      console.error('Error loading more buckets:', err);
+    } finally {
+      setIsLoading(false);
+      setIsLoadingMore(false);
+    }
+  };
+
+  // Handle loading more content
+  const handleLoadMore = useCallback(() => {
+    if (isLoadingMore || !hasMoreContent) return;
+
+    console.log('Loading more content...');
+    loadMoreBuckets(allBuckets, loadedBucketCount);
+  }, [allBuckets, loadedBucketCount, isLoadingMore, hasMoreContent]);
 
   // Handle asset selection
   const handleAssetClick = (asset: Asset, info: { position: ThumbnailPosition | null }) => {
@@ -168,7 +222,10 @@ export function Timeline() {
         ) : (
           <VirtualizedTimeline
             assets={assets}
+            hasMoreContent={hasMoreContent}
+            isLoadingMore={isLoadingMore}
             onAssetOpenRequest={handleAssetClick}
+            onLoadMoreRequest={handleLoadMore}
           />
         )}
       </div>

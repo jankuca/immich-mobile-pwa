@@ -1,5 +1,6 @@
 import { h } from 'preact';
-import { useState, useEffect, useRef } from 'preact/hooks';
+import pluralize from 'pluralize';
+import { useState, useEffect, useRef, useCallback } from 'preact/hooks';
 import { Asset } from '../../services/api';
 import TimelineThumbnail from './TimelineThumbnail';
 import { ThumbnailPosition } from '../../hooks/useZoomTransition';
@@ -8,7 +9,10 @@ interface VirtualizedTimelineProps {
   assets: Asset[];
   columnCount?: number;
   showDateHeaders?: boolean;
+  hasMoreContent?: boolean;
+  isLoadingMore?: boolean;
   onAssetOpenRequest: (asset: Asset, info: { position: ThumbnailPosition | null }) => void;
+  onLoadMoreRequest?: () => void;
 }
 
 interface TimelineSection {
@@ -19,12 +23,16 @@ interface TimelineSection {
 const VirtualizedTimeline = ({
   assets,
   columnCount = 3,
-  showDateHeaders = true
+  showDateHeaders = true,
+  hasMoreContent = false,
+  isLoadingMore = false,
   onAssetOpenRequest,
+  onLoadMoreRequest,
 }: VirtualizedTimelineProps) => {
   const [sections, setSections] = useState<TimelineSection[]>([]);
   const [containerWidth, setContainerWidth] = useState<number>(0);
   const containerRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   // Group assets by date
   useEffect(() => {
@@ -98,6 +106,43 @@ const VirtualizedTimeline = ({
       window.removeEventListener('resize', updateWidth);
     };
   }, []);
+
+  // Handle scroll events to detect when user is near the bottom
+  const handleScroll = useCallback(() => {
+    if (!scrollContainerRef.current || !onLoadMoreRequest) return;
+
+    const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
+    // Calculate how far the user has scrolled (0 to 1)
+    const scrollPosition = scrollTop / (scrollHeight - clientHeight);
+
+    // If user has scrolled past 80% of the content and we're not already loading more
+    const isNearEnd = scrollPosition > 0.8;
+
+    if (isNearEnd && hasMoreContent && !isLoadingMore) {
+      console.log('Near bottom, loading more content...');
+      onLoadMoreRequest();
+    }
+  }, [onLoadMoreRequest, hasMoreContent, isLoadingMore]);
+
+  // Add scroll event listener
+  useEffect(() => {
+    const scrollContainer = scrollContainerRef.current;
+    if (scrollContainer) {
+      scrollContainer.addEventListener('scroll', handleScroll);
+
+      // Check if we need to load more content initially (if container isn't filled)
+      if (scrollContainer.scrollHeight <= scrollContainer.clientHeight && hasMoreContent && !isLoadingMore && onLoadMoreRequest) {
+        console.log('Container not filled, loading more content...');
+        onLoadMoreRequest();
+      }
+    }
+
+    return () => {
+      if (scrollContainer) {
+        scrollContainer.removeEventListener('scroll', handleScroll);
+      }
+    };
+  }, [handleScroll, hasMoreContent, isLoadingMore, onLoadMoreRequest, sections]);
 
   // Calculate thumbnail size based on container width and column count
   const thumbnailSize = containerWidth ? Math.floor(containerWidth / columnCount) - 1 : 0; // 2px for gap
@@ -183,12 +228,52 @@ const VirtualizedTimeline = ({
       backgroundColor: 'var(--color-background)'
     }}>
       {containerWidth > 0 && sections.length > 0 ? (
-        <div style={{
-          height: '100%',
-          overflow: 'auto',
-          backgroundColor: 'var(--color-background)'
-        }}>
+        <div
+          ref={scrollContainerRef}
+          style={{
+            height: '100%',
+            overflow: 'auto',
+            backgroundColor: 'var(--color-background)'
+          }}
+        >
           {sections.map((section, index) => renderRow(section, index))}
+
+          {/* Loading indicator */}
+          {isLoadingMore && (
+            <div style={{
+              display: 'flex',
+              justifyContent: 'center',
+              padding: 'var(--spacing-md)',
+              color: 'var(--color-gray)'
+            }}>
+              <div class="loading-spinner" style={{
+                width: '24px',
+                height: '24px',
+                border: '3px solid var(--color-gray-light)',
+                borderTopColor: 'var(--color-primary)',
+                borderRadius: '50%',
+                animation: 'spin 1s linear infinite'
+              }} />
+            </div>
+          )}
+
+          {/* End of content message */}
+          {!hasMoreContent && sections.length > 0 && (
+            <div style={{
+              textAlign: 'center',
+              padding: 'var(--spacing-md)',
+              color: 'var(--color-gray)',
+              fontSize: 'var(--font-size-sm)'
+            }}>
+              {assets.length} {pluralize('photo', assets.length)}
+            </div>
+          )}
+
+          <style>{`
+            @keyframes spin {
+              to { transform: rotate(360deg); }
+            }
+          `}</style>
         </div>
       ) : (
         <div class="timeline-empty" style={{
