@@ -417,7 +417,6 @@ export function Search() {
                 <VirtualizedTimeline
                   assets={searchResults.assets}
                   onAssetClick={handleAssetClick}
-                  onThumbnailPosition={handleThumbnailPosition}
                   showDateHeaders={false}
                 />
               </div>
