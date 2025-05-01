@@ -136,7 +136,7 @@ export function Search() {
         <form
           onSubmit={handleSubmit}
           style={{
-            padding: 'var(--spacing-md)',
+            padding: 'var(--spacing-sm)',
             position: 'sticky',
             top: 0,
             backgroundColor: 'var(--color-background)',
@@ -280,7 +280,7 @@ export function Search() {
 
         {/* Search results */}
         {searchResults && !isSearching && (
-          <div class="search-results" style={{ padding: 'var(--spacing-md) 0 0' }}>
+          <div class="search-results">
             {/* Albums results */}
             {searchResults.albums && searchResults.albums.length > 0 && (
               <div class="search-section">
@@ -371,7 +371,7 @@ export function Search() {
 
             {/* People results */}
             {searchResults.people && searchResults.people.length > 0 && (
-              <div class="search-section" style={{ marginTop: 'var(--spacing-lg)' }}>
+              <div class="search-section" style={{ marginTop: 'var(--spacing-sm)' }}>
                 <h2
                   style={{
                     fontSize: 'var(--font-size-lg)',
@@ -453,7 +453,7 @@ export function Search() {
               <div
                 class="search-section"
                 style={{
-                  marginTop: 'var(--spacing-lg)',
+                  marginTop: 'var(--spacing-sm)',
                 }}
               >
                 <h2
