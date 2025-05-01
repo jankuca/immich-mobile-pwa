@@ -176,12 +176,20 @@ export function Search() {
               />
             </svg>
 
+            <style scoped={true}>
+              {`
+              input::placeholder {
+                color: var(--color-gray);
+              }
+              `}
+            </style>
             <input
               type="text"
               value={query}
               onInput={handleInputChange}
               placeholder="Search photos, albums, people..."
               style={{
+                height: '24px',
                 flex: 1,
                 border: 'none',
                 backgroundColor: 'transparent',
