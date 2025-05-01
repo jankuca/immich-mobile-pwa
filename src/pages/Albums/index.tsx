@@ -348,11 +348,12 @@ export function Albums() {
                       <div
                         style={{
                           padding: 'var(--spacing-sm)',
-                          backgroundColor: 'var(--color-dark)',
+                          backgroundColor: 'var(--color-light)',
                         }}
                       >
                         <h3
                           style={{
+                            color: 'var(--color-dark)',
                             fontSize: 'var(--font-size-md)',
                             fontWeight: 'var(--font-weight-semibold)',
                             marginBottom: 'var(--spacing-xs)',
