@@ -377,6 +377,7 @@ export function Albums() {
                                 localeMatcher: 'best fit',
                               })}
                               {album.endDate &&
+                                album.startDate !== album.endDate &&
                                 ` - ${new Date(album.endDate).toLocaleDateString(undefined, { localeMatcher: 'best fit' })}`}
                             </>
                           ) : (
