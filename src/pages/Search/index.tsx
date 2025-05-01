@@ -40,8 +40,8 @@ export function Search() {
   }
 
   // Handle search
-  const handleSearch = async () => {
-    if (!query.trim()) {
+  const handleSearch = async (submittedQuery: string) => {
+    if (!submittedQuery.trim()) {
       return
     }
 
@@ -61,7 +61,7 @@ export function Search() {
       setIsSearching(true)
       setError(null)
 
-      saveRecentSearch(query)
+      saveRecentSearch(submittedQuery)
 
       // Use the updated search method with options
       const results = await apiService.search(query, {
@@ -88,13 +88,13 @@ export function Search() {
   // Handle search form submission
   const handleSubmit = (e: Event) => {
     e.preventDefault()
-    handleSearch()
+    handleSearch(query)
   }
 
   // Handle recent search click
   const handleRecentSearchClick = (search: string) => {
     setQuery(search)
-    setTimeout(() => handleSearch(), 0)
+    setTimeout(() => handleSearch(search), 0)
   }
 
   // Handle clear recent searches
