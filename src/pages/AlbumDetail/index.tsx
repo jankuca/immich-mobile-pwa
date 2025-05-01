@@ -1,6 +1,6 @@
 import { useLocation } from 'preact-iso'
 import { useEffect, useState } from 'preact/hooks'
-import { Header } from '../../components/common/Header'
+import { AlbumHeader } from '../../components/common/AlbumHeader'
 import { PhotoViewer } from '../../components/photoView/PhotoViewer'
 import { VirtualizedTimeline } from '../../components/timeline/VirtualizedTimeline'
 import type { ThumbnailPosition } from '../../hooks/useZoomTransition'
@@ -166,8 +166,8 @@ export function AlbumDetail({ id, albumId }: AlbumDetailProps) {
 
   return (
     <div class="ios-page">
-      <Header
-        title={album ? album.albumName : 'Album'}
+      <AlbumHeader
+        album={album}
         leftAction={{
           icon: (
             <svg

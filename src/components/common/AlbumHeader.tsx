@@ -1,0 +1,95 @@
+import type { ComponentChildren } from 'preact'
+import type { Album } from '../../services/api'
+
+interface AlbumHeaderProps {
+  album: Album | null
+  leftAction?: {
+    icon: ComponentChildren
+    onClick: () => void
+  }
+}
+
+export const AlbumHeader = ({ album, leftAction }: AlbumHeaderProps) => {
+  return (
+    <header
+      class="ios-header album-header"
+      style={{
+        height: 'auto',
+        paddingTop: 'var(--spacing-md)',
+        paddingBottom: 'var(--spacing-md)',
+      }}
+    >
+      {leftAction && (
+        <button
+          class="ios-header-left-action"
+          onClick={leftAction.onClick}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: 'var(--color-primary)',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginRight: 'var(--spacing-sm)',
+          }}
+        >
+          {leftAction.icon}
+        </button>
+      )}
+
+      <div
+        class="album-header-content"
+        style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'flex-start',
+        }}
+      >
+        <h1
+          class="album-header-title"
+          style={{
+            fontSize: 'var(--font-size-xl)',
+            fontWeight: 'var(--font-weight-bold)',
+            marginBottom: 'var(--spacing-xs)',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            width: '100%',
+          }}
+        >
+          {album ? album.albumName : 'Album'}
+        </h1>
+
+        {album && (
+          <p
+            class="album-header-date"
+            style={{
+              fontSize: 'var(--font-size-sm)',
+              color: 'var(--color-gray)',
+              margin: 0,
+            }}
+          >
+            {album.startDate ? (
+              <>
+                {new Date(album.startDate).toLocaleDateString(undefined, {
+                  localeMatcher: 'best fit',
+                })}
+                {album.endDate &&
+                  album.startDate !== album.endDate &&
+                  ` - ${new Date(album.endDate).toLocaleDateString(undefined, { localeMatcher: 'best fit' })}`}
+              </>
+            ) : (
+              'No date information'
+            )}
+            {album.assetCount > 0 && (
+              <span style={{ marginLeft: 'var(--spacing-sm)' }}>
+                • {album.assetCount} {album.assetCount === 1 ? 'photo' : 'photos'}
+              </span>
+            )}
+          </p>
+        )}
+      </div>
+    </header>
+  )
+}
