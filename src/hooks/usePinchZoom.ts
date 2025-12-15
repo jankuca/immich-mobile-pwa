@@ -107,6 +107,9 @@ export function usePinchZoom({
   // Track if we were pinching in this touch session (to prevent accidental closes)
   const wasPinching = useRef<boolean>(false)
 
+  // Track when the last pinch gesture ended
+  const lastPinchEndTime = useRef<number>(0)
+
   // Track initial distance between fingers for pinch
   const initialDistance = useRef<number | null>(null)
 
@@ -370,6 +373,14 @@ export function usePinchZoom({
       // Update zoom
       setZoom(newZoom)
 
+      // If we've zoomed back to minimum, reset pan position
+      if (newZoom === minZoom) {
+        setPanX(0)
+        setPanY(0)
+        setIsAtLeftEdge(false)
+        setIsAtRightEdge(false)
+      }
+
       // Reset initial distance for continuous zooming
       initialDistance.current = currentDistance
 
@@ -457,9 +468,24 @@ export function usePinchZoom({
    * Handle touch end event
    */
   const handlePinchEnd = (e: TouchEvent) => {
-    // If we were pinching or panning, stop propagation to prevent parent handlers
-    // This includes cases where we just finished pinching (even if zoom is now at minimum)
-    if (isPinching.current || wasPinching.current || zoom > 1) {
+    const remainingTouches = e.touches.length
+    const currentTime = Date.now()
+
+    // Check if this touch end is happening very soon after a pinch ended (within 300ms)
+    const isJustAfterPinch = currentTime - lastPinchEndTime.current < 300
+
+    // Only stop propagation if:
+    // 1. We're currently pinching (lifting one finger from a two-finger gesture)
+    // 2. We're panning while zoomed in (zoom > 1)
+    // 3. We just finished a pinch AND there are still fingers on screen (remainingTouches > 0)
+    // 4. This touch end is happening very soon after a pinch gesture ended
+    const shouldStopPropagation =
+      isPinching.current ||
+      zoom > 1 ||
+      (wasPinching.current && remainingTouches > 0) ||
+      (isJustAfterPinch && zoom === 1)
+
+    if (shouldStopPropagation) {
       e.stopPropagation()
     }
 
@@ -468,13 +494,21 @@ export function usePinchZoom({
       applyInertia()
     }
 
+    // Track when pinch gesture ended
+    if (isPinching.current) {
+      lastPinchEndTime.current = currentTime
+    }
+
     isPinching.current = false
     initialDistance.current = null
     lastTouchX.current = null
     lastTouchY.current = null
     lastVelocityTime.current = null
 
-    // Don't reset wasPinching here - it will be reset on next touch start
+    // Reset wasPinching if all fingers are lifted
+    if (remainingTouches === 0) {
+      wasPinching.current = false
+    }
   }
 
   /**
