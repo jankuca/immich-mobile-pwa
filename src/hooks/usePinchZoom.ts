@@ -1,4 +1,4 @@
-import { useRef, useState } from 'preact/hooks'
+import { useEffect, useRef, useState } from 'preact/hooks'
 
 interface UsePinchZoomProps {
   /**
@@ -115,6 +115,23 @@ export function usePinchZoom({
   const pinchCenterX = useRef<number>(0)
   const pinchCenterY = useRef<number>(0)
 
+  // Velocity tracking for inertial scrolling
+  const lastVelocityTime = useRef<number | null>(null)
+  const velocityX = useRef<number>(0)
+  const velocityY = useRef<number>(0)
+  const velocityHistoryX = useRef<number[]>([])
+  const velocityHistoryY = useRef<number[]>([])
+  const inertiaAnimationFrame = useRef<number | null>(null)
+
+  // Cleanup animation frame on unmount
+  useEffect(() => {
+    return () => {
+      if (inertiaAnimationFrame.current !== null) {
+        cancelAnimationFrame(inertiaAnimationFrame.current)
+      }
+    }
+  }, [])
+
   /**
    * Calculate distance between two touch points
    */
@@ -201,6 +218,94 @@ export function usePinchZoom({
   }
 
   /**
+   * Apply inertial scrolling after touch end
+   */
+  const applyInertia = () => {
+    // Cancel any existing animation
+    if (inertiaAnimationFrame.current !== null) {
+      cancelAnimationFrame(inertiaAnimationFrame.current)
+      inertiaAnimationFrame.current = null
+    }
+
+    // Don't apply inertia if velocity is too low
+    const minVelocity = 0.05 // pixels per millisecond (lowered threshold)
+    if (Math.abs(velocityX.current) < minVelocity && Math.abs(velocityY.current) < minVelocity) {
+      return
+    }
+
+    const deceleration = 0.92 // Deceleration factor per frame (slightly faster deceleration)
+    const minVelocityThreshold = 0.01 // Stop when velocity is very low
+
+    let lastTime = performance.now()
+
+    const animate = (currentTime: number) => {
+      // Calculate actual time delta for this frame
+      const deltaTime = currentTime - lastTime
+      lastTime = currentTime
+
+      // Apply velocity to pan position using functional updates to get current values
+      const { maxPanX, maxPanY } = getMaxPanValues()
+
+      setPanX((currentPanX) => {
+        // Calculate new pan position based on actual time delta
+        let newPanX = currentPanX + velocityX.current * deltaTime
+
+        // Clamp to boundaries
+        newPanX = Math.min(maxPanX, Math.max(-maxPanX, newPanX))
+
+        // Check edges
+        checkEdges(newPanX)
+
+        return newPanX
+      })
+
+      setPanY((currentPanY) => {
+        // Calculate new pan position based on actual time delta
+        let newPanY = currentPanY + velocityY.current * deltaTime
+
+        // Clamp to boundaries
+        newPanY = maxPanY > 0 ? Math.min(maxPanY, Math.max(-maxPanY, newPanY)) : 0
+
+        return newPanY
+      })
+
+      // Apply deceleration
+      velocityX.current *= deceleration
+      velocityY.current *= deceleration
+
+      // Continue animation if velocity is still significant
+      if (
+        Math.abs(velocityX.current) > minVelocityThreshold ||
+        Math.abs(velocityY.current) > minVelocityThreshold
+      ) {
+        inertiaAnimationFrame.current = requestAnimationFrame(animate)
+      } else {
+        // Stop animation
+        velocityX.current = 0
+        velocityY.current = 0
+        inertiaAnimationFrame.current = null
+      }
+    }
+
+    // Start animation
+    inertiaAnimationFrame.current = requestAnimationFrame(animate)
+  }
+
+  /**
+   * Cancel inertial scrolling
+   */
+  const cancelInertia = () => {
+    if (inertiaAnimationFrame.current !== null) {
+      cancelAnimationFrame(inertiaAnimationFrame.current)
+      inertiaAnimationFrame.current = null
+    }
+    velocityX.current = 0
+    velocityY.current = 0
+    velocityHistoryX.current = []
+    velocityHistoryY.current = []
+  }
+
+  /**
    * Handle touch start event
    */
   const handlePinchStart = (e: TouchEvent) => {
@@ -268,19 +373,56 @@ export function usePinchZoom({
       e.preventDefault() // Prevent default scrolling behavior
       e.stopPropagation() // Prevent parent handlers from interfering
 
+      // Cancel any ongoing inertia
+      cancelInertia()
+
       const currentX = touches[0].clientX
       const currentY = touches[0].clientY
+      const currentTime = Date.now()
 
       // Initialize last touch position if not set
       if (lastTouchX.current === null || lastTouchY.current === null) {
         lastTouchX.current = currentX
         lastTouchY.current = currentY
+        lastVelocityTime.current = currentTime
         return
       }
 
       // Calculate pan distance
       const deltaX = currentX - lastTouchX.current
       const deltaY = currentY - lastTouchY.current
+
+      // Calculate velocity for inertial scrolling
+      if (lastVelocityTime.current !== null) {
+        const timeDelta = currentTime - lastVelocityTime.current
+        if (timeDelta > 0) {
+          const currentVelocityX = deltaX / timeDelta // pixels per millisecond
+          const currentVelocityY = deltaY / timeDelta
+
+          // Keep a history of the last few velocity samples for smoothing
+          velocityHistoryX.current.push(currentVelocityX)
+          velocityHistoryY.current.push(currentVelocityY)
+
+          // Keep only the last 5 samples
+          if (velocityHistoryX.current.length > 5) {
+            velocityHistoryX.current.shift()
+          }
+          if (velocityHistoryY.current.length > 5) {
+            velocityHistoryY.current.shift()
+          }
+
+          // Calculate average velocity from history
+          const avgVelocityX =
+            velocityHistoryX.current.reduce((sum, v) => sum + v, 0) /
+            velocityHistoryX.current.length
+          const avgVelocityY =
+            velocityHistoryY.current.reduce((sum, v) => sum + v, 0) /
+            velocityHistoryY.current.length
+
+          velocityX.current = avgVelocityX
+          velocityY.current = avgVelocityY
+        }
+      }
 
       // Get max pan values based on image dimensions and zoom
       const { maxPanX, maxPanY } = getMaxPanValues()
@@ -296,9 +438,10 @@ export function usePinchZoom({
       // Check if we're at the edges
       checkEdges(newPanX)
 
-      // Update last touch position
+      // Update last touch position and time
       lastTouchX.current = currentX
       lastTouchY.current = currentY
+      lastVelocityTime.current = currentTime
     }
   }
 
@@ -311,16 +454,23 @@ export function usePinchZoom({
       e.stopPropagation()
     }
 
+    // Apply inertial scrolling if we were panning
+    if (zoom > 1 && !isPinching.current) {
+      applyInertia()
+    }
+
     isPinching.current = false
     initialDistance.current = null
     lastTouchX.current = null
     lastTouchY.current = null
+    lastVelocityTime.current = null
   }
 
   /**
    * Reset zoom and pan
    */
   const resetZoom = () => {
+    cancelInertia()
     setZoom(initialZoom)
     setPanX(0)
     setPanY(0)
