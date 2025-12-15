@@ -140,6 +140,13 @@ export function usePhotoViewerGestures({
     // Update velocity for momentum calculations
     updateVelocity(currentX)
 
+    // If direction is not yet determined, don't handle anything
+    // This prevents both horizontal and vertical handlers from triggering
+    // during the initial diagonal swipe detection phase
+    if (swipeDirection === null) {
+      return
+    }
+
     // Handle horizontal swipe
     if (swipeDirection === 'horizontal') {
       // Notify parent that horizontal swiping has started

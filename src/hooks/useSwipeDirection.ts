@@ -1,4 +1,4 @@
-import { useState } from 'preact/hooks'
+import { useRef, useState } from 'preact/hooks'
 
 export type SwipeDirection = 'horizontal' | 'vertical' | null
 
@@ -47,76 +47,100 @@ interface UseSwipeDirectionReturn {
 
 /**
  * Hook to detect and track swipe direction (horizontal vs vertical)
+ * Uses refs for coordinates and direction to ensure synchronous access
+ * within the same event handler execution.
  */
 export function useSwipeDirection(): UseSwipeDirectionReturn {
-  const [startX, setStartX] = useState<number | null>(null)
-  const [startY, setStartY] = useState<number | null>(null)
-  const [currentX, setCurrentX] = useState<number | null>(null)
-  const [currentY, setCurrentY] = useState<number | null>(null)
-  const [swipeDirection, setSwipeDirection] = useState<SwipeDirection>(null)
+  // Use refs for synchronous access within the same event loop
+  const startXRef = useRef<number | null>(null)
+  const startYRef = useRef<number | null>(null)
+  const currentXRef = useRef<number | null>(null)
+  const currentYRef = useRef<number | null>(null)
+  const swipeDirectionRef = useRef<SwipeDirection>(null)
+
+  // State for triggering re-renders when values change
+  const [, forceUpdate] = useState({})
 
   const handleTouchStart = (e: TouchEvent) => {
-    const x = e.touches[0].clientX
-    const y = e.touches[0].clientY
+    const touch = e.touches[0]
+    if (!touch) {
+      return
+    }
+    const x = touch.clientX
+    const y = touch.clientY
 
-    setStartX(x)
-    setStartY(y)
-    setCurrentX(x)
-    setCurrentY(y)
-    setSwipeDirection(null)
+    startXRef.current = x
+    startYRef.current = y
+    currentXRef.current = x
+    currentYRef.current = y
+    swipeDirectionRef.current = null
+    forceUpdate({})
   }
 
   const handleTouchMove = (e: TouchEvent) => {
-    if (startX === null || startY === null) { return }
+    if (startXRef.current === null || startYRef.current === null) {
+      return
+    }
 
-    const x = e.touches[0].clientX
-    const y = e.touches[0].clientY
+    const touch = e.touches[0]
+    if (!touch) {
+      return
+    }
+    const x = touch.clientX
+    const y = touch.clientY
 
-    setCurrentX(x)
-    setCurrentY(y)
+    currentXRef.current = x
+    currentYRef.current = y
 
     // Only determine direction if not already set
-    if (!swipeDirection) {
-      const diffX = x - startX
-      const diffY = y - startY
+    if (swipeDirectionRef.current === null) {
+      const diffX = x - startXRef.current
+      const diffY = y - startYRef.current
       const absX = Math.abs(diffX)
       const absY = Math.abs(diffY)
 
       // If horizontal movement is greater than vertical and exceeds threshold
       if (absX > absY && absX > 10) {
-        setSwipeDirection('horizontal')
+        swipeDirectionRef.current = 'horizontal'
+        forceUpdate({})
       }
       // If vertical movement is greater than horizontal and exceeds threshold
       else if (absY > absX && absY > 10) {
-        setSwipeDirection('vertical')
+        swipeDirectionRef.current = 'vertical'
+        forceUpdate({})
       }
     }
   }
 
   const resetSwipeDirection = () => {
-    setStartX(null)
-    setStartY(null)
-    setCurrentX(null)
-    setCurrentY(null)
-    setSwipeDirection(null)
+    startXRef.current = null
+    startYRef.current = null
+    currentXRef.current = null
+    currentYRef.current = null
+    swipeDirectionRef.current = null
+    forceUpdate({})
   }
 
   const getHorizontalSwipeDistance = (): number => {
-    if (startX === null || currentX === null) { return 0 }
-    return currentX - startX
+    if (startXRef.current === null || currentXRef.current === null) {
+      return 0
+    }
+    return currentXRef.current - startXRef.current
   }
 
   const getVerticalSwipeDistance = (): number => {
-    if (startY === null || currentY === null) { return 0 }
-    return currentY - startY
+    if (startYRef.current === null || currentYRef.current === null) {
+      return 0
+    }
+    return currentYRef.current - startYRef.current
   }
 
   return {
-    swipeDirection,
-    startX,
-    startY,
-    currentX,
-    currentY,
+    swipeDirection: swipeDirectionRef.current,
+    startX: startXRef.current,
+    startY: startYRef.current,
+    currentX: currentXRef.current,
+    currentY: currentYRef.current,
     handleTouchStart,
     handleTouchMove,
     resetSwipeDirection,
