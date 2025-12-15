@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'preact/hooks'
 import { apiService } from '../services/api'
-import type { Asset } from '../services/api'
+import type { AssetTimelineItem } from '../services/api'
 
 // Interface for tracking image loading status
 export interface ImageLoadingStatus {
@@ -17,7 +17,11 @@ export interface ImageLoadingStatus {
  * @param preloadCount Number of assets to preload in each direction (prev/next)
  * @returns Object containing loading status and utility functions
  */
-export function useImagePreloader(assets: Asset[], currentAssetId: string, preloadCount = 2) {
+export function useImagePreloader(
+  assets: AssetTimelineItem[],
+  currentAssetId: string,
+  preloadCount = 2,
+) {
   const [loadingStatus, setLoadingStatus] = useState<ImageLoadingStatus>({})
   const [preloadedImages, setPreloadedImages] = useState<Set<string>>(new Set())
 

@@ -3,15 +3,15 @@ import { Header } from '../../components/common/Header'
 import { PhotoViewer } from '../../components/photoView/PhotoViewer'
 import { VirtualizedTimeline } from '../../components/timeline/VirtualizedTimeline'
 import type { ThumbnailPosition } from '../../hooks/useZoomTransition'
-import { type Asset, apiService } from '../../services/api'
+import { type AssetTimelineItem, apiService } from '../../services/api'
 import { useAuth } from '../../services/auth'
 
 export function Timeline() {
-  const [assets, setAssets] = useState<Asset[]>([])
+  const [assets, setAssets] = useState<AssetTimelineItem[]>([])
   const [isLoading, setIsLoading] = useState<boolean>(true)
   const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
-  const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null)
+  const [selectedAsset, setSelectedAsset] = useState<AssetTimelineItem | null>(null)
   const [selectedThumbnailPosition, setSelectedThumbnailPosition] =
     useState<ThumbnailPosition | null>(null)
   const [allBuckets, setAllBuckets] = useState<string[]>([])
@@ -75,7 +75,7 @@ export function Timeline() {
       const endIndex = Math.min(startIndex + bucketsPerLoad, buckets.length)
       const bucketsToLoad = buckets.slice(startIndex, endIndex)
 
-      const newAssets: Asset[] = []
+      const newAssets: AssetTimelineItem[] = []
 
       // Load assets for each bucket
       for (const bucket of bucketsToLoad) {
@@ -121,7 +121,10 @@ export function Timeline() {
   }, [allBuckets, loadedBucketCount, isLoadingMore, hasMoreContent, loadMoreBuckets])
 
   // Handle asset selection
-  const handleAssetClick = (asset: Asset, info: { position: ThumbnailPosition | null }) => {
+  const handleAssetClick = (
+    asset: AssetTimelineItem,
+    info: { position: ThumbnailPosition | null },
+  ) => {
     // Store the thumbnail position for the selected asset
     setSelectedThumbnailPosition(info.position)
     setSelectedAsset(asset)

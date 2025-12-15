@@ -1,9 +1,9 @@
-import type { Asset } from '../../services/api'
+import type { Asset, AssetTimelineItem } from '../../services/api'
 import { apiService } from '../../services/api'
 import { AssetImage } from './AssetImage'
 
 interface PhotoViewerCarouselItemProps {
-  asset: Asset
+  assetTimelineItem: AssetTimelineItem
   isMain?: boolean
   isTransitioning?: boolean
   loadingStatus: {
@@ -17,7 +17,7 @@ interface PhotoViewerCarouselItemProps {
 }
 
 export const PhotoViewerCarouselItem = ({
-  asset,
+  assetTimelineItem,
   isMain = false,
   isTransitioning = false,
   loadingStatus,
@@ -26,8 +26,28 @@ export const PhotoViewerCarouselItem = ({
   imageTransform = '',
   isZooming = false,
 }: PhotoViewerCarouselItemProps) => {
-  const assetThumbnailUrl = apiService.getAssetThumbnailUrl(asset.id, 'webp')
-  const assetFullUrl = apiService.getAssetUrl(asset.id)
+  const [fullAssetInfo, setFullAssetInfo] = useState<Asset | null>(null)
+
+  const assetThumbnailUrl = apiService.getAssetThumbnailUrl(assetTimelineItem.id, 'webp')
+  const assetFullUrl = apiService.getAssetUrl(assetTimelineItem.id)
+  useEffect(() => {
+    const abortController = new AbortController()
+    apiService
+      .getAsset(assetTimelineItem.id, { signal: abortController.signal })
+      .then((asset) => {
+        setFullAssetInfo(asset)
+      })
+      .catch((error) => {
+        if (error.name !== 'AbortError') {
+          console.error('Error fetching full asset info:', error)
+        }
+      })
+
+    return () => {
+      abortController.abort()
+    }
+  }, [assetTimelineItem.id])
+
 
   return (
     <div
@@ -43,7 +63,7 @@ export const PhotoViewerCarouselItem = ({
         ...style,
       }}
     >
-      {asset.type === 'VIDEO' ? (
+      {assetTimelineItem.type === 'VIDEO' ? (
         <video
           src={assetFullUrl}
           controls={true}
@@ -70,8 +90,8 @@ export const PhotoViewerCarouselItem = ({
           {/* Thumbnail version (shown while full image loads) */}
           <AssetImage
             src={assetThumbnailUrl}
-            alt={asset.originalFileName}
-            assetWidth={asset.exifInfo?.exifImageWidth ?? null}
+            alt={fullAssetInfo?.originalFileName ?? 'Loading…'}
+            assetWidth={fullAssetInfo?.exifInfo?.exifImageWidth ?? null}
             isBlurred={true}
             isLoaded={!loadingStatus?.fullImageLoaded}
           />
@@ -79,8 +99,8 @@ export const PhotoViewerCarouselItem = ({
           {/* Full resolution version */}
           <AssetImage
             src={assetFullUrl}
-            alt={asset.originalFileName}
-            assetWidth={asset.exifInfo?.exifImageWidth ?? null}
+            alt={fullAssetInfo?.originalFileName ?? 'Loading…'}
+            assetWidth={fullAssetInfo?.exifInfo?.exifImageWidth ?? null}
             isLoaded={loadingStatus?.fullImageLoaded}
             onLoad={onImageLoad ?? null}
           />

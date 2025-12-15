@@ -1,10 +1,32 @@
-import type { Asset } from '../../services/api'
+import { useEffect, useState } from 'preact/hooks'
+import { type Asset, type AssetTimelineItem, apiService } from '../../services/api'
 
 interface PhotoDetailsProps {
-  asset: Asset
+  assetTimelineItem: AssetTimelineItem
 }
 
-export const PhotoDetails = ({ asset }: PhotoDetailsProps) => {
+export const PhotoDetails = ({ assetTimelineItem }: PhotoDetailsProps) => {
+  const [asset, setFullAssetInfo] = useState<Asset | null>(null)
+
+  useEffect(() => {
+    const abortController = new AbortController()
+
+    apiService
+      .getAsset(assetTimelineItem.id, { signal: abortController.signal })
+      .then((asset) => {
+        setFullAssetInfo(asset)
+      })
+      .catch((error) => {
+        if (error.name !== 'AbortError') {
+          console.error('Error fetching full asset info:', error)
+        }
+      })
+
+    return () => {
+      abortController.abort()
+    }
+  }, [assetTimelineItem.id])
+
   // Format date for display
   const formatDate = (dateString: string): string => {
     const date = new Date(dateString)
@@ -16,6 +38,10 @@ export const PhotoDetails = ({ asset }: PhotoDetailsProps) => {
       hour: '2-digit',
       minute: '2-digit',
     })
+  }
+
+  if (!asset) {
+    return null
   }
 
   return (

@@ -2,22 +2,25 @@ import pluralize from 'pluralize'
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks'
 import type { JSX } from 'preact/jsx-runtime'
 import type { ThumbnailPosition } from '../../hooks/useZoomTransition'
-import type { Asset } from '../../services/api'
+import type { AssetTimelineItem } from '../../services/api'
 import { TimelineThumbnail } from './TimelineThumbnail'
 
 interface VirtualizedTimelineProps {
-  assets: Asset[]
+  assets: AssetTimelineItem[]
   columnCount?: number
   showDateHeaders?: boolean
   hasMoreContent?: boolean
   isLoadingMore?: boolean
-  onAssetOpenRequest: (asset: Asset, info: { position: ThumbnailPosition | null }) => void
+  onAssetOpenRequest: (
+    asset: AssetTimelineItem,
+    info: { position: ThumbnailPosition | null },
+  ) => void
   onLoadMoreRequest?: () => void
 }
 
 interface TimelineSection {
   date: string
-  assets: Asset[]
+  assets: AssetTimelineItem[]
 }
 
 export const VirtualizedTimeline = ({
@@ -44,8 +47,8 @@ export const VirtualizedTimeline = ({
     if (!showDateHeaders) {
       // Sort assets by date (newest first)
       const sortedAssets = [...assets].sort((a, b) => {
-        const dateA = a.localDateTime ? new Date(a.localDateTime).getTime() : 0
-        const dateB = b.localDateTime ? new Date(b.localDateTime).getTime() : 0
+        const dateA = a.fileCreatedAt ? new Date(a.fileCreatedAt).getTime() : 0
+        const dateB = b.fileCreatedAt ? new Date(b.fileCreatedAt).getTime() : 0
         return dateB - dateA
       })
 
@@ -59,15 +62,15 @@ export const VirtualizedTimeline = ({
     }
 
     // If showDateHeaders is true, group by date as before
-    const groupedByDate: { [key: string]: Asset[] } = {}
-
+    const groupedByDate: { [key: string]: AssetTimelineItem[] } = {}
+    console.log(assets)
     for (const asset of assets) {
-      if (!asset.localDateTime) {
+      if (!asset.fileCreatedAt) {
         return
       }
 
       // Format date as YYYY-MM-DD
-      const date = String(new Date(asset.localDateTime).toISOString().split('T')[0])
+      const date = String(new Date(asset.fileCreatedAt).toISOString().split('T')[0])
 
       if (!groupedByDate[date]) {
         groupedByDate[date] = []

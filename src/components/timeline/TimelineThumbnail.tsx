@@ -1,10 +1,10 @@
 import { useRef } from 'preact/hooks'
 import type { ThumbnailPosition } from '../../hooks/useZoomTransition'
-import type { Asset } from '../../services/api'
+import type { AssetTimelineItem } from '../../services/api'
 import { apiService } from '../../services/api'
 
 interface TimelineThumbnailProps {
-  asset: Asset
+  asset: AssetTimelineItem
   size: number
   onClick: (info: { position: ThumbnailPosition | null }) => void
 }
@@ -53,7 +53,6 @@ export const TimelineThumbnail = ({ asset, size, onClick }: TimelineThumbnailPro
     >
       <img
         src={thumbnailUrl}
-        alt={asset.originalFileName}
         style={{
           width: '100%',
           height: '100%',

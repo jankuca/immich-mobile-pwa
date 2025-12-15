@@ -1,38 +1,85 @@
 import axios, { isAxiosError, type AxiosInstance } from 'axios'
 
 // Types for Immich API responses
-export interface Asset {
-  id: string
-  deviceAssetId: string
-  ownerId: string
-  deviceId: string
-  type: 'IMAGE' | 'VIDEO' | 'AUDIO' | 'OTHER'
-  originalPath: string
-  originalFileName: string
+export interface TimeBucketAsset {
+  /** city name extracted from EXIF GPS data */
+  city: string | null
+  /** country name extracted from EXIF GPS data */
+  country: string | null
+  /** video duration in HH:MM:SS format (null for images) */
+  duration: string | null
+  /** file creation timestamp in UTC (ISO 8601 format, without timezone) */
   fileCreatedAt: string
-  fileModifiedAt: string
-  localDateTime: string
-  thumbhash: string
+  /** asset ID */
+  id: string
+  /** whether the asset is favorited */
   isFavorite: boolean
-  isArchived: boolean
+  /** whether the asset is an image (false for videos) */
+  isImage: boolean
+  /** whether the asset is in the trash */
   isTrashed: boolean
-  duration?: string
+  /** latitude coordinate extracted from EXIF GPS data */
+  latitude: number | null
+  /** live photo video asset ID (null for non-live photos) */
+  livePhotoVideoId: string | null
+  /** UTC offset hours at the time the photo was taken. Positive values are east of UTC, negative values are west of UTC. Values may be fractional (e.g., 5.5 for +05:30, -9.75 for -09:45). Applying this offset to 'fileCreatedAt' will give you the time the photo was taken from the photographer's perspective. */
+  localOffsetHours: number
+  /** longitude coordinate extracted from EXIF GPS data */
+  longitude: number | null
+  /** owner ID for the asset */
+  ownerId: string
+  /** projection type for 360° content (e.g., "EQUIRECTANGULAR", "CUBEFACE", "CYLINDRICAL") */
+  projectionType: string | null
+  /** aspect ratio (width/height) for the asset */
+  ratio: number
+  /** stack information as [stackId, assetCount] tuples (null for non-stacked assets) */
+  stack: string | null
+  /** BlurHash string for generating the asset preview (base64 encoded) */
+  thumbhash: string | null
+  /** visibility status for the asset (e.g., ARCHIVE, TIMELINE, HIDDEN, LOCKED) */
+  visibility: 'archive' | 'timeline' | 'hidden' | 'locked'
+}
+
+export interface AssetTimelineItem {
+  id: string
+  ownerId: string
+  type: 'IMAGE' | 'VIDEO' | 'AUDIO' | 'OTHER'
+  fileCreatedAt: string
+  thumbhash: string | null
+  isFavorite: boolean
+  isTrashed: boolean
+  duration?: string | null
   exifInfo?: {
-    dateTimeOriginal?: string
-    exifImageWidth?: number
-    exifImageHeight?: number
-    latitude?: number
-    longitude?: number
-    city?: string
-    state?: string
-    country?: string
-    description?: string
-    // Add other exif properties as needed
+    latitude?: number | null
+    longitude?: number | null
+    city?: string | null
+    country?: string | null
   }
 }
 
-export interface TimeBucket {
-  [key: string]: Asset[]
+export interface Asset extends TimeBucketAsset {
+  deviceAssetId: string
+  deviceId: string
+  originalPath: string
+  originalFileName: string
+  fileModifiedAt: string
+  localDateTime: string
+  isArchived: boolean
+  exifInfo?: NonNullable<AssetTimelineItem['exifInfo']> & {
+    dateTimeOriginal?: string | null
+    exifImageWidth?: number | null
+    exifImageHeight?: number | null
+    state?: string | null
+    description?: string | null
+    make?: string | null
+    model?: string | null
+    lensModel?: string | null
+    fNumber?: string | null
+    exposureTime?: string | null
+    iso?: string | null
+    focalLength?: string | null
+    // Add other exif properties as needed
+  }
 }
 
 export interface Album {
@@ -68,6 +115,8 @@ class ApiService {
   private api: AxiosInstance
   private baseUrl: string
   private apiKey: string | null = null
+
+  private fullAssetCache: Record<string, Asset> = {}
 
   constructor() {
     // Use the proxy URL (Vite will proxy requests to the Immich server)
@@ -163,7 +212,7 @@ class ApiService {
     isTrashed?: boolean
     personId?: string
     albumId?: string
-  }): Promise<Asset[]> {
+  }): Promise<AssetTimelineItem[]> {
     const response = await this.api.get('/timeline/bucket', {
       params: {
         timeBucket: params.timeBucket,
@@ -175,6 +224,56 @@ class ApiService {
         albumId: params.albumId,
       },
     })
+
+    // NOTE: Convert response data from {a:[],b:[],c:[]} to [{a,b,c},{a,b,c}]
+    const itemIds = response.data.id
+    if (!Array.isArray(itemIds)) {
+      return []
+    }
+
+    const items = itemIds.map(
+      (_id, index) =>
+        Object.fromEntries(
+          Object.entries(response.data).map(([key, values]) => [
+            key,
+            Array.isArray(values) ? values[index] : null,
+          ]),
+        ) as TimeBucketAsset,
+    )
+
+    return items.map((item) => ({
+      id: item.id,
+      ownerId: item.ownerId,
+      type: item.isImage ? 'IMAGE' : 'VIDEO',
+      fileCreatedAt: item.fileCreatedAt,
+      thumbhash: item.thumbhash,
+      isFavorite: item.isFavorite,
+      isTrashed: item.isTrashed,
+      duration: item.duration,
+      exifInfo: {
+        latitude: item.latitude,
+        longitude: item.longitude,
+        city: item.city,
+        country: item.country,
+      },
+    }))
+  }
+
+  async getAsset(assetId: string, options: { signal?: AbortSignal } = {}): Promise<Asset> {
+    if (this.fullAssetCache[assetId]) {
+      return this.fullAssetCache[assetId]
+    }
+
+    const response = await this.api.get(`/assets/${assetId}`, options)
+
+    this.fullAssetCache[assetId] = response.data
+    setTimeout(
+      () => {
+        delete this.fullAssetCache[assetId]
+      },
+      1000 * 60 * 5,
+    ) // 30 seconds
+
     return response.data
   }
 

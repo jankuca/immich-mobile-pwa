@@ -1,6 +1,6 @@
 import type { RefObject } from 'preact'
 import { useEffect, useRef, useState } from 'preact/hooks'
-import type { Asset } from '../services/api'
+import type { AssetTimelineItem } from '../services/api'
 import type { SwipeDirection } from './useSwipeDirection'
 import { useSwipeVelocity } from './useSwipeVelocity'
 
@@ -8,11 +8,11 @@ interface UsePhotoViewerGesturesProps {
   /**
    * Current asset being viewed
    */
-  asset: Asset
+  asset: AssetTimelineItem
   /**
    * Array of all assets
    */
-  assets: Asset[]
+  assets: AssetTimelineItem[]
   /**
    * Whether the viewer is at the top of the scroll
    */
@@ -20,7 +20,7 @@ interface UsePhotoViewerGesturesProps {
   /**
    * Callback when an asset changes
    */
-  onAssetChange: (asset: Asset) => void
+  onAssetChange: (asset: AssetTimelineItem) => void
   /**
    * Callback when the viewer should close
    */
@@ -59,11 +59,11 @@ interface UsePhotoViewerGesturesReturn {
   /**
    * Current asset being viewed
    */
-  currentAsset: Asset
+  currentAsset: AssetTimelineItem
   /**
    * Asset being transitioned to
    */
-  transitioningAsset: Asset | null
+  transitioningAsset: AssetTimelineItem | null
   /**
    * Direction of the transition
    */
@@ -103,8 +103,8 @@ export function usePhotoViewerGestures({
   getVerticalSwipeDistance,
   resetSwipeDirection,
 }: UsePhotoViewerGesturesProps): UsePhotoViewerGesturesReturn {
-  const [currentAsset, setCurrentAsset] = useState<Asset>(asset)
-  const [transitioningAsset, setTransitioningAsset] = useState<Asset | null>(null)
+  const [currentAsset, setCurrentAsset] = useState<AssetTimelineItem>(asset)
+  const [transitioningAsset, setTransitioningAsset] = useState<AssetTimelineItem | null>(null)
   const [transitionDirection, setTransitionDirection] = useState<'left' | 'right' | null>(null)
   const [horizontalSwipeOffset, setHorizontalSwipeOffset] = useState<number>(0)
 

@@ -3,13 +3,13 @@ import { useImagePreloader } from '../../hooks/useImagePreloader'
 import { usePhotoViewerGestures } from '../../hooks/usePhotoViewerGestures'
 import { useSwipeDirection } from '../../hooks/useSwipeDirection'
 import { type ThumbnailPosition, useZoomTransition } from '../../hooks/useZoomTransition'
-import type { Asset } from '../../services/api'
+import type { AssetTimelineItem } from '../../services/api'
 import { PhotoDetails } from './PhotoDetails'
 import { PhotoViewerCarouselItem } from './PhotoViewerCarouselItem'
 
 interface PhotoViewerProps {
-  asset: Asset
-  assets: Asset[]
+  asset: AssetTimelineItem
+  assets: AssetTimelineItem[]
   onClose: () => void
   thumbnailPosition?: ThumbnailPosition | null
 }
@@ -205,7 +205,7 @@ export const PhotoViewer = ({
         >
           {/* Main photo/video content */}
           <PhotoViewerCarouselItem
-            asset={currentAsset}
+            assetTimelineItem={currentAsset}
             isMain={true}
             loadingStatus={
               loadingStatus[currentAsset.id] || { thumbnailLoaded: false, fullImageLoaded: false }
@@ -218,7 +218,7 @@ export const PhotoViewer = ({
           {/* Transitioning asset (for seamless swiping) */}
           {transitioningAsset && (
             <PhotoViewerCarouselItem
-              asset={transitioningAsset}
+              assetTimelineItem={transitioningAsset}
               isTransitioning={true}
               loadingStatus={
                 loadingStatus[transitioningAsset.id] || {
@@ -237,7 +237,7 @@ export const PhotoViewer = ({
         </div>
 
         {/* Photo details - directly follows the photo container */}
-        <PhotoDetails asset={currentAsset} />
+        <PhotoDetails assetTimelineItem={currentAsset} />
       </div>
     </div>
   )
