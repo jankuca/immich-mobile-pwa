@@ -34,7 +34,16 @@ export const AssetImage = ({
         MozUserDrag: 'none', // Firefox
         userDrag: 'none', // Standard
         touchAction: 'pan-x pan-y', // Allow panning but prevent other gestures
-        ...(isBlurred ? { position: 'absolute', filter: 'blur(8px)' } : {}),
+        ...(isBlurred
+          ? {
+              position: 'absolute',
+              filter: 'blur(8px)',
+              // Scale up slightly so semi-transparent blur edges are pushed outside the clip area
+              // then clip back to original size: scale 1.05 = 105%, so clip ~2.4% from each edge
+              transform: 'scale(1.05)',
+              clipPath: 'inset(2.4%)',
+            }
+          : {}),
         ...style,
       }}
       draggable={false} // Prevent HTML5 drag and drop
