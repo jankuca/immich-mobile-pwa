@@ -104,6 +104,9 @@ export function usePinchZoom({
   // Track whether we're in a pinch gesture
   const isPinching = useRef<boolean>(false)
 
+  // Track if we were pinching in this touch session (to prevent accidental closes)
+  const wasPinching = useRef<boolean>(false)
+
   // Track initial distance between fingers for pinch
   const initialDistance = useRef<number | null>(null)
 
@@ -320,6 +323,7 @@ export function usePinchZoom({
       // Start pinch gesture
       e.stopPropagation() // Prevent parent handlers from interfering
       isPinching.current = true
+      wasPinching.current = true // Mark that we were pinching in this session
       initialDistance.current = getDistance(touches)
 
       // Calculate center of pinch
@@ -329,8 +333,12 @@ export function usePinchZoom({
     } else if (touches.length === 1 && zoom > 1) {
       // Start pan gesture (only when zoomed in)
       e.stopPropagation() // Prevent parent handlers from interfering
+      wasPinching.current = false // Reset flag for new gesture
       lastTouchX.current = touches[0].clientX
       lastTouchY.current = touches[0].clientY
+    } else if (touches.length === 1 && zoom === 1) {
+      // Reset wasPinching flag when starting a new single-touch gesture at normal zoom
+      wasPinching.current = false
     }
   }
 
@@ -450,7 +458,8 @@ export function usePinchZoom({
    */
   const handlePinchEnd = (e: TouchEvent) => {
     // If we were pinching or panning, stop propagation to prevent parent handlers
-    if (isPinching.current || zoom > 1) {
+    // This includes cases where we just finished pinching (even if zoom is now at minimum)
+    if (isPinching.current || wasPinching.current || zoom > 1) {
       e.stopPropagation()
     }
 
@@ -464,6 +473,8 @@ export function usePinchZoom({
     lastTouchX.current = null
     lastTouchY.current = null
     lastVelocityTime.current = null
+
+    // Don't reset wasPinching here - it will be reset on next touch start
   }
 
   /**
