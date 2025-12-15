@@ -153,11 +153,28 @@ export function usePinchZoom({
 
     // If we have image dimensions, calculate more accurate pan boundaries
     if (imageWidth && imageHeight) {
-      // Calculate the scaled image dimensions
-      const scaledWidth = imageWidth * zoom
-      const scaledHeight = imageHeight * zoom
+      // First, calculate the displayed dimensions of the image (after object-fit: contain)
+      const imageAspectRatio = imageWidth / imageHeight
+      const containerAspectRatio = containerWidth / containerHeight
 
-      // Calculate the overflow amount (how much the image extends beyond the container)
+      let displayedWidth: number
+      let displayedHeight: number
+
+      if (imageAspectRatio > containerAspectRatio) {
+        // Image is wider than container - fits to width
+        displayedWidth = containerWidth
+        displayedHeight = containerWidth / imageAspectRatio
+      } else {
+        // Image is taller than container - fits to height
+        displayedHeight = containerHeight
+        displayedWidth = containerHeight * imageAspectRatio
+      }
+
+      // Now calculate the scaled dimensions after zoom
+      const scaledWidth = displayedWidth * zoom
+      const scaledHeight = displayedHeight * zoom
+
+      // Calculate the overflow amount (how much the scaled image extends beyond the container)
       const overflowX = Math.max(0, (scaledWidth - containerWidth) / 2)
       const overflowY = Math.max(0, (scaledHeight - containerHeight) / 2)
 
