@@ -5,7 +5,7 @@ interface AssetImageProps {
   isBlurred?: boolean
   isLoaded?: boolean
   style?: Record<string, string | number>
-  onLoad?: (() => void) | null
+  onLoad?: ((e: Event) => void) | null
 }
 
 export const AssetImage = ({
@@ -40,7 +40,7 @@ export const AssetImage = ({
       draggable={false} // Prevent HTML5 drag and drop
       onContextMenu={(e) => e.preventDefault()} // Prevent context menu on right-click
       onDragStart={(e) => e.preventDefault()} // Prevent drag start
-      onLoad={onLoad ?? undefined}
+      onLoad={(e) => (onLoad ? onLoad(e) : undefined)}
     />
   )
 }

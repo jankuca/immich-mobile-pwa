@@ -23,6 +23,9 @@ export const PhotoViewer = ({
   const [scrollPosition, setScrollPosition] = useState<number>(0)
   const [isAtTop, setIsAtTop] = useState<boolean>(true)
   const [isClosing, setIsClosing] = useState<boolean>(false)
+  const [isZoomed, setIsZoomed] = useState<boolean>(false)
+  const [isHorizontalSwiping, setIsHorizontalSwiping] = useState<boolean>(false)
+  const [edgeReached, setEdgeReached] = useState<'left' | 'right' | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
   // Use the zoom transition hook
@@ -50,6 +53,17 @@ export const PhotoViewer = ({
     setTimeout(() => {
       onClose()
     }, 300) // Match this with the transition duration
+  }
+
+  // Helper function to determine the background color
+  const getBackgroundColor = () => {
+    if (isClosing) {
+      return 'rgba(255, 255, 255, 0)'
+    }
+    if (isZoomingOut) {
+      return `rgba(255, 255, 255, ${getBackgroundOpacity()})`
+    }
+    return 'rgba(255, 255, 255, 1)'
   }
 
   // Use the image preloader hook
@@ -80,12 +94,15 @@ export const PhotoViewer = ({
     asset,
     assets,
     isAtTop,
+    isZoomed,
+    edgeReached,
     onAssetChange: (newAsset) => {
       // Update the preloader with the new asset ID
       preloadImage(newAsset.id)
     },
     onClose: handleClose, // Use our transition handler instead of direct onClose
     preloadAsset: preloadImage,
+    onHorizontalSwipingChange: setIsHorizontalSwiping,
     swipeDirection,
     currentX,
     currentY,
@@ -159,7 +176,9 @@ export const PhotoViewer = ({
         transition: 'opacity 0.3s ease',
         pointerEvents: isClosing || isZoomingOut ? 'none' : 'auto', // Disable interactions during closing
       }}
-      onContextMenu={(e) => e.preventDefault()} // Prevent context menu on right-click
+      onContextMenu={(e) => {
+        e.preventDefault() // Prevent context menu on right-click
+      }}
     >
       {/* Scrollable container for the entire content */}
       <div
@@ -193,11 +212,7 @@ export const PhotoViewer = ({
             alignItems: 'center',
             justifyContent: 'center',
             position: 'relative',
-            backgroundColor: isClosing
-              ? 'rgba(255, 255, 255, 0)'
-              : isZoomingOut
-                ? `rgba(255, 255, 255, ${getBackgroundOpacity()})`
-                : 'rgba(255, 255, 255, 1)',
+            backgroundColor: getBackgroundColor(),
             transition: thumbnailPosition ? 'none' : 'background-color 0.3s ease',
             willChange: 'transform, background-color', // Optimize for animations
             overflow: 'hidden', // Ensure content doesn't overflow during transitions
@@ -213,6 +228,9 @@ export const PhotoViewer = ({
             onImageLoad={() => handleImageLoad(currentAsset.id)}
             imageTransform={getImageTransform()}
             isZooming={isZoomingIn || isZoomingOut}
+            isHorizontalSwiping={isHorizontalSwiping}
+            onZoomChange={(zoomed) => setIsZoomed(zoomed)}
+            onEdgeReached={(edge) => setEdgeReached(edge)}
           />
 
           {/* Transitioning asset (for seamless swiping) */}

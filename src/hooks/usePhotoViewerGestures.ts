@@ -18,6 +18,14 @@ interface UsePhotoViewerGesturesProps {
    */
   isAtTop: boolean
   /**
+   * Whether the image is currently zoomed in
+   */
+  isZoomed?: boolean
+  /**
+   * Edge that has been reached during panning
+   */
+  edgeReached?: 'left' | 'right' | null
+  /**
    * Callback when an asset changes
    */
   onAssetChange: (asset: AssetTimelineItem) => void
@@ -29,6 +37,10 @@ interface UsePhotoViewerGesturesProps {
    * Optional callback to preload an asset
    */
   preloadAsset?: (assetId: string) => void
+  /**
+   * Callback when horizontal swiping state changes
+   */
+  onHorizontalSwipingChange?: (isHorizontalSwiping: boolean) => void
   /**
    * Current swipe direction
    */
@@ -93,9 +105,12 @@ export function usePhotoViewerGestures({
   asset,
   assets,
   isAtTop,
+  isZoomed = false,
+  edgeReached = null,
   onAssetChange,
   onClose,
   preloadAsset,
+  onHorizontalSwipingChange,
   swipeDirection,
   currentX,
   currentY,
@@ -127,7 +142,26 @@ export function usePhotoViewerGestures({
 
     // Handle horizontal swipe
     if (swipeDirection === 'horizontal') {
+      // Notify parent that horizontal swiping has started
+      if (onHorizontalSwipingChange) {
+        onHorizontalSwipingChange(true)
+      }
+
       e.preventDefault() // Prevent default scrolling behavior
+
+      // If the image is zoomed in, only allow swiping if we're at an edge
+      if (isZoomed) {
+        // Only allow swiping to next/previous if we're at the edge of the zoomed image
+        if (
+          (edgeReached === 'left' && currentIndex > 0) ||
+          (edgeReached === 'right' && currentIndex < assets.length - 1)
+        ) {
+          // Continue with swiping logic
+        } else {
+          // Don't allow swiping if not at an edge or if at the first/last image
+          return
+        }
+      }
 
       const diffX = getHorizontalSwipeDistance()
 
@@ -142,20 +176,24 @@ export function usePhotoViewerGestures({
         if (swipeOffset > 0 && currentIndex > 0) {
           // Swiping right to see previous image
           const prevAsset = assets[currentIndex - 1]
-          setTransitioningAsset(prevAsset)
-          setTransitionDirection('right')
-          // Ensure it's preloaded
-          if (preloadAsset) {
-            preloadAsset(prevAsset.id)
+          if (prevAsset) {
+            setTransitioningAsset(prevAsset)
+            setTransitionDirection('right')
+            // Ensure it's preloaded
+            if (preloadAsset) {
+              preloadAsset(prevAsset.id)
+            }
           }
         } else if (swipeOffset < 0 && currentIndex < assets.length - 1) {
           // Swiping left to see next image
           const nextAsset = assets[currentIndex + 1]
-          setTransitioningAsset(nextAsset)
-          setTransitionDirection('left')
-          // Ensure it's preloaded
-          if (preloadAsset) {
-            preloadAsset(nextAsset.id)
+          if (nextAsset) {
+            setTransitioningAsset(nextAsset)
+            setTransitionDirection('left')
+            // Ensure it's preloaded
+            if (preloadAsset) {
+              preloadAsset(nextAsset.id)
+            }
           }
         }
       }
@@ -192,8 +230,8 @@ export function usePhotoViewerGestures({
       setHorizontalSwipeOffset(swipeOffset)
     }
     // Handle vertical swipe (swipe down to close functionality)
-    else if (swipeDirection === 'vertical' && isAtTop) {
-      // Only handle downward swipes when at the top
+    else if (swipeDirection === 'vertical' && isAtTop && !isZoomed) {
+      // Only handle downward swipes when at the top and not zoomed in
       const diffY = getVerticalSwipeDistance()
       if (diffY > 10) {
         e.preventDefault()
@@ -218,6 +256,29 @@ export function usePhotoViewerGestures({
   }
 
   const handleTouchEnd = () => {
+    // Notify parent that horizontal swiping has ended
+    if (onHorizontalSwipingChange) {
+      onHorizontalSwipingChange(false)
+    }
+
+    // If the image is zoomed in, only handle swipe completion if at an edge
+    if (isZoomed) {
+      // If we're at an edge and swiping horizontally, allow navigation
+      if (
+        swipeDirection === 'horizontal' &&
+        ((edgeReached === 'left' && currentIndex > 0) ||
+          (edgeReached === 'right' && currentIndex < assets.length - 1))
+      ) {
+        // Continue with swipe completion logic
+      } else {
+        // Otherwise, reset state and return
+        resetSwipeDirection()
+        resetVelocity()
+        setHorizontalSwipeOffset(0)
+        return
+      }
+    }
+
     // Handle horizontal swipe completion
     if (swipeDirection === 'horizontal' && photoContainerRef.current) {
       const threshold = window.innerWidth * 0.3 // 30% of screen width as threshold
@@ -374,11 +435,11 @@ export function usePhotoViewerGestures({
       }
     }
     // Handle vertical swipe completion (swipe down to close functionality)
-    else if (swipeDirection === 'vertical' && isAtTop && scrollContainerRef.current) {
+    else if (swipeDirection === 'vertical' && isAtTop && !isZoomed && scrollContainerRef.current) {
       const transform = scrollContainerRef.current.style.transform
       const match = transform.match(/translateY\((\d+)px\)/)
 
-      if (match) {
+      if (match?.[1]) {
         const swipeDistance = Number.parseInt(match[1])
         const maxSwipeDistance = window.innerHeight / 3
         const progress = swipeDistance / maxSwipeDistance
