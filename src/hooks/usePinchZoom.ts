@@ -71,7 +71,7 @@ interface UsePinchZoomReturn {
   /**
    * Handler for touch end event
    */
-  handlePinchEnd: () => void
+  handlePinchEnd: (e: TouchEvent) => void
   /**
    * Reset zoom and pan
    */
@@ -196,6 +196,7 @@ export function usePinchZoom({
 
     if (touches.length === 2) {
       // Start pinch gesture
+      e.stopPropagation() // Prevent parent handlers from interfering
       isPinching.current = true
       initialDistance.current = getDistance(touches)
 
@@ -205,6 +206,7 @@ export function usePinchZoom({
       pinchCenterY.current = center.y
     } else if (touches.length === 1 && zoom > 1) {
       // Start pan gesture (only when zoomed in)
+      e.stopPropagation() // Prevent parent handlers from interfering
       lastTouchX.current = touches[0].clientX
       lastTouchY.current = touches[0].clientY
     }
@@ -224,6 +226,7 @@ export function usePinchZoom({
     if (isPinching.current && touches.length === 2 && initialDistance.current) {
       // Handle pinch zoom
       e.preventDefault() // Prevent default scrolling behavior
+      e.stopPropagation() // Prevent parent handlers from interfering
 
       const currentDistance = getDistance(touches)
       const newZoom = Math.min(
@@ -246,6 +249,7 @@ export function usePinchZoom({
     } else if (touches.length === 1 && zoom > 1) {
       // Handle panning (only when zoomed in)
       e.preventDefault() // Prevent default scrolling behavior
+      e.stopPropagation() // Prevent parent handlers from interfering
 
       const currentX = touches[0].clientX
       const currentY = touches[0].clientY
@@ -284,7 +288,12 @@ export function usePinchZoom({
   /**
    * Handle touch end event
    */
-  const handlePinchEnd = () => {
+  const handlePinchEnd = (e: TouchEvent) => {
+    // If we were pinching or panning, stop propagation to prevent parent handlers
+    if (isPinching.current || zoom > 1) {
+      e.stopPropagation()
+    }
+
     isPinching.current = false
     initialDistance.current = null
     lastTouchX.current = null
