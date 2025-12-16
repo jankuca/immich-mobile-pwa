@@ -8,9 +8,13 @@ interface AlbumHeaderProps {
     icon: ComponentChildren
     onClick: () => void
   }
+  rightAction?: {
+    icon: ComponentChildren
+    onClick: () => void
+  }
 }
 
-export const AlbumHeader = ({ album, leftAction }: AlbumHeaderProps) => {
+export const AlbumHeader = ({ album, leftAction, rightAction }: AlbumHeaderProps) => {
   const headerRef = useRef<HTMLElement>(null)
 
   useEffect(() => {
@@ -115,6 +119,25 @@ export const AlbumHeader = ({ album, leftAction }: AlbumHeaderProps) => {
           </p>
         )}
       </div>
+
+      {rightAction && (
+        <button
+          class="ios-header-action ios-header-right-action"
+          onClick={rightAction.onClick}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: 'var(--color-primary)',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginLeft: 'var(--spacing-sm)',
+          }}
+        >
+          {rightAction.icon}
+        </button>
+      )}
     </header>
   )
 }

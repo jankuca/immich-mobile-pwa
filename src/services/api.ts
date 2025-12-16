@@ -132,6 +132,39 @@ export interface SearchResult {
   assets?: Asset[]
 }
 
+export type SharedLinkType = 'ALBUM' | 'INDIVIDUAL'
+
+export interface SharedLink {
+  id: string
+  key: string
+  userId: string
+  type: SharedLinkType
+  createdAt: string
+  expiresAt: string | null
+  description: string | null
+  password: string | null
+  slug: string | null
+  token: string | null
+  allowDownload: boolean
+  allowUpload: boolean
+  showMetadata: boolean
+  album?: Album
+  assets: Asset[]
+}
+
+export interface SharedLinkCreateParams {
+  type: SharedLinkType
+  albumId?: string
+  assetIds?: string[]
+  description?: string | null
+  expiresAt?: string | null
+  password?: string | null
+  slug?: string | null
+  allowDownload?: boolean
+  allowUpload?: boolean
+  showMetadata?: boolean
+}
+
 class ApiService {
   private api: AxiosInstance
   private baseUrl: string
@@ -403,6 +436,30 @@ class ApiService {
     // Use the current origin to ensure the URL works when accessed from different origins
     const origin = window.location.origin
     return `${origin}/api/people/${personId}/thumbnail?key=${this.apiKey}`
+  }
+
+  // Shared Links
+  async getSharedLinks(albumId?: string): Promise<SharedLink[]> {
+    const params = albumId ? { albumId } : {}
+    const response = await this.api.get('/shared-links', { params })
+    return response.data
+  }
+
+  async createSharedLink(params: SharedLinkCreateParams): Promise<SharedLink> {
+    const response = await this.api.post('/shared-links', params)
+    return response.data
+  }
+
+  async deleteSharedLink(linkId: string): Promise<void> {
+    await this.api.delete(`/shared-links/${linkId}`)
+  }
+
+  getSharedLinkUrl(link: SharedLink): string {
+    const origin = window.location.origin
+    if (link.slug) {
+      return `${origin}/share/${link.slug}`
+    }
+    return `${origin}/share/${link.key}`
   }
 }
 

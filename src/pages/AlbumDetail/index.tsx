@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'preact/hooks'
 import { AlbumHeader } from '../../components/common/AlbumHeader'
 import { PhotoViewer } from '../../components/photoView/PhotoViewer'
+import { ShareModal } from '../../components/share/ShareModal'
 import { VirtualizedTimeline } from '../../components/timeline/VirtualizedTimeline'
 import { useHashLocation } from '../../contexts/HashLocationContext'
 import type { ThumbnailPosition } from '../../hooks/useZoomTransition'
@@ -23,6 +24,7 @@ export function AlbumDetail({ id, albumId }: AlbumDetailProps) {
   const [allBuckets, setAllBuckets] = useState<string[]>([])
   const [loadedBucketCount, setLoadedBucketCount] = useState<number>(0)
   const [hasMoreContent, setHasMoreContent] = useState<boolean>(true)
+  const [showShareModal, setShowShareModal] = useState<boolean>(false)
   const { url, route } = useHashLocation()
 
   // Number of buckets to load at once
@@ -194,6 +196,33 @@ export function AlbumDetail({ id, albumId }: AlbumDetailProps) {
           ),
           onClick: handleBack,
         }}
+        rightAction={{
+          icon: (
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+              <path
+                d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+          ),
+          onClick: () => setShowShareModal(true),
+        }}
       />
 
       <div class="ios-content">
@@ -346,6 +375,10 @@ export function AlbumDetail({ id, albumId }: AlbumDetailProps) {
           onClose={handleCloseViewer}
           thumbnailPosition={selectedThumbnailPosition}
         />
+      )}
+
+      {showShareModal && album && (
+        <ShareModal album={album} onClose={() => setShowShareModal(false)} />
       )}
     </div>
   )
