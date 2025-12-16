@@ -9,7 +9,7 @@ export function Albums() {
   const [error, setError] = useState<string | null>(null)
   const { route } = useHashLocation()
 
-  // Group albums by year
+  // Group albums by year and sort within each year by start/end date
   const albumsByYear = albums.reduce(
     (acc, album) => {
       // Use the start date or created date to determine the year
@@ -25,6 +25,15 @@ export function Albums() {
     },
     {} as Record<number, Album[]>,
   )
+
+  // Sort albums within each year by end/start date (most recent first)
+  for (const year of Object.keys(albumsByYear)) {
+    albumsByYear[Number(year)]?.sort((a, b) => {
+      const dateA = new Date(a.endDate || a.startDate || a.createdAt).getTime()
+      const dateB = new Date(b.endDate || b.startDate || b.createdAt).getTime()
+      return dateB - dateA
+    })
+  }
 
   // Sort years in descending order
   const sortedYears = Object.keys(albumsByYear)
