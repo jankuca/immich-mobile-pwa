@@ -13,6 +13,13 @@
 		<!-- Preload Geist font -->
 		<link rel="preload" href="https://cdn.jsdelivr.net/npm/geist/dist/fonts/geist-sans/geist-sans.css" as="style" />
 		<link rel="preload" href="https://cdn.jsdelivr.net/npm/geist/dist/fonts/geist-mono/geist-mono.css" as="style" />
+
+    <style>
+html {
+  min-height: calc(100% + env(safe-area-inset-top));
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+    </style>
 	</head>
 	<body>
 		<div id="app"></div>
