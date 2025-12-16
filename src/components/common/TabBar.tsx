@@ -15,10 +15,10 @@ export const TabBar = () => {
 
   return (
     <div class="ios-tabbar-area">
-      <nav class="ios-tabbar">
+      <nav class="ios-tabbar ios-tabbar-labeled">
         <a
           href="#/"
-          class={`ios-tabbar-item ${url === '/' ? 'active' : ''}`}
+          class={`ios-tabbar-item ios-tabbar-labeled-item ${url === '/' ? 'active' : ''}`}
           onClick={(e) => handleTabClick(e, '/')}
         >
           <div class="ios-tabbar-icon">
@@ -44,7 +44,7 @@ export const TabBar = () => {
 
         <a
           href="#/albums"
-          class={`ios-tabbar-item ${isInAlbumsSection ? 'active' : ''}`}
+          class={`ios-tabbar-item ios-tabbar-labeled-item ${isInAlbumsSection ? 'active' : ''}`}
           onClick={(e) => handleTabClick(e, '/albums')}
         >
           <div class="ios-tabbar-icon">
@@ -85,7 +85,7 @@ export const TabBar = () => {
 
         <a
           href="#/people"
-          class={`ios-tabbar-item ${isInPeopleSection ? 'active' : ''}`}
+          class={`ios-tabbar-item ios-tabbar-labeled-item ${isInPeopleSection ? 'active' : ''}`}
           onClick={(e) => handleTabClick(e, '/people')}
         >
           <div class="ios-tabbar-icon">
@@ -116,10 +116,12 @@ export const TabBar = () => {
           </div>
           <span>People</span>
         </a>
+      </nav>
 
+      <nav class="ios-tabbar">
         <a
           href="#/search"
-          class={`ios-tabbar-item ${url === '/search' ? 'active' : ''}`}
+          class={`ios-tabbar-item ios-tabbar-icon-item ${url === '/search' ? 'active' : ''}`}
           onClick={(e) => handleTabClick(e, '/search')}
         >
           <div class="ios-tabbar-icon">
@@ -147,7 +149,6 @@ export const TabBar = () => {
               />
             </svg>
           </div>
-          <span>Search</span>
         </a>
       </nav>
     </div>
