@@ -20,16 +20,29 @@ img {
   touch-action: pan-x pan-y; /* Allow panning but prevent other gestures */
 }
 
-html, body {
-  height: 100%;
+html {
+  position: relative;;
   width: 100%;
+  height: calc(100% + env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px));
   overflow: hidden;
-  position: fixed;
   overscroll-behavior: none;
-  -webkit-overflow-scrolling: touch;
+  padding-top: env(safe-area-inset-top);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+  padding-bottom: 0;
 }
 
 body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  position: fixed;
+  top: env(safe-area-inset-top);
+  left: env(safe-area-inset-left);
+  right: env(safe-area-inset-right);
+  bottom: 0;
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
   background-color: var(--color-background);
   color: var(--color-text);
 }
@@ -48,7 +61,6 @@ body {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  padding-bottom: calc(var(--tabbar-height) + env(safe-area-inset-bottom, 0px));
 }
 
 .ios-header {
@@ -74,6 +86,7 @@ body {
   flex: 1;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  padding-bottom: var(--tabbar-height);
 }
 
 .ios-tabbar {
@@ -81,7 +94,8 @@ body {
   bottom: 0;
   left: 0;
   right: 0;
-  height: calc(var(--tabbar-height));
+  height: calc(var(--tabbar-height) + env(safe-area-inset-bottom, 0px));
+  padding-bottom: env(safe-area-inset-bottom, 0px);
   display: flex;
   align-items: center;
   justify-content: space-around;

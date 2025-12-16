@@ -243,6 +243,7 @@ export const VirtualizedTimeline = ({
             height: '100%',
             overflow: 'auto',
             backgroundColor: 'var(--color-background)',
+            paddingBottom: 'var(--tabbar-height)',
           }}
         >
           {sections.map((section, index) => renderRow(section, index))}
