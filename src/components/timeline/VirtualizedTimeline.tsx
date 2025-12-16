@@ -5,25 +5,22 @@ import type { ThumbnailPosition } from '../../hooks/useZoomTransition'
 import type { AssetTimelineItem } from '../../services/api'
 import { TimelineThumbnail } from './TimelineThumbnail'
 
-interface VirtualizedTimelineProps {
-  assets: AssetTimelineItem[]
+interface VirtualizedTimelineProps<A extends AssetTimelineItem> {
+  assets: A[]
   columnCount?: number
   showDateHeaders?: boolean
   hasMoreContent?: boolean
   isLoadingMore?: boolean
-  onAssetOpenRequest: (
-    asset: AssetTimelineItem,
-    info: { position: ThumbnailPosition | null },
-  ) => void
+  onAssetOpenRequest: (asset: A, info: { position: ThumbnailPosition | null }) => void
   onLoadMoreRequest?: () => void
 }
 
-interface TimelineSection {
+interface TimelineSection<A extends AssetTimelineItem> {
   date: string
-  assets: AssetTimelineItem[]
+  assets: A[]
 }
 
-export const VirtualizedTimeline = ({
+export function VirtualizedTimeline<A extends AssetTimelineItem>({
   assets,
   columnCount = 3,
   showDateHeaders = true,
@@ -31,8 +28,8 @@ export const VirtualizedTimeline = ({
   isLoadingMore = false,
   onAssetOpenRequest,
   onLoadMoreRequest,
-}: VirtualizedTimelineProps) => {
-  const [sections, setSections] = useState<TimelineSection[]>([])
+}: VirtualizedTimelineProps<A>) {
+  const [sections, setSections] = useState<TimelineSection<A>[]>([])
   const [containerWidth, setContainerWidth] = useState<number>(0)
   const containerRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
@@ -62,8 +59,7 @@ export const VirtualizedTimeline = ({
     }
 
     // If showDateHeaders is true, group by date as before
-    const groupedByDate: { [key: string]: AssetTimelineItem[] } = {}
-    console.log(assets)
+    const groupedByDate: { [key: string]: A[] } = {}
     for (const asset of assets) {
       if (!asset.fileCreatedAt) {
         return

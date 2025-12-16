@@ -5,7 +5,12 @@ import { VirtualizedTimeline } from '../../components/timeline/VirtualizedTimeli
 import { useAuth } from '../../contexts/AuthContext'
 import { useHashLocation } from '../../contexts/HashLocationContext'
 import type { ThumbnailPosition } from '../../hooks/useZoomTransition'
-import { type Asset, type SearchResult, apiService } from '../../services/api'
+import {
+  type Asset,
+  type AssetTimelineItem,
+  type SearchResult,
+  apiService,
+} from '../../services/api'
 
 export function Search() {
   const [query, setQuery] = useState<string>('')
@@ -13,7 +18,7 @@ export function Search() {
   const [isSearching, setIsSearching] = useState<boolean>(false)
   const [searchResults, setSearchResults] = useState<SearchResult | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null)
+  const [selectedAsset, setSelectedAsset] = useState<AssetTimelineItem | null>(null)
   const [selectedThumbnailPosition, setSelectedThumbnailPosition] =
     useState<ThumbnailPosition | null>(null)
   const { route } = useHashLocation()
