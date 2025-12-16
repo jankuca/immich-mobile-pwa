@@ -79,6 +79,7 @@ export const PhotoViewer = ({
     getCurrentY,
     getHorizontalSwipeDistance,
     getVerticalSwipeDistance,
+    isHorizontalDominant,
   } = useSwipeDirection()
 
   // Use the photo viewer gestures hook
@@ -108,6 +109,7 @@ export const PhotoViewer = ({
     getCurrentY,
     getHorizontalSwipeDistance,
     getVerticalSwipeDistance,
+    isHorizontalDominant,
     resetSwipeDirection,
   })
 

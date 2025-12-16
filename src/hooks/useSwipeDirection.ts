@@ -55,6 +55,11 @@ interface UseSwipeDirectionReturn {
    * Get the vertical swipe distance
    */
   getVerticalSwipeDistance: () => number
+  /**
+   * Check if horizontal movement is dominant during detection phase.
+   * Used to prevent scrolling before direction is fully determined.
+   */
+  isHorizontalDominant: () => boolean
 }
 
 /**
@@ -159,6 +164,21 @@ export function useSwipeDirection(): UseSwipeDirectionReturn {
     return currentYRef.current - startYRef.current
   }
 
+  const isHorizontalDominant = (): boolean => {
+    if (
+      startXRef.current === null ||
+      startYRef.current === null ||
+      currentXRef.current === null ||
+      currentYRef.current === null
+    ) {
+      return false
+    }
+    const absX = Math.abs(currentXRef.current - startXRef.current)
+    const absY = Math.abs(currentYRef.current - startYRef.current)
+    // Horizontal is dominant if it's at least as large as vertical
+    return absX >= absY
+  }
+
   return {
     swipeDirection: swipeDirectionRef.current,
     getSwipeDirection,
@@ -173,5 +193,6 @@ export function useSwipeDirection(): UseSwipeDirectionReturn {
     resetSwipeDirection,
     getHorizontalSwipeDistance,
     getVerticalSwipeDistance,
+    isHorizontalDominant,
   }
 }

@@ -62,6 +62,10 @@ interface UsePhotoViewerGesturesProps {
    */
   getVerticalSwipeDistance: () => number
   /**
+   * Check if horizontal movement is dominant during detection phase
+   */
+  isHorizontalDominant: () => boolean
+  /**
    * Reset swipe direction
    */
   resetSwipeDirection: () => void
@@ -116,6 +120,7 @@ export function usePhotoViewerGestures({
   getCurrentY,
   getHorizontalSwipeDistance,
   getVerticalSwipeDistance,
+  isHorizontalDominant,
   resetSwipeDirection,
 }: UsePhotoViewerGesturesProps): UsePhotoViewerGesturesReturn {
   const [currentAsset, setCurrentAsset] = useState<AssetTimelineItem>(asset)
@@ -148,10 +153,13 @@ export function usePhotoViewerGestures({
     // Update velocity for momentum calculations
     updateVelocity(currentX)
 
-    // If direction is not yet determined, don't handle anything
-    // This prevents both horizontal and vertical handlers from triggering
-    // during the initial diagonal swipe detection phase
+    // If direction is not yet determined, prevent scrolling if horizontal movement
+    // is dominant. This stops the scroll container from scrolling during the
+    // detection phase when the user might be starting a horizontal swipe.
     if (swipeDirection === null) {
+      if (isHorizontalDominant()) {
+        e.preventDefault()
+      }
       return
     }
 
