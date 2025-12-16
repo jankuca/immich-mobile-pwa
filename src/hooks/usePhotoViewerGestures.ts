@@ -293,7 +293,7 @@ export function usePhotoViewerGestures({
         // Update the photo container background opacity based on the swipe progress
         if (photoContainerRef.current) {
           const newOpacity = 1 - progress
-          photoContainerRef.current.style.backgroundColor = `rgba(255, 255, 255, ${newOpacity})`
+          photoContainerRef.current.style.backgroundColor = `rgba(var(--color-background-rgb), ${newOpacity})`
         }
       }
     }
@@ -506,7 +506,7 @@ export function usePhotoViewerGestures({
 
           // Reset the photo container background color
           if (photoContainerRef.current) {
-            photoContainerRef.current.style.backgroundColor = 'rgba(255, 255, 255, 1)'
+            photoContainerRef.current.style.backgroundColor = 'rgba(var(--color-background-rgb), 1)'
             photoContainerRef.current.style.transition = 'background-color 0.3s ease'
           }
         }

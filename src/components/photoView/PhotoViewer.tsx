@@ -58,12 +58,12 @@ export const PhotoViewer = ({
   // Helper function to determine the background color
   const getBackgroundColor = () => {
     if (isClosing) {
-      return 'rgba(255, 255, 255, 0)'
+      return 'rgba(var(--color-background-rgb), 0)'
     }
     if (isZoomingOut) {
-      return `rgba(255, 255, 255, ${getBackgroundOpacity()})`
+      return `rgba(var(--color-background-rgb), ${getBackgroundOpacity()})`
     }
-    return 'rgba(255, 255, 255, 1)'
+    return 'rgba(var(--color-background-rgb), 1)'
   }
 
   // Use the image preloader hook
