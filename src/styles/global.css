@@ -97,8 +97,8 @@ body {
 .ios-tabbar {
   position: fixed;
   bottom: calc(var(--spacing-sm) + env(safe-area-inset-bottom, 0px));
-  left: var(--spacing-md);
-  right: var(--spacing-md);
+  left: var(--spacing-lg);
+  right: var(--spacing-lg);
   height: var(--tabbar-height);
   padding: 0 var(--spacing-md);
   display: flex;
