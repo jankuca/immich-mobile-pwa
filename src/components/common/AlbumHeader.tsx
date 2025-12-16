@@ -73,6 +73,7 @@ export const AlbumHeader = ({ album, leftAction }: AlbumHeaderProps) => {
         <h1
           class="album-header-title"
           style={{
+            color: album ? 'var(--color-text)' : 'var(--color-gray)',
             fontSize: 'var(--font-size-xl)',
             fontWeight: 'var(--font-weight-bold)',
             marginBottom: 'var(--spacing-xs)',
@@ -82,7 +83,7 @@ export const AlbumHeader = ({ album, leftAction }: AlbumHeaderProps) => {
             wordBreak: 'keep-all',
           }}
         >
-          {album ? album.albumName : 'Album'}
+          {album ? album.albumName : 'Loading…'}
         </h1>
 
         {album && (

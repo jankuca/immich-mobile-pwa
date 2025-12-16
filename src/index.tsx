@@ -91,6 +91,8 @@ const PersistentTabsApp = () => {
       setAlbumDetailId(id)
       setAlbumDetailMounted(true)
       setAlbumsMounted(true) // Ensure albums list is also mounted
+    } else {
+      setAlbumDetailMounted(false)
     }
   }, [isAlbumDetail, url])
   useEffect(() => {
