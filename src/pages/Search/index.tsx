@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'preact/hooks'
+import { useCallback, useEffect, useRef, useState } from 'preact/hooks'
 import { Header } from '../../components/common/Header'
 import { PhotoViewer } from '../../components/photoView/PhotoViewer'
 import { VirtualizedTimeline } from '../../components/timeline/VirtualizedTimeline'
@@ -33,61 +33,77 @@ export function Search() {
   }, [])
 
   // Save recent searches to localStorage
-  const saveRecentSearch = (search: string) => {
-    if (!search.trim()) {
-      return
-    }
+  const saveRecentSearch = useCallback(
+    (search: string) => {
+      if (!search.trim()) {
+        return
+      }
 
-    const updatedSearches = [search, ...recentSearches.filter((s) => s !== search)].slice(0, 10) // Keep only the 10 most recent searches
+      const updatedSearches = [search, ...recentSearches.filter((s) => s !== search)].slice(0, 10) // Keep only the 10 most recent searches
 
-    setRecentSearches(updatedSearches)
-    localStorage.setItem('immich_recent_searches', JSON.stringify(updatedSearches))
-  }
+      setRecentSearches(updatedSearches)
+      localStorage.setItem('immich_recent_searches', JSON.stringify(updatedSearches))
+    },
+    [recentSearches],
+  )
 
   // Handle search
-  const handleSearch = async (submittedQuery: string) => {
-    if (!submittedQuery.trim()) {
-      return
-    }
+  const handleSearch = useCallback(
+    async (submittedQuery: string) => {
+      if (!submittedQuery.trim()) {
+        return
+      }
 
-    // Check if user is authenticated
-    if (!isAuthenticated) {
-      setError('You must be logged in to search. Please log in and try again.')
-      return
-    }
+      // Check if user is authenticated
+      if (!isAuthenticated) {
+        setError('You must be logged in to search. Please log in and try again.')
+        return
+      }
 
-    // Check if API key is set
-    if (!apiKey) {
-      setError('API key is not set. Please log in again.')
-      return
-    }
+      // Check if API key is set
+      if (!apiKey) {
+        setError('API key is not set. Please log in again.')
+        return
+      }
 
-    try {
-      setIsSearching(true)
-      setError(null)
+      try {
+        setIsSearching(true)
+        setError(null)
 
-      saveRecentSearch(submittedQuery)
+        saveRecentSearch(submittedQuery)
 
-      // Use the updated search method with options
-      const results = await apiService.search(submittedQuery, {
-        page: 1,
-        size: 100,
-        withArchived: false,
-      })
-      setSearchResults(results)
-    } catch (err) {
-      setError(
-        `Failed to search. Please try again. Error: ${err instanceof Error ? err.message : String(err)}`,
-      )
-    } finally {
-      setIsSearching(false)
-    }
-  }
+        // Use the updated search method with options
+        const results = await apiService.search(submittedQuery, {
+          page: 1,
+          size: 100,
+          withArchived: false,
+        })
+        setSearchResults(results)
+      } catch (err) {
+        setError(
+          `Failed to search. Please try again. Error: ${err instanceof Error ? err.message : String(err)}`,
+        )
+      } finally {
+        setIsSearching(false)
+      }
+    },
+    [apiKey, isAuthenticated, saveRecentSearch],
+  )
+
+  const searchAutoSubmitTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Handle search input change
   const handleInputChange = (e: Event) => {
     const target = e.target as HTMLInputElement
     setQuery(target.value)
+
+    if (searchAutoSubmitTimeoutRef.current) {
+      clearTimeout(searchAutoSubmitTimeoutRef.current)
+    }
+
+    searchAutoSubmitTimeoutRef.current = setTimeout(() => {
+      handleSearch(target.value)
+    }, 500)
   }
 
   // Handle search form submission
