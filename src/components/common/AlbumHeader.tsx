@@ -14,7 +14,6 @@ export const AlbumHeader = ({ album, leftAction }: AlbumHeaderProps) => {
     <header
       class="ios-header album-header"
       style={{
-        height: 'auto',
         paddingTop: 'var(--spacing-md)',
         paddingBottom: 'var(--spacing-md)',
       }}

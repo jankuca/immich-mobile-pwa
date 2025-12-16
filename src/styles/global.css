@@ -65,8 +65,7 @@ body {
   height: 100%;
   width: 100%;
   overflow: hidden;
-  display: flex;
-  flex-direction: column;
+  position: relative;
 }
 
 .ios-header {
@@ -75,10 +74,12 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: 0 var(--spacing-sm);
-  position: sticky;
+  position: absolute;
   top: 0;
+  left: 0;
+  right: 0;
   z-index: var(--z-index-header);
-  background-color: rgba(var(--color-background-rgb), 0.8);
+  background-color: rgba(var(--color-background-rgb), 0.7);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
 }
@@ -93,9 +94,38 @@ body {
 }
 
 .ios-content {
-  flex: 1;
+  height: 100%;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  padding-top: var(--header-height);
+}
+
+/* When ios-content contains only virtualized-timeline, let timeline handle its own padding */
+.ios-content:has(> .virtualized-timeline) {
+  padding-top: 0;
+}
+
+/* Album page with taller header */
+.ios-page:has(.album-header) .ios-content {
+  padding-top: var(--album-header-height);
+}
+
+.ios-page:has(.album-header) .ios-content:has(> .virtualized-timeline) {
+  padding-top: 0;
+}
+
+.album-header {
+  height: var(--album-header-height);
+  min-height: var(--album-header-height);
+}
+
+/* VirtualizedTimeline header offset - can be overridden by parent context */
+.virtualized-timeline {
+  --timeline-header-offset: var(--header-height);
+}
+
+.ios-page:has(.album-header) .virtualized-timeline {
+  --timeline-header-offset: var(--album-header-height);
 }
 
 .ios-content::after {

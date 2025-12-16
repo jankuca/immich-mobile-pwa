@@ -63,6 +63,7 @@
   /* Dimensions */
   --tabbar-height: 56px;
   --header-height: 44px;
+  --album-header-height: 72px;
   --safe-area-bottom: env(safe-area-inset-bottom, 0px);
 
   /* Add RGB versions of colors for rgba usage */

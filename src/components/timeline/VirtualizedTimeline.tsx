@@ -253,10 +253,12 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
       {containerWidth > 0 && sections.length > 0 ? (
         <div
           ref={scrollContainerRef}
+          class="virtualized-timeline-scroll"
           style={{
             height: '100%',
             overflow: 'auto',
             backgroundColor: 'var(--color-background)',
+            paddingTop: 'var(--timeline-header-offset)',
             paddingBottom: 'var(--tabbar-height)',
           }}
         >
