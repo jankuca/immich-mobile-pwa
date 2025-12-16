@@ -1,4 +1,5 @@
 import type { ComponentChildren } from 'preact'
+import { useEffect, useRef } from 'preact/hooks'
 import type { Album } from '../../services/api'
 
 interface AlbumHeaderProps {
@@ -10,8 +11,37 @@ interface AlbumHeaderProps {
 }
 
 export const AlbumHeader = ({ album, leftAction }: AlbumHeaderProps) => {
+  const headerRef = useRef<HTMLElement>(null)
+
+  useEffect(() => {
+    const header = headerRef.current
+    if (!header) {
+      return
+    }
+
+    const updateHeight = () => {
+      const height = header.offsetHeight
+      // Set the CSS variable on the parent .ios-page element
+      const page = header.closest('.ios-page') as HTMLElement | null
+      if (page) {
+        page.style.setProperty('--measured-header-height', `${height}px`)
+      }
+    }
+
+    // Initial measurement
+    updateHeight()
+
+    // Re-measure on resize
+    const resizeObserver = new ResizeObserver(updateHeight)
+    resizeObserver.observe(header)
+
+    return () => {
+      resizeObserver.disconnect()
+    }
+  }, [])
+
   return (
-    <header class="ios-header album-header">
+    <header ref={headerRef} class="ios-header album-header">
       {leftAction && (
         <button
           class="ios-header-left-action"

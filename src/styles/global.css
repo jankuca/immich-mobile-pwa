@@ -108,7 +108,7 @@ body {
 
 /* Album page with taller header */
 .ios-page:has(.album-header) .ios-content {
-  padding-top: calc(var(--album-header-height) + env(safe-area-inset-top, 0px));
+  padding-top: var(--measured-header-height, calc(var(--album-header-height) + env(safe-area-inset-top, 0px)));
 }
 
 .ios-page:has(.album-header) .ios-content:has(> .virtualized-timeline) {
@@ -128,7 +128,7 @@ body {
 }
 
 .ios-page:has(.album-header) .virtualized-timeline {
-  --timeline-header-offset: calc(var(--album-header-height) + env(safe-area-inset-top, 0px));
+  --timeline-header-offset: var(--measured-header-height, calc(var(--album-header-height) + env(safe-area-inset-top, 0px)));
 }
 
 .ios-content::after {
