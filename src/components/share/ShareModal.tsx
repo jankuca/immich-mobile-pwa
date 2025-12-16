@@ -113,8 +113,8 @@ export const ShareModal = ({ album, onClose }: ShareModalProps) => {
   }
 
   const handleCopyLink = async (link: SharedLink) => {
-    const url = apiService.getSharedLinkUrl(link)
     try {
+      const url = await apiService.getSharedLinkUrl(link)
       await navigator.clipboard.writeText(url)
       setCopySuccess(link.id)
       setTimeout(() => setCopySuccess(null), 2000)

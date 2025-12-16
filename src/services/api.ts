@@ -165,10 +165,25 @@ export interface SharedLinkCreateParams {
   showMetadata?: boolean
 }
 
+export interface ServerConfig {
+  externalDomain: string
+  isInitialized: boolean
+  isOnboarded: boolean
+  loginPageMessage: string
+  maintenanceMode: boolean
+  mapDarkStyleUrl: string
+  mapLightStyleUrl: string
+  oauthButtonText: string
+  publicUsers: boolean
+  trashDays: number
+  userDeleteDelay: number
+}
+
 class ApiService {
   private api: AxiosInstance
   private baseUrl: string
   private apiKey: string | null = null
+  private serverConfig: ServerConfig | null = null
 
   private fullAssetCache: Record<string, Asset> = {}
 
@@ -438,6 +453,16 @@ class ApiService {
     return `${origin}/api/people/${personId}/thumbnail?key=${this.apiKey}`
   }
 
+  // Server Config
+  async getServerConfig(): Promise<ServerConfig> {
+    if (this.serverConfig) {
+      return this.serverConfig
+    }
+    const response = await this.api.get('/server/config')
+    this.serverConfig = response.data
+    return response.data
+  }
+
   // Shared Links
   async getSharedLinks(albumId?: string): Promise<SharedLink[]> {
     const params = albumId ? { albumId } : {}
@@ -454,12 +479,13 @@ class ApiService {
     await this.api.delete(`/shared-links/${linkId}`)
   }
 
-  getSharedLinkUrl(link: SharedLink): string {
-    const origin = window.location.origin
+  async getSharedLinkUrl(link: SharedLink): Promise<string> {
+    const config = await this.getServerConfig()
+    const baseUrl = config.externalDomain || window.location.origin
     if (link.slug) {
-      return `${origin}/share/${link.slug}`
+      return `${baseUrl}/share/${link.slug}`
     }
-    return `${origin}/share/${link.key}`
+    return `${baseUrl}/share/${link.key}`
   }
 }
 
