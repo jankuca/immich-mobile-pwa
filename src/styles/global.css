@@ -48,7 +48,7 @@ body {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  padding-bottom: calc(var(--tabbar-height) + var(--safe-area-bottom));
+  padding-bottom: calc(var(--tabbar-height) + env(safe-area-inset-bottom, 0px));
 }
 
 .ios-header {
@@ -81,8 +81,8 @@ body {
   bottom: 0;
   left: 0;
   right: 0;
-  height: var(--tabbar-height);
-  padding-bottom: 0;
+  height: calc(var(--tabbar-height) + env(safe-area-inset-bottom, 0px));
+  padding-bottom: env(safe-area-inset-bottom, 0px);
   display: flex;
   align-items: center;
   justify-content: space-around;
@@ -91,19 +91,6 @@ body {
   -webkit-backdrop-filter: blur(10px);
   border-top: 1px solid var(--color-gray-light);
   z-index: var(--z-index-tabbar);
-  /* Extend background into safe area using pseudo-element */
-}
-
-.ios-tabbar::after {
-  content: '';
-  position: absolute;
-  bottom: calc(-1 * var(--safe-area-bottom));
-  left: 0;
-  right: 0;
-  height: var(--safe-area-bottom);
-  background-color: rgba(var(--color-background-rgb), 0.8);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
 }
 
 .ios-tabbar-item {
