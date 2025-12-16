@@ -49,8 +49,6 @@ export const PhotoDetails = ({ assetTimelineItem }: PhotoDetailsProps) => {
       class="photo-details"
       style={{
         backgroundColor: 'var(--color-background)',
-        borderTopLeftRadius: 'var(--radius-lg)',
-        borderTopRightRadius: 'var(--radius-lg)',
         padding: 'var(--spacing-lg)',
         overflowX: 'hidden',
       }}
