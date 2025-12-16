@@ -1,4 +1,3 @@
-import { useLocation } from 'preact-iso'
 import { useEffect, useState } from 'preact/hooks'
 import { useAuth } from '../../contexts/AuthContext'
 
@@ -9,7 +8,6 @@ export function Login() {
   const [error, setError] = useState<string | null>(null)
 
   const { loginWithApiKey, isAuthenticated } = useAuth()
-  const location = useLocation()
 
   // Check if user is already authenticated
   useEffect(() => {
@@ -18,10 +16,10 @@ export function Login() {
       const redirectPath = localStorage.getItem('redirect_after_login') || '/'
       // Clear the redirect URL
       localStorage.removeItem('redirect_after_login')
-      // Redirect to the saved path or home
-      location.route(redirectPath, true)
+      // Use hard navigation to ensure full re-render in PWA mode
+      window.location.href = redirectPath
     }
-  }, [isAuthenticated, location])
+  }, [isAuthenticated])
 
   const handleSubmit = async (e: Event) => {
     e.preventDefault()
