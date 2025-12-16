@@ -61,7 +61,7 @@
   --z-index-modal: 1000;
 
   /* Dimensions */
-  --tabbar-height: 50px;
+  --tabbar-height: 56px;
   --header-height: 44px;
   --safe-area-bottom: env(safe-area-inset-bottom, 0px);
 
