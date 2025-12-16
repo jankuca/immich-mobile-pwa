@@ -11,13 +11,7 @@ interface AlbumHeaderProps {
 
 export const AlbumHeader = ({ album, leftAction }: AlbumHeaderProps) => {
   return (
-    <header
-      class="ios-header album-header"
-      style={{
-        paddingTop: 'var(--spacing-md)',
-        paddingBottom: 'var(--spacing-md)',
-      }}
-    >
+    <header class="ios-header album-header">
       {leftAction && (
         <button
           class="ios-header-left-action"
@@ -55,6 +49,7 @@ export const AlbumHeader = ({ album, leftAction }: AlbumHeaderProps) => {
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             width: '100%',
+            wordBreak: 'keep-all',
           }}
         >
           {album ? album.albumName : 'Album'}
