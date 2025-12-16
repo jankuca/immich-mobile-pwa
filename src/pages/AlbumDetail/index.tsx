@@ -2,7 +2,10 @@ import { useEffect, useState } from 'preact/hooks'
 import { AlbumHeader } from '../../components/common/AlbumHeader'
 import { PhotoViewer } from '../../components/photoView/PhotoViewer'
 import { ShareModal } from '../../components/share/ShareModal'
-import { VirtualizedTimeline } from '../../components/timeline/VirtualizedTimeline'
+import {
+  type GetThumbnailPosition,
+  VirtualizedTimeline,
+} from '../../components/timeline/VirtualizedTimeline'
 import { useHashLocation } from '../../contexts/HashLocationContext'
 import type { ThumbnailPosition } from '../../hooks/useZoomTransition'
 import { type Album, type Asset, apiService } from '../../services/api'
@@ -26,6 +29,11 @@ export function AlbumDetail({ id, albumId }: AlbumDetailProps) {
   const [hasMoreContent, setHasMoreContent] = useState<boolean>(true)
   const [showShareModal, setShowShareModal] = useState<boolean>(false)
   const { url, route } = useHashLocation()
+
+  // Store the thumbnail position getter from VirtualizedTimeline
+  const [getThumbnailPosition, setGetThumbnailPosition] = useState<GetThumbnailPosition | null>(
+    null,
+  )
 
   // Number of buckets to load at once
   const bucketsPerLoad = 1
@@ -330,6 +338,7 @@ export function AlbumDetail({ id, albumId }: AlbumDetailProps) {
             {...(album?.order && { order: album.order })}
             onAssetOpenRequest={handleAssetClick}
             onLoadMoreRequest={handleLoadMore}
+            onThumbnailPositionGetterReady={setGetThumbnailPosition}
           />
         ) : (
           <div
@@ -382,6 +391,7 @@ export function AlbumDetail({ id, albumId }: AlbumDetailProps) {
           assets={assets}
           onClose={handleCloseViewer}
           thumbnailPosition={selectedThumbnailPosition}
+          getThumbnailPosition={getThumbnailPosition ?? undefined}
         />
       )}
 

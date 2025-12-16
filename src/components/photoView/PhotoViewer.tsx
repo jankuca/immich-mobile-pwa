@@ -12,7 +12,9 @@ interface PhotoViewerProps {
   asset: AssetTimelineItem
   assets: AssetTimelineItem[]
   onClose: () => void
-  thumbnailPosition?: ThumbnailPosition | null
+  thumbnailPosition?: ThumbnailPosition | null | undefined
+  /** Function to get current thumbnail position by asset ID (handles orientation changes) */
+  getThumbnailPosition?: ((assetId: string) => ThumbnailPosition | null) | undefined
 }
 
 export const PhotoViewer = ({
@@ -20,6 +22,7 @@ export const PhotoViewer = ({
   assets,
   onClose,
   thumbnailPosition = null,
+  getThumbnailPosition: getThumbnailPositionProp,
 }: PhotoViewerProps) => {
   const [scrollPosition, setScrollPosition] = useState<number>(0)
   const [isAtTop, setIsAtTop] = useState<boolean>(true)
@@ -29,11 +32,24 @@ export const PhotoViewer = ({
   const [edgeReached, setEdgeReached] = useState<'left' | 'right' | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
+  // Track the current asset for zoom-out animation
+  const currentAssetRef = useRef<AssetTimelineItem>(asset)
+
+  // Create a callback that gets the current thumbnail position
+  // This is called when zoom-out starts to get the updated position after orientation change
+  const getCurrentThumbnailPosition = useCallback(() => {
+    if (getThumbnailPositionProp) {
+      return getThumbnailPositionProp(currentAssetRef.current.id)
+    }
+    return null
+  }, [getThumbnailPositionProp])
+
   // Use the zoom transition hook
   const { isZoomingIn, isZoomingOut, getImageTransform, getBackgroundOpacity, startZoomOut } =
     useZoomTransition({
       isOpen: true,
       thumbnailPosition,
+      getThumbnailPosition: getCurrentThumbnailPosition,
       durationIn: 0.2,
       durationOut: 0.3,
       onZoomOutComplete: () => {
@@ -113,6 +129,11 @@ export const PhotoViewer = ({
     isHorizontalDominant,
     resetSwipeDirection,
   })
+
+  // Keep currentAssetRef updated for zoom-out animation
+  useEffect(() => {
+    currentAssetRef.current = currentAsset
+  }, [currentAsset])
 
   // Combined touch move handler
   const handleTouchMove = useCallback(

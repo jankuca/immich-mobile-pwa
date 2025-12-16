@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks'
 import { Header } from '../../components/common/Header'
 import { PhotoViewer } from '../../components/photoView/PhotoViewer'
-import { VirtualizedTimeline } from '../../components/timeline/VirtualizedTimeline'
+import {
+  type GetThumbnailPosition,
+  VirtualizedTimeline,
+} from '../../components/timeline/VirtualizedTimeline'
 import { useAuth } from '../../contexts/AuthContext'
 import { useHashLocation } from '../../contexts/HashLocationContext'
 import type { ThumbnailPosition } from '../../hooks/useZoomTransition'
@@ -23,6 +26,11 @@ export function Search() {
     useState<ThumbnailPosition | null>(null)
   const { route } = useHashLocation()
   const { apiKey, isAuthenticated } = useAuth()
+
+  // Store the thumbnail position getter from VirtualizedTimeline
+  const [getThumbnailPosition, setGetThumbnailPosition] = useState<GetThumbnailPosition | null>(
+    null,
+  )
 
   // Load recent searches from localStorage
   useEffect(() => {
@@ -501,6 +509,7 @@ export function Search() {
                   assets={searchResults.assets}
                   showDateHeaders={false}
                   onAssetOpenRequest={handleAssetClick}
+                  onThumbnailPositionGetterReady={setGetThumbnailPosition}
                 />
               </div>
             )}
@@ -679,6 +688,7 @@ export function Search() {
           assets={searchResults.assets}
           onClose={handleCloseViewer}
           thumbnailPosition={selectedThumbnailPosition}
+          getThumbnailPosition={getThumbnailPosition ?? undefined}
         />
       )}
     </div>

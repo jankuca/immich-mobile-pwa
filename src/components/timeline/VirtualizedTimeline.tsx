@@ -3,11 +3,14 @@ import { useCallback, useEffect, useRef, useState } from 'preact/hooks'
 import type { JSX } from 'preact/jsx-runtime'
 import type { ThumbnailPosition } from '../../hooks/useZoomTransition'
 import type { AssetOrder, AssetTimelineItem } from '../../services/api'
+import type { ThumbnailPositionGetter } from './TimelineThumbnail'
 import { TimelineThumbnail } from './TimelineThumbnail'
 
 // Target thumbnail size in pixels - columns are calculated to fit this size
 const TARGET_THUMBNAIL_SIZE = 130
 const MIN_COLUMNS = 3
+
+export type GetThumbnailPosition = (assetId: string) => ThumbnailPosition | null
 
 interface VirtualizedTimelineProps<A extends AssetTimelineItem> {
   assets: A[]
@@ -17,6 +20,8 @@ interface VirtualizedTimelineProps<A extends AssetTimelineItem> {
   order?: AssetOrder
   onAssetOpenRequest: (asset: A, info: { position: ThumbnailPosition | null }) => void
   onLoadMoreRequest?: () => void
+  /** Callback to provide the getThumbnailPosition function to parent */
+  onThumbnailPositionGetterReady?: (getter: GetThumbnailPosition) => void
 }
 
 interface TimelineSection<A extends AssetTimelineItem> {
@@ -32,11 +37,41 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
   order = 'desc',
   onAssetOpenRequest,
   onLoadMoreRequest,
+  onThumbnailPositionGetterReady,
 }: VirtualizedTimelineProps<A>) {
   const [sections, setSections] = useState<TimelineSection<A>[]>([])
   const [containerWidth, setContainerWidth] = useState<number>(0)
   const containerRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
+
+  // Registry of thumbnail position getters by asset ID
+  const thumbnailPositionGettersRef = useRef<Map<string, ThumbnailPositionGetter>>(new Map())
+
+  // Function to get thumbnail position by asset ID
+  const getThumbnailPosition = useCallback((assetId: string): ThumbnailPosition | null => {
+    const getter = thumbnailPositionGettersRef.current.get(assetId)
+    return getter ? getter() : null
+  }, [])
+
+  // Register a thumbnail position getter
+  const handleThumbnailRegister = useCallback(
+    (assetId: string, getPosition: ThumbnailPositionGetter) => {
+      thumbnailPositionGettersRef.current.set(assetId, getPosition)
+    },
+    [],
+  )
+
+  // Unregister a thumbnail position getter
+  const handleThumbnailUnregister = useCallback((assetId: string) => {
+    thumbnailPositionGettersRef.current.delete(assetId)
+  }, [])
+
+  // Provide the getter to parent component
+  useEffect(() => {
+    if (onThumbnailPositionGetterReady) {
+      onThumbnailPositionGetterReady(getThumbnailPosition)
+    }
+  }, [getThumbnailPosition, onThumbnailPositionGetterReady])
 
   // Calculate column count based on container width to maintain square thumbnails
   const columnCount = containerWidth
@@ -235,6 +270,8 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
               asset={asset}
               size={thumbnailSize}
               onClick={(info) => onAssetOpenRequest(asset, info)}
+              onRegister={handleThumbnailRegister}
+              onUnregister={handleThumbnailUnregister}
             />
           ))}
 

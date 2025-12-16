@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useState } from 'preact/hooks'
 import { Header } from '../../components/common/Header'
 import { PhotoViewer } from '../../components/photoView/PhotoViewer'
-import { VirtualizedTimeline } from '../../components/timeline/VirtualizedTimeline'
+import {
+  type GetThumbnailPosition,
+  VirtualizedTimeline,
+} from '../../components/timeline/VirtualizedTimeline'
 import { useAuth } from '../../contexts/AuthContext'
 import type { ThumbnailPosition } from '../../hooks/useZoomTransition'
 import { type AssetTimelineItem, apiService } from '../../services/api'
@@ -18,6 +21,11 @@ export function Timeline() {
   const [loadedBucketCount, setLoadedBucketCount] = useState<number>(0)
   const [hasMoreContent, setHasMoreContent] = useState<boolean>(true)
   const { logout } = useAuth()
+
+  // Store the thumbnail position getter from VirtualizedTimeline
+  const [getThumbnailPosition, setGetThumbnailPosition] = useState<GetThumbnailPosition | null>(
+    null,
+  )
 
   // Number of buckets to load at once
   const bucketsPerLoad = 1
@@ -278,6 +286,7 @@ export function Timeline() {
             isLoadingMore={isLoadingMore}
             onAssetOpenRequest={handleAssetClick}
             onLoadMoreRequest={handleLoadMore}
+            onThumbnailPositionGetterReady={setGetThumbnailPosition}
           />
         )}
       </div>
@@ -288,6 +297,7 @@ export function Timeline() {
           assets={assets}
           onClose={handleCloseViewer}
           thumbnailPosition={selectedThumbnailPosition}
+          getThumbnailPosition={getThumbnailPosition ?? undefined}
         />
       )}
     </div>

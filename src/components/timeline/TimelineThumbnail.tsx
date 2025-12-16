@@ -1,21 +1,31 @@
-import { useRef } from 'preact/hooks'
+import { useCallback, useEffect, useRef } from 'preact/hooks'
 import type { ThumbnailPosition } from '../../hooks/useZoomTransition'
 import type { AssetTimelineItem } from '../../services/api'
 import { apiService } from '../../services/api'
+
+export type ThumbnailPositionGetter = () => ThumbnailPosition | null
 
 interface TimelineThumbnailProps {
   asset: AssetTimelineItem
   size: number
   onClick: (info: { position: ThumbnailPosition | null }) => void
+  onRegister?: (assetId: string, getPosition: ThumbnailPositionGetter) => void
+  onUnregister?: (assetId: string) => void
 }
 
-export const TimelineThumbnail = ({ asset, size, onClick }: TimelineThumbnailProps) => {
+export const TimelineThumbnail = ({
+  asset,
+  size,
+  onClick,
+  onRegister,
+  onUnregister,
+}: TimelineThumbnailProps) => {
   // Get the thumbnail URL
   const thumbnailUrl = apiService.getAssetThumbnailUrl(asset.id, 'webp')
   const thumbnailRef = useRef<HTMLDivElement>(null)
 
-  // Function to update position
-  const getPosition = () => {
+  // Function to get current position - memoized for stable reference in useEffect
+  const getPosition = useCallback((): ThumbnailPosition | null => {
     if (thumbnailRef.current) {
       const rect = thumbnailRef.current.getBoundingClientRect()
       return {
@@ -27,7 +37,20 @@ export const TimelineThumbnail = ({ asset, size, onClick }: TimelineThumbnailPro
     }
 
     return null
-  }
+  }, [])
+
+  // Register the position getter on mount
+  useEffect(() => {
+    if (onRegister) {
+      onRegister(asset.id, getPosition)
+    }
+
+    return () => {
+      if (onUnregister) {
+        onUnregister(asset.id)
+      }
+    }
+  }, [asset.id, getPosition, onRegister, onUnregister])
 
   const handleClick = () => {
     // Update position right before click to ensure accuracy

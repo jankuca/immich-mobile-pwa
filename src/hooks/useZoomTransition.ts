@@ -13,9 +13,13 @@ interface UseZoomTransitionProps {
    */
   isOpen: boolean
   /**
-   * Position and dimensions of the thumbnail
+   * Position and dimensions of the thumbnail (static, captured at open time)
    */
   thumbnailPosition: ThumbnailPosition | null
+  /**
+   * Function to get the current thumbnail position (called on zoom-out to handle orientation changes)
+   */
+  getThumbnailPosition?: () => ThumbnailPosition | null
   /**
    * Duration of the animation on zoom in in seconds
    */
@@ -67,6 +71,7 @@ interface UseZoomTransitionReturn {
 export function useZoomTransition({
   isOpen,
   thumbnailPosition,
+  getThumbnailPosition,
   durationIn = 0.3,
   durationOut = 0.3,
   onZoomInComplete,
@@ -171,14 +176,19 @@ export function useZoomTransition({
     }
   }, [isOpen, thumbnailPosition, isAnimating, isZoomingIn, isZoomingOut, startZoomAnimation])
 
+  // Store the current thumbnail position for zoom-out (may differ from initial after orientation change)
+  const zoomOutPositionRef = useRef<ThumbnailPosition | null>(null)
+
   // Start zoom-out animation
   const startZoomOut = (options: { offsetY?: number } = {}) => {
-    if (!thumbnailPosition) {
+    // Get current position from callback if available, otherwise use static position
+    const currentPosition = getThumbnailPosition?.() ?? thumbnailPosition
+    if (!currentPosition) {
       return
     }
 
-    // Update the initial position reference for the zoom-out animation
-    initialPositionRef.current = thumbnailPosition
+    // Store the current position for the zoom-out animation
+    zoomOutPositionRef.current = currentPosition
 
     setIsZoomingIn(false)
     setIsZoomingOut(true)
@@ -197,9 +207,11 @@ export function useZoomTransition({
 
   // Calculate transform based on thumbnail position and animation progress
   const getImageTransform = () => {
-    // Use the stored initial position for consistency during animation
+    // Use the appropriate position based on animation direction:
+    // - For zoom-out: use the current position (may have changed due to orientation)
+    // - For zoom-in: use the initial position captured at open time
     const position = isZoomingOut
-      ? thumbnailPosition
+      ? zoomOutPositionRef.current
       : initialPositionRef.current || thumbnailPosition
 
     if (!(position && containerSize && isAnimating)) {
