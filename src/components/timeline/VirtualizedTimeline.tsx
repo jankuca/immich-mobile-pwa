@@ -5,9 +5,12 @@ import type { ThumbnailPosition } from '../../hooks/useZoomTransition'
 import type { AssetOrder, AssetTimelineItem } from '../../services/api'
 import { TimelineThumbnail } from './TimelineThumbnail'
 
+// Target thumbnail size in pixels - columns are calculated to fit this size
+const TARGET_THUMBNAIL_SIZE = 130
+const MIN_COLUMNS = 3
+
 interface VirtualizedTimelineProps<A extends AssetTimelineItem> {
   assets: A[]
-  columnCount?: number
   showDateHeaders?: boolean
   hasMoreContent?: boolean
   isLoadingMore?: boolean
@@ -23,7 +26,6 @@ interface TimelineSection<A extends AssetTimelineItem> {
 
 export function VirtualizedTimeline<A extends AssetTimelineItem>({
   assets,
-  columnCount = 3,
   showDateHeaders = true,
   hasMoreContent = false,
   isLoadingMore = false,
@@ -35,6 +37,11 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
   const [containerWidth, setContainerWidth] = useState<number>(0)
   const containerRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
+
+  // Calculate column count based on container width to maintain square thumbnails
+  const columnCount = containerWidth
+    ? Math.max(MIN_COLUMNS, Math.floor(containerWidth / TARGET_THUMBNAIL_SIZE))
+    : MIN_COLUMNS
 
   // Group assets by date
   useEffect(() => {
