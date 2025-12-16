@@ -58,6 +58,7 @@ export interface AssetTimelineItem {
 }
 
 export interface Asset extends TimeBucketAsset {
+  type: 'IMAGE' | 'VIDEO' | 'AUDIO' | 'OTHER'
   deviceAssetId: string
   deviceId: string
   originalPath: string
