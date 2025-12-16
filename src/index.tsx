@@ -264,12 +264,6 @@ export function App() {
   )
 }
 
-// Add safe area viewport meta tag for iOS
-const meta = document.createElement('meta')
-meta.name = 'viewport'
-meta.content = 'width=device-width, initial-scale=1, viewport-fit=cover'
-document.head.appendChild(meta)
-
 const appNode = document.getElementById('app')
 if (!appNode) {
   throw new Error('Failed to find the root element')
