@@ -33,6 +33,10 @@ interface UsePinchZoomProps {
    * Container height
    */
   containerHeight?: number
+  /**
+   * Duration of the double-tap zoom animation in ms
+   */
+  doubleTapZoomDuration?: number
 }
 
 interface UsePinchZoomReturn {
@@ -73,6 +77,10 @@ interface UsePinchZoomReturn {
    */
   handlePinchEnd: (e: TouchEvent) => void
   /**
+   * Handler for double-tap to zoom
+   */
+  handleDoubleTap: (x: number, y: number) => void
+  /**
    * Reset zoom and pan
    */
   resetZoom: () => void
@@ -80,6 +88,10 @@ interface UsePinchZoomReturn {
    * Get the transform style for the image
    */
   getTransformStyle: () => string
+  /**
+   * Whether a zoom animation is in progress
+   */
+  isAnimating: boolean
 }
 
 /**
@@ -94,12 +106,14 @@ export function usePinchZoom({
   imageHeight = null,
   containerWidth = window.innerWidth,
   containerHeight = window.innerHeight,
+  doubleTapZoomDuration = 300,
 }: UsePinchZoomProps = {}): UsePinchZoomReturn {
   const [zoom, setZoom] = useState<number>(initialZoom)
   const [panX, setPanX] = useState<number>(0)
   const [panY, setPanY] = useState<number>(0)
   const [isAtLeftEdge, setIsAtLeftEdge] = useState<boolean>(false)
   const [isAtRightEdge, setIsAtRightEdge] = useState<boolean>(false)
+  const [isAnimating, setIsAnimating] = useState<boolean>(false)
 
   // Track whether we're in a pinch gesture
   const isPinching = useRef<boolean>(false)
@@ -129,11 +143,17 @@ export function usePinchZoom({
   const velocityHistoryY = useRef<number[]>([])
   const inertiaAnimationFrame = useRef<number | null>(null)
 
-  // Cleanup animation frame on unmount
+  // Double-tap zoom animation frame
+  const zoomAnimationFrame = useRef<number | null>(null)
+
+  // Cleanup animation frames on unmount
   useEffect(() => {
     return () => {
       if (inertiaAnimationFrame.current !== null) {
         cancelAnimationFrame(inertiaAnimationFrame.current)
+      }
+      if (zoomAnimationFrame.current !== null) {
+        cancelAnimationFrame(zoomAnimationFrame.current)
       }
     }
   }, [])
@@ -516,6 +536,11 @@ export function usePinchZoom({
    */
   const resetZoom = () => {
     cancelInertia()
+    if (zoomAnimationFrame.current !== null) {
+      cancelAnimationFrame(zoomAnimationFrame.current)
+      zoomAnimationFrame.current = null
+    }
+    setIsAnimating(false)
     setZoom(initialZoom)
     setPanX(0)
     setPanY(0)
@@ -530,6 +555,148 @@ export function usePinchZoom({
     return `translate(${panX}px, ${panY}px) scale(${zoom})`
   }
 
+  /**
+   * Calculate the zoom level needed to fill the screen with the image
+   * (align shorter photo edges with longer screen edges)
+   */
+  const calculateFillZoom = () => {
+    if (!imageWidth || !imageHeight) {
+      // Fallback to 2x zoom if we don't have image dimensions
+      return Math.min(2, maxZoom)
+    }
+
+    const imageAspectRatio = imageWidth / imageHeight
+    const containerAspectRatio = containerWidth / containerHeight
+
+    // Calculate displayed dimensions after object-fit: contain
+    let displayedWidth: number
+    let displayedHeight: number
+
+    if (imageAspectRatio > containerAspectRatio) {
+      // Image is wider than container - fits to width
+      displayedWidth = containerWidth
+      displayedHeight = containerWidth / imageAspectRatio
+    } else {
+      // Image is taller than container - fits to height
+      displayedHeight = containerHeight
+      displayedWidth = containerHeight * imageAspectRatio
+    }
+
+    // Calculate zoom needed to fill the container
+    // We want the smaller dimension of the image to match the larger dimension of the container
+    let fillZoom: number
+
+    if (imageAspectRatio > containerAspectRatio) {
+      // Image is wider - zoom so height fills the container height
+      fillZoom = containerHeight / displayedHeight
+    } else {
+      // Image is taller - zoom so width fills the container width
+      fillZoom = containerWidth / displayedWidth
+    }
+
+    // Clamp to max zoom
+    return Math.min(fillZoom, maxZoom)
+  }
+
+  /**
+   * Handle double-tap to zoom in/out with animation
+   */
+  const handleDoubleTap = (tapX: number, tapY: number) => {
+    // Cancel any ongoing animations
+    cancelInertia()
+    if (zoomAnimationFrame.current !== null) {
+      cancelAnimationFrame(zoomAnimationFrame.current)
+      zoomAnimationFrame.current = null
+    }
+
+    const isCurrentlyZoomed = zoom > minZoom
+    const targetZoom = isCurrentlyZoomed ? minZoom : calculateFillZoom()
+
+    // Calculate target pan position
+    let targetPanX = 0
+    let targetPanY = 0
+
+    if (!isCurrentlyZoomed && imageWidth && imageHeight) {
+      // Zooming in - calculate pan to center on tap point
+      // Convert tap coordinates to be relative to container center
+      const centerX = containerWidth / 2
+      const centerY = containerHeight / 2
+
+      // Offset from center where user tapped
+      const offsetX = tapX - centerX
+      const offsetY = tapY - centerY
+
+      // Scale the offset by the zoom factor to pan towards the tap point
+      // We want the tap point to stay roughly in place as we zoom
+      targetPanX = -offsetX * (targetZoom - 1)
+      targetPanY = -offsetY * (targetZoom - 1)
+
+      // Clamp pan values to boundaries at target zoom
+      const imageAspectRatio = imageWidth / imageHeight
+      const containerAspectRatio = containerWidth / containerHeight
+
+      let displayedWidth: number
+      let displayedHeight: number
+
+      if (imageAspectRatio > containerAspectRatio) {
+        displayedWidth = containerWidth
+        displayedHeight = containerWidth / imageAspectRatio
+      } else {
+        displayedHeight = containerHeight
+        displayedWidth = containerHeight * imageAspectRatio
+      }
+
+      const scaledWidth = displayedWidth * targetZoom
+      const scaledHeight = displayedHeight * targetZoom
+
+      const maxPanXAtTarget = Math.max(0, (scaledWidth - containerWidth) / 2)
+      const maxPanYAtTarget = Math.max(0, (scaledHeight - containerHeight) / 2)
+
+      targetPanX = Math.min(maxPanXAtTarget, Math.max(-maxPanXAtTarget, targetPanX))
+      targetPanY = Math.min(maxPanYAtTarget, Math.max(-maxPanYAtTarget, targetPanY))
+    }
+
+    // Animate the zoom
+    const startZoom = zoom
+    const startPanX = panX
+    const startPanY = panY
+    const startTime = performance.now()
+
+    setIsAnimating(true)
+
+    const animate = (currentTime: number) => {
+      const elapsed = currentTime - startTime
+      const progress = Math.min(elapsed / doubleTapZoomDuration, 1)
+
+      // Use easeOutCubic for smooth deceleration
+      const easeProgress = 1 - (1 - progress) ** 3
+
+      const currentZoom = startZoom + (targetZoom - startZoom) * easeProgress
+      const currentPanX = startPanX + (targetPanX - startPanX) * easeProgress
+      const currentPanY = startPanY + (targetPanY - startPanY) * easeProgress
+
+      setZoom(currentZoom)
+      setPanX(currentPanX)
+      setPanY(currentPanY)
+
+      if (progress < 1) {
+        zoomAnimationFrame.current = requestAnimationFrame(animate)
+      } else {
+        zoomAnimationFrame.current = null
+        setIsAnimating(false)
+        // Update edge states after zoom completes
+        if (targetZoom === minZoom) {
+          setIsAtLeftEdge(false)
+          setIsAtRightEdge(false)
+        } else {
+          checkEdges(targetPanX)
+        }
+      }
+    }
+
+    zoomAnimationFrame.current = requestAnimationFrame(animate)
+  }
+
   return {
     zoom,
     panX,
@@ -540,7 +707,9 @@ export function usePinchZoom({
     handlePinchStart,
     handlePinchMove,
     handlePinchEnd,
+    handleDoubleTap,
     resetZoom,
     getTransformStyle,
+    isAnimating,
   }
 }

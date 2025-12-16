@@ -87,6 +87,7 @@ export const PhotoViewerCarouselItem = ({
     handlePinchStart,
     handlePinchMove,
     handlePinchEnd,
+    handleDoubleTap,
     getTransformStyle,
     resetZoom,
   } = usePinchZoom({
@@ -99,6 +100,57 @@ export const PhotoViewerCarouselItem = ({
     containerWidth: containerDimensions.width,
     containerHeight: containerDimensions.height,
   })
+
+  // Track last tap time and position for double-tap detection
+  const lastTapTime = useRef<number>(0)
+  const lastTapPosition = useRef<{ x: number; y: number } | null>(null)
+
+  // Handle tap for double-tap detection
+  const handleTap = (e: TouchEvent) => {
+    // Only detect taps when all fingers are lifted
+    if (e.touches.length > 0) {
+      return
+    }
+
+    const touch = e.changedTouches[0]
+    if (!touch) {
+      return
+    }
+
+    const currentTime = Date.now()
+    const tapX = touch.clientX
+    const tapY = touch.clientY
+
+    // Check if this is a double-tap (within 300ms and 50px of the last tap)
+    const timeSinceLastTap = currentTime - lastTapTime.current
+    const lastPos = lastTapPosition.current
+
+    if (timeSinceLastTap < 300 && lastPos) {
+      const distance = Math.sqrt((tapX - lastPos.x) ** 2 + (tapY - lastPos.y) ** 2)
+      if (distance < 50) {
+        // Double-tap detected
+        e.preventDefault()
+        handleDoubleTap(tapX, tapY)
+        // Reset to prevent triple-tap
+        lastTapTime.current = 0
+        lastTapPosition.current = null
+        return
+      }
+    }
+
+    // Record this tap
+    lastTapTime.current = currentTime
+    lastTapPosition.current = { x: tapX, y: tapY }
+  }
+
+  // Combined touch end handler
+  const handleTouchEnd = (e: TouchEvent) => {
+    handlePinchEnd(e)
+    // Only check for double-tap if we're the main image
+    if (isMain) {
+      handleTap(e)
+    }
+  }
 
   // Helper function to determine the transform style
   const getTransform = () => {
@@ -173,7 +225,7 @@ export const PhotoViewerCarouselItem = ({
       }}
       onTouchStart={isMain ? handlePinchStart : undefined}
       onTouchMove={isMain ? handlePinchMove : undefined}
-      onTouchEnd={isMain ? handlePinchEnd : undefined}
+      onTouchEnd={isMain ? handleTouchEnd : undefined}
     >
       {assetTimelineItem.type === 'VIDEO' ? (
         <video
