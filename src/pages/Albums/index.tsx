@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'preact/hooks'
+import { DatePill } from '../../components/common/DatePill'
 import { Header } from '../../components/common/Header'
 import { useHashLocation } from '../../contexts/HashLocationContext'
 import { type Album, apiService } from '../../services/api'
@@ -9,36 +10,42 @@ export function Albums() {
   const [error, setError] = useState<string | null>(null)
   const { route } = useHashLocation()
 
-  // Group albums by year and sort within each year by start/end date
-  const albumsByYear = albums.reduce(
+  // Group albums by year+month and sort within each group by end/start date
+  const albumsByMonth = albums.reduce(
     (acc, album) => {
-      // Use the start date or created date to determine the year
-      const date = album.startDate || album.createdAt
-      const year = new Date(date).getFullYear()
+      // Use the end date, start date, or created date to determine the month
+      const date = new Date(album.endDate || album.startDate || album.createdAt)
+      // Key format: "YYYY-MM" for sorting, will be formatted for display
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
 
-      if (!acc[year]) {
-        acc[year] = []
+      if (!acc[key]) {
+        acc[key] = []
       }
 
-      acc[year].push(album)
+      acc[key].push(album)
       return acc
     },
-    {} as Record<number, Album[]>,
+    {} as Record<string, Album[]>,
   )
 
-  // Sort albums within each year by end/start date (most recent first)
-  for (const year of Object.keys(albumsByYear)) {
-    albumsByYear[Number(year)]?.sort((a, b) => {
+  // Sort albums within each month by end/start date (most recent first)
+  for (const key of Object.keys(albumsByMonth)) {
+    albumsByMonth[key]?.sort((a, b) => {
       const dateA = new Date(a.endDate || a.startDate || a.createdAt).getTime()
       const dateB = new Date(b.endDate || b.startDate || b.createdAt).getTime()
       return dateB - dateA
     })
   }
 
-  // Sort years in descending order
-  const sortedYears = Object.keys(albumsByYear)
-    .map(Number)
-    .sort((a, b) => b - a)
+  // Sort months in descending order
+  const sortedMonths = Object.keys(albumsByMonth).sort((a, b) => b.localeCompare(a))
+
+  // Format month key (YYYY-MM) to display string (e.g., "March 2024")
+  const formatMonthKey = (key: string) => {
+    const [year, month] = key.split('-')
+    const date = new Date(Number(year), Number(month) - 1)
+    return date.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
+  }
 
   // Fetch albums
   useEffect(() => {
@@ -275,19 +282,17 @@ export function Albums() {
             </button>
           </div>
         ) : (
-          <div class="albums-list" style={{ padding: 'var(--spacing-md)' }}>
-            {sortedYears.map((year) => (
-              <div key={year} class="albums-year-section">
-                <h2
-                  style={{
-                    fontSize: 'var(--font-size-xl)',
-                    fontWeight: 'var(--font-weight-bold)',
-                    marginBottom: 'var(--spacing-md)',
-                    marginTop: 'var(--spacing-lg)',
-                  }}
-                >
-                  {year}
-                </h2>
+          <div
+            class="albums-list"
+            style={{
+              paddingLeft: 'var(--spacing-md)',
+              paddingRight: 'var(--spacing-md)',
+              paddingBottom: 'var(--spacing-md)',
+            }}
+          >
+            {sortedMonths.map((monthKey) => (
+              <div key={monthKey} class="albums-month-section">
+                <DatePill sticky={true}>{formatMonthKey(monthKey)}</DatePill>
 
                 <div
                   style={{
@@ -296,7 +301,7 @@ export function Albums() {
                     gap: 'var(--spacing-md)',
                   }}
                 >
-                  {albumsByYear[year].map((album) => (
+                  {albumsByMonth[monthKey]?.map((album) => (
                     <div
                       key={album.id}
                       class="album-card"

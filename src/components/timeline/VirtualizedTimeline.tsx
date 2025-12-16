@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'preact/hooks'
 import type { JSX } from 'preact/jsx-runtime'
 import type { ThumbnailPosition } from '../../hooks/useZoomTransition'
 import type { AssetOrder, AssetTimelineItem } from '../../services/api'
+import { DatePill } from '../common/DatePill'
 import type { ThumbnailPositionGetter } from './TimelineThumbnail'
 import { TimelineThumbnail } from './TimelineThumbnail'
 
@@ -352,39 +353,9 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
     // Add date header if showDateHeaders is true
     if (showDateHeaders) {
       rows.push(
-        <div
-          key={`header-${section.date}`}
-          class="timeline-date-header"
-          style={{
-            position: 'sticky',
-            top: 0,
-            padding: 'var(--spacing-sm)',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            background:
-              'linear-gradient(180deg, rgba(var(--color-background-rgb), 0.5) 0%, rgba(var(--color-background-rgb), 0) 100%)',
-            zIndex: 1,
-          }}
-        >
-          <div
-            class="timeline-date-header-text"
-            style={{
-              padding: 'var(--spacing-sm) var(--spacing-lg)',
-              fontSize: 'var(--font-size-sm)',
-              fontWeight: 'var(--font-weight-semibold)',
-              background:
-                'rgba(var(--color-text-rgb), 0.2) linear-gradient(135deg, rgba(var(--color-background-rgb), 0.7) 0%, rgba(var(--color-background-rgb), 0.5) 50%, rgba(var(--color-background-rgb), 0.6) 100%)',
-              border: '0.5px solid rgba(var(--color-text-rgb), 0.1)',
-              borderRadius: '99px',
-              backdropFilter: 'blur(10px)',
-              color: 'var(--color-text)',
-              textAlign: 'center',
-            }}
-          >
-            {formattedDate}
-          </div>
-        </div>,
+        <DatePill key={`header-${section.date}`} sticky={true}>
+          {formattedDate}
+        </DatePill>,
       )
     }
 
