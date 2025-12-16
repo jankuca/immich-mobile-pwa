@@ -29,19 +29,21 @@ export function People() {
       return { sortedPeople: filteredPeople, peopleByLetter: {}, sortedLetters: [] }
     }
 
-    // Sort by name and group by first letter
-    const sortedByName = [...filteredPeople].sort((a, b) => a.name.localeCompare(b.name))
+    // Sort by name using locale-aware comparison
+    const collator = new Intl.Collator(undefined, { sensitivity: 'base' })
+    const sortedByName = [...filteredPeople].sort((a, b) => collator.compare(a.name, b.name))
     const byLetter: Record<string, typeof filteredPeople> = {}
 
     for (const person of sortedByName) {
-      const firstLetter = person.name.charAt(0).toUpperCase()
+      const firstLetter = person.name.charAt(0).toLocaleUpperCase()
       if (!byLetter[firstLetter]) {
         byLetter[firstLetter] = []
       }
       byLetter[firstLetter].push(person)
     }
 
-    const letters = Object.keys(byLetter).sort()
+    // Sort letter sections using locale-aware comparison
+    const letters = Object.keys(byLetter).sort((a, b) => collator.compare(a, b))
     return { sortedPeople: sortedByName, peopleByLetter: byLetter, sortedLetters: letters }
   }, [people, sortMode])
 
