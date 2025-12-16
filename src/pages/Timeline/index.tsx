@@ -287,6 +287,7 @@ export function Timeline() {
             onAssetOpenRequest={handleAssetClick}
             onLoadMoreRequest={handleLoadMore}
             onThumbnailPositionGetterReady={setGetThumbnailPosition}
+            anchorAssetId={selectedAsset?.id}
           />
         )}
       </div>
@@ -298,6 +299,7 @@ export function Timeline() {
           onClose={handleCloseViewer}
           thumbnailPosition={selectedThumbnailPosition}
           getThumbnailPosition={getThumbnailPosition ?? undefined}
+          onAssetChange={setSelectedAsset}
         />
       )}
     </div>

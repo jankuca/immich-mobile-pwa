@@ -510,6 +510,7 @@ export function Search() {
                   showDateHeaders={false}
                   onAssetOpenRequest={handleAssetClick}
                   onThumbnailPositionGetterReady={setGetThumbnailPosition}
+                  anchorAssetId={selectedAsset?.id}
                 />
               </div>
             )}
@@ -689,6 +690,7 @@ export function Search() {
           onClose={handleCloseViewer}
           thumbnailPosition={selectedThumbnailPosition}
           getThumbnailPosition={getThumbnailPosition ?? undefined}
+          onAssetChange={setSelectedAsset}
         />
       )}
     </div>

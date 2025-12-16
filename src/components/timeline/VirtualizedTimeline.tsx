@@ -22,6 +22,8 @@ interface VirtualizedTimelineProps<A extends AssetTimelineItem> {
   onLoadMoreRequest?: () => void
   /** Callback to provide the getThumbnailPosition function to parent */
   onThumbnailPositionGetterReady?: (getter: GetThumbnailPosition) => void
+  /** ID of the asset to anchor/keep visible after orientation changes (e.g., the currently viewed photo) */
+  anchorAssetId?: string | null | undefined
 }
 
 interface TimelineSection<A extends AssetTimelineItem> {
@@ -38,6 +40,7 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
   onAssetOpenRequest,
   onLoadMoreRequest,
   onThumbnailPositionGetterReady,
+  anchorAssetId,
 }: VirtualizedTimelineProps<A>) {
   const [sections, setSections] = useState<TimelineSection<A>[]>([])
   const [containerWidth, setContainerWidth] = useState<number>(0)
@@ -46,6 +49,9 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
 
   // Registry of thumbnail position getters by asset ID
   const thumbnailPositionGettersRef = useRef<Map<string, ThumbnailPositionGetter>>(new Map())
+
+  // Track the first visible asset for anchoring when no photo is open
+  const firstVisibleAssetIdRef = useRef<string | null>(null)
 
   // Function to get thumbnail position by asset ID
   const getThumbnailPosition = useCallback((assetId: string): ThumbnailPosition | null => {
@@ -77,6 +83,9 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
   const columnCount = containerWidth
     ? Math.max(MIN_COLUMNS, Math.floor(containerWidth / TARGET_THUMBNAIL_SIZE))
     : MIN_COLUMNS
+
+  // Calculate thumbnail size based on container width and column count
+  const thumbnailSize = containerWidth ? Math.floor(containerWidth / columnCount) - 1 : 0 // 2px for gap
 
   // Group assets by date
   useEffect(() => {
@@ -130,9 +139,73 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
     setSections(sortedSections)
   }, [assets, showDateHeaders, order])
 
+  // Helper function to get the asset index in the flat list
+  const getAssetIndex = useCallback(
+    (assetId: string): number => {
+      let index = 0
+      for (const section of sections) {
+        for (const asset of section.assets) {
+          if (asset.id === assetId) {
+            return index
+          }
+          index++
+        }
+      }
+      return -1
+    },
+    [sections],
+  )
+
+  // Helper function to calculate scroll position for an asset given a specific column count
+  const calculateScrollPositionForAsset = useCallback(
+    (assetId: string, width: number): number | null => {
+      const assetIndex = getAssetIndex(assetId)
+      if (assetIndex === -1) {
+        return null
+      }
+
+      // Calculate column count for the given width
+      const cols = width
+        ? Math.max(MIN_COLUMNS, Math.floor(width / TARGET_THUMBNAIL_SIZE))
+        : MIN_COLUMNS
+      const thumbSize = width ? Math.floor(width / cols) - 1 : 0
+
+      // Calculate which row the asset is in
+      // Need to account for date headers if shown
+      let currentAssetIndex = 0
+      let scrollPosition = 0
+      const headerHeight = showDateHeaders ? 48 : 0 // Approximate header height
+
+      for (const section of sections) {
+        if (showDateHeaders) {
+          // Add header height
+          scrollPosition += headerHeight
+        }
+
+        const assetsInSection = section.assets.length
+        const rowsInSection = Math.ceil(assetsInSection / cols)
+        const assetRowOffset = Math.floor((assetIndex - currentAssetIndex) / cols)
+
+        if (assetIndex >= currentAssetIndex && assetIndex < currentAssetIndex + assetsInSection) {
+          // Asset is in this section
+          scrollPosition += assetRowOffset * (thumbSize + 2) // +2 for gap
+          return scrollPosition
+        }
+
+        // Add all rows in this section
+        scrollPosition += rowsInSection * (thumbSize + 2)
+        currentAssetIndex += assetsInSection
+      }
+
+      return null
+    },
+    [getAssetIndex, sections, showDateHeaders],
+  )
+
   // Update container width on resize using ResizeObserver for reliable orientation change detection
   useEffect(() => {
     const container = containerRef.current
+    const scrollContainer = scrollContainerRef.current
     if (!container) {
       return
     }
@@ -140,8 +213,32 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
     const resizeObserver = new ResizeObserver((entries) => {
       for (const entry of entries) {
         // Use contentBoxSize for more accurate measurement
-        const width = entry.contentBoxSize?.[0]?.inlineSize ?? entry.contentRect.width
-        setContainerWidth(width)
+        const newWidth = entry.contentBoxSize?.[0]?.inlineSize ?? entry.contentRect.width
+        const oldWidth = containerWidth
+
+        // Determine which asset to anchor to
+        const assetIdToAnchor = anchorAssetId ?? firstVisibleAssetIdRef.current
+        if (assetIdToAnchor && oldWidth && newWidth !== oldWidth && scrollContainer) {
+          // Calculate the scroll position for the anchor asset before and after resize
+          const oldScrollPos = calculateScrollPositionForAsset(assetIdToAnchor, oldWidth)
+          const newScrollPos = calculateScrollPositionForAsset(assetIdToAnchor, newWidth)
+
+          if (oldScrollPos !== null && newScrollPos !== null) {
+            // Calculate the offset from the asset's position to the current scroll position
+            const currentScroll = scrollContainer.scrollTop
+            const offsetFromAnchor = currentScroll - oldScrollPos
+
+            // Apply the same offset to the new position
+            // Use requestAnimationFrame to wait for the DOM to update
+            requestAnimationFrame(() => {
+              if (scrollContainer) {
+                scrollContainer.scrollTop = newScrollPos + offsetFromAnchor
+              }
+            })
+          }
+        }
+
+        setContainerWidth(newWidth)
       }
     })
 
@@ -150,25 +247,69 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
     return () => {
       resizeObserver.disconnect()
     }
-  }, [])
+  }, [anchorAssetId, calculateScrollPositionForAsset, containerWidth])
 
-  // Handle scroll events to detect when user is near the bottom
+  // Handle scroll events to detect when user is near the bottom and track first visible asset
   const handleScroll = useCallback(() => {
-    if (!(scrollContainerRef.current && onLoadMoreRequest)) {
+    const scrollContainer = scrollContainerRef.current
+    if (!scrollContainer) {
       return
     }
 
-    const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current
-    // Calculate how far the user has scrolled (0 to 1)
-    const scrollPosition = scrollTop / (scrollHeight - clientHeight)
+    const { scrollTop, scrollHeight, clientHeight } = scrollContainer
 
-    // If user has scrolled past 80% of the content and we're not already loading more
-    const isNearEnd = scrollPosition > 0.8
+    // Track the first visible asset for anchoring (only when no explicit anchor is set)
+    if (!anchorAssetId && thumbnailSize > 0) {
+      // Find the first visible asset based on scroll position
+      const headerHeight = showDateHeaders ? 48 : 0
+      let currentPosition = 0
+      let foundFirstVisible = false
 
-    if (isNearEnd && hasMoreContent && !isLoadingMore) {
-      onLoadMoreRequest()
+      for (const section of sections) {
+        if (showDateHeaders) {
+          currentPosition += headerHeight
+        }
+
+        const assetsInSection = section.assets.length
+        const rowsInSection = Math.ceil(assetsInSection / columnCount)
+        const sectionHeight = rowsInSection * (thumbnailSize + 2)
+
+        if (!foundFirstVisible && currentPosition + sectionHeight > scrollTop) {
+          // The first visible asset is in this section
+          const offsetInSection = Math.max(0, scrollTop - currentPosition)
+          const rowIndex = Math.floor(offsetInSection / (thumbnailSize + 2))
+          const assetIndex = rowIndex * columnCount
+
+          if (assetIndex < assetsInSection) {
+            firstVisibleAssetIdRef.current = section.assets[assetIndex]?.id ?? null
+            foundFirstVisible = true
+            break
+          }
+        }
+
+        currentPosition += sectionHeight
+      }
     }
-  }, [onLoadMoreRequest, hasMoreContent, isLoadingMore])
+
+    // Check if we're near the end and need to load more
+    if (onLoadMoreRequest) {
+      const scrollPosition = scrollTop / (scrollHeight - clientHeight)
+      const isNearEnd = scrollPosition > 0.8
+
+      if (isNearEnd && hasMoreContent && !isLoadingMore) {
+        onLoadMoreRequest()
+      }
+    }
+  }, [
+    anchorAssetId,
+    columnCount,
+    hasMoreContent,
+    isLoadingMore,
+    onLoadMoreRequest,
+    sections,
+    showDateHeaders,
+    thumbnailSize,
+  ])
 
   // Add scroll event listener
   // biome-ignore lint/correctness/useExhaustiveDependencies: we need to check if we want to request more after adding sections
@@ -194,9 +335,6 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
       }
     }
   }, [handleScroll, hasMoreContent, isLoadingMore, onLoadMoreRequest, sections])
-
-  // Calculate thumbnail size based on container width and column count
-  const thumbnailSize = containerWidth ? Math.floor(containerWidth / columnCount) - 1 : 0 // 2px for gap
 
   // Render a row in the virtual list
   const renderRow = (section: TimelineSection<A>, _index: number) => {

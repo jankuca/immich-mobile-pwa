@@ -339,6 +339,7 @@ export function AlbumDetail({ id, albumId }: AlbumDetailProps) {
             onAssetOpenRequest={handleAssetClick}
             onLoadMoreRequest={handleLoadMore}
             onThumbnailPositionGetterReady={setGetThumbnailPosition}
+            anchorAssetId={selectedAsset?.id}
           />
         ) : (
           <div
@@ -392,6 +393,7 @@ export function AlbumDetail({ id, albumId }: AlbumDetailProps) {
           onClose={handleCloseViewer}
           thumbnailPosition={selectedThumbnailPosition}
           getThumbnailPosition={getThumbnailPosition ?? undefined}
+          onAssetChange={(asset) => setSelectedAsset(asset as Asset)}
         />
       )}
 

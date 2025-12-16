@@ -15,6 +15,8 @@ interface PhotoViewerProps {
   thumbnailPosition?: ThumbnailPosition | null | undefined
   /** Function to get current thumbnail position by asset ID (handles orientation changes) */
   getThumbnailPosition?: ((assetId: string) => ThumbnailPosition | null) | undefined
+  /** Callback when the current asset changes (e.g., when swiping to a different photo) */
+  onAssetChange?: ((asset: AssetTimelineItem) => void) | undefined
 }
 
 export const PhotoViewer = ({
@@ -23,6 +25,7 @@ export const PhotoViewer = ({
   onClose,
   thumbnailPosition = null,
   getThumbnailPosition: getThumbnailPositionProp,
+  onAssetChange,
 }: PhotoViewerProps) => {
   const [scrollPosition, setScrollPosition] = useState<number>(0)
   const [isAtTop, setIsAtTop] = useState<boolean>(true)
@@ -130,10 +133,14 @@ export const PhotoViewer = ({
     resetSwipeDirection,
   })
 
-  // Keep currentAssetRef updated for zoom-out animation
+  // Keep currentAssetRef updated for zoom-out animation and notify parent of asset change
   useEffect(() => {
     currentAssetRef.current = currentAsset
-  }, [currentAsset])
+    // Notify parent when the current asset changes (e.g., when swiping)
+    if (currentAsset.id !== asset.id) {
+      onAssetChange?.(currentAsset)
+    }
+  }, [asset.id, currentAsset, onAssetChange])
 
   // Combined touch move handler
   const handleTouchMove = useCallback(
