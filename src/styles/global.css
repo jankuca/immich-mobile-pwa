@@ -26,7 +26,7 @@ img {
 }
 
 html {
-  position: relative;;
+  position: relative;
   width: 100%;
   height: calc(100% + env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px));
   overflow: hidden;
@@ -39,7 +39,7 @@ html {
 
 body {
   width: 100%;
-  height: 100%;
+  height: calc(100% - env(safe-area-inset-top, 0px));
   overflow: hidden;
   position: fixed;
   top: env(safe-area-inset-top);
@@ -53,6 +53,7 @@ body {
 }
 
 #app {
+  position: relative;
   height: 100%;
   width: 100%;
   display: flex;
@@ -91,7 +92,12 @@ body {
   flex: 1;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  padding-bottom: var(--tabbar-height);
+}
+
+.ios-content::after {
+  display: block;
+  height: calc(var(--tabbar-height) + calc(var(--spacing-sm) + env(safe-area-inset-bottom, 0px)));
+  content: '';
 }
 
 .ios-tabbar {
