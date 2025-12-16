@@ -69,10 +69,11 @@ export function useVerticalSwipe({
   const [isVerticalSwiping, setIsVerticalSwiping] = useState<boolean>(false)
 
   const {
-    swipeDirection,
-    startY,
+    getSwipeDirection,
     handleTouchStart: directionTouchStart,
+    handleTouchMove: directionTouchMove,
     resetSwipeDirection,
+    getVerticalSwipeDistance,
   } = useSwipeDirection()
 
   const windowHeight = typeof window !== 'undefined' ? window.innerHeight : 0
@@ -86,15 +87,23 @@ export function useVerticalSwipe({
   }
 
   const handleTouchMove = (e: TouchEvent) => {
-    if (!isEnabled || startY === null) {
+    if (!isEnabled) {
       return
     }
 
-    const currentY = e.touches[0]?.clientY ?? 0
+    // First, update the direction detection
+    directionTouchMove(e)
+
+    // Read current swipe direction synchronously from ref
+    const swipeDirection = getSwipeDirection()
+
+    if (swipeDirection === null) {
+      return
+    }
 
     // Handle vertical swipe
     if (swipeDirection === 'vertical') {
-      const diffY = currentY - startY
+      const diffY = getVerticalSwipeDistance()
 
       // Only handle downward swipes
       if (diffY > 0) {

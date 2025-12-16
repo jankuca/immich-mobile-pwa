@@ -4,9 +4,13 @@ export type SwipeDirection = 'horizontal' | 'vertical' | null
 
 interface UseSwipeDirectionReturn {
   /**
-   * Current detected swipe direction
+   * Current detected swipe direction (captured at render time)
    */
   swipeDirection: SwipeDirection
+  /**
+   * Get the current swipe direction synchronously (reads from ref)
+   */
+  getSwipeDirection: () => SwipeDirection
   /**
    * Start X coordinate of the swipe
    */
@@ -16,13 +20,21 @@ interface UseSwipeDirectionReturn {
    */
   startY: number | null
   /**
-   * Current X coordinate of the swipe
+   * Current X coordinate of the swipe (captured at render time)
    */
   currentX: number | null
   /**
-   * Current Y coordinate of the swipe
+   * Current Y coordinate of the swipe (captured at render time)
    */
   currentY: number | null
+  /**
+   * Get the current X coordinate synchronously (reads from ref)
+   */
+  getCurrentX: () => number | null
+  /**
+   * Get the current Y coordinate synchronously (reads from ref)
+   */
+  getCurrentY: () => number | null
   /**
    * Handler for touch start event
    */
@@ -121,6 +133,18 @@ export function useSwipeDirection(): UseSwipeDirectionReturn {
     forceUpdate({})
   }
 
+  const getSwipeDirection = (): SwipeDirection => {
+    return swipeDirectionRef.current
+  }
+
+  const getCurrentX = (): number | null => {
+    return currentXRef.current
+  }
+
+  const getCurrentY = (): number | null => {
+    return currentYRef.current
+  }
+
   const getHorizontalSwipeDistance = (): number => {
     if (startXRef.current === null || currentXRef.current === null) {
       return 0
@@ -137,10 +161,13 @@ export function useSwipeDirection(): UseSwipeDirectionReturn {
 
   return {
     swipeDirection: swipeDirectionRef.current,
+    getSwipeDirection,
     startX: startXRef.current,
     startY: startYRef.current,
     currentX: currentXRef.current,
     currentY: currentYRef.current,
+    getCurrentX,
+    getCurrentY,
     handleTouchStart,
     handleTouchMove,
     resetSwipeDirection,

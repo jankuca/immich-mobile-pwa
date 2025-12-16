@@ -92,10 +92,11 @@ export function useHorizontalSwipe({
   const [isHorizontalSwiping, setIsHorizontalSwiping] = useState<boolean>(false)
 
   const {
-    swipeDirection,
-    startX,
+    getSwipeDirection,
     handleTouchStart: directionTouchStart,
+    handleTouchMove: directionTouchMove,
     resetSwipeDirection,
+    getHorizontalSwipeDistance,
   } = useSwipeDirection()
 
   const { swipeVelocity, updateVelocity, resetVelocity } = useSwipeVelocity()
@@ -110,7 +111,13 @@ export function useHorizontalSwipe({
   }
 
   const handleTouchMove = (e: TouchEvent) => {
-    if (startX === null) {
+    // First, update the direction detection
+    directionTouchMove(e)
+
+    // Read current values synchronously from refs
+    const swipeDirection = getSwipeDirection()
+
+    if (swipeDirection === null) {
       return
     }
 
@@ -119,13 +126,12 @@ export function useHorizontalSwipe({
     // Update velocity for momentum calculations
     updateVelocity(currentX)
 
-    // Detect swipe direction if not already determined
     // Handle horizontal swipe
     if (swipeDirection === 'horizontal') {
       e.preventDefault() // Prevent default scrolling behavior
       setIsHorizontalSwiping(true)
 
-      const diffX = currentX - startX
+      const diffX = getHorizontalSwipeDistance()
 
       // Apply resistance when swiping past the first or last item
       let calculatedOffset = diffX

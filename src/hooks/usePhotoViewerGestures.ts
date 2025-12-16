@@ -42,17 +42,17 @@ interface UsePhotoViewerGesturesProps {
    */
   onHorizontalSwipingChange?: (isHorizontalSwiping: boolean) => void
   /**
-   * Current swipe direction
+   * Get swipe direction synchronously (reads from ref)
    */
-  swipeDirection: SwipeDirection
+  getSwipeDirection: () => SwipeDirection
   /**
-   * Current X coordinate
+   * Get current X coordinate synchronously (reads from ref)
    */
-  currentX: number | null
+  getCurrentX: () => number | null
   /**
-   * Current Y coordinate
+   * Get current Y coordinate synchronously (reads from ref)
    */
-  currentY: number | null
+  getCurrentY: () => number | null
   /**
    * Get horizontal swipe distance
    */
@@ -111,9 +111,9 @@ export function usePhotoViewerGestures({
   onClose,
   preloadAsset,
   onHorizontalSwipingChange,
-  swipeDirection,
-  currentX,
-  currentY,
+  getSwipeDirection,
+  getCurrentX,
+  getCurrentY,
   getHorizontalSwipeDistance,
   getVerticalSwipeDistance,
   resetSwipeDirection,
@@ -126,6 +126,9 @@ export function usePhotoViewerGestures({
   const photoContainerRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
+  // Track pending transition timeouts so we can cancel them on rapid swipes
+  const pendingTransitionRef = useRef<number | null>(null)
+
   // Find the index of the current asset in the assets array
   const currentIndex = assets.findIndex((a) => a.id === currentAsset.id)
 
@@ -133,6 +136,11 @@ export function usePhotoViewerGestures({
   const { swipeVelocity, updateVelocity, resetVelocity } = useSwipeVelocity()
 
   const handleTouchMove = (e: TouchEvent) => {
+    // Read current values synchronously from refs
+    const currentX = getCurrentX()
+    const currentY = getCurrentY()
+    const swipeDirection = getSwipeDirection()
+
     if (currentX === null || currentY === null) {
       return
     }
@@ -176,6 +184,27 @@ export function usePhotoViewerGestures({
       let swipeOffset = diffX
       if ((currentIndex === 0 && diffX > 0) || (currentIndex === assets.length - 1 && diffX < 0)) {
         swipeOffset = diffX / 3 // Add resistance by dividing the offset
+      }
+
+      // If there's a pending transition timeout from a previous rapid swipe,
+      // cancel it and finalize the transition immediately
+      if (pendingTransitionRef.current !== null) {
+        clearTimeout(pendingTransitionRef.current)
+        pendingTransitionRef.current = null
+
+        // If we have a transitioning asset from the previous swipe,
+        // finalize it immediately as the new current asset
+        if (transitioningAsset) {
+          setCurrentAsset(transitioningAsset)
+          setTransitioningAsset(null)
+          setTransitionDirection(null)
+          onAssetChange(transitioningAsset)
+
+          // Reset scroll position
+          if (scrollContainerRef.current) {
+            scrollContainerRef.current.scrollTop = 0
+          }
+        }
       }
 
       // Set up transitioning asset immediately when swiping horizontally
@@ -263,6 +292,9 @@ export function usePhotoViewerGestures({
   }
 
   const handleTouchEnd = () => {
+    // Read current swipe direction synchronously from ref
+    const swipeDirection = getSwipeDirection()
+
     // Notify parent that horizontal swiping has ended
     if (onHorizontalSwipingChange) {
       onHorizontalSwipingChange(false)
@@ -342,7 +374,9 @@ export function usePhotoViewerGestures({
           transitioningContainer.style.transition = `transform ${duration}s ease`
 
           // After animation completes, update the current asset
-          setTimeout(() => {
+          // Store timeout ID so we can cancel it on rapid swipes
+          pendingTransitionRef.current = window.setTimeout(() => {
+            pendingTransitionRef.current = null
             setCurrentAsset(transitioningAsset)
             setTransitioningAsset(null)
             setTransitionDirection(null)
@@ -394,7 +428,9 @@ export function usePhotoViewerGestures({
           transitioningContainer.style.transition = `transform ${duration}s ease`
 
           // After animation completes, update the current asset
-          setTimeout(() => {
+          // Store timeout ID so we can cancel it on rapid swipes
+          pendingTransitionRef.current = window.setTimeout(() => {
+            pendingTransitionRef.current = null
             setCurrentAsset(transitioningAsset)
             setTransitioningAsset(null)
             setTransitionDirection(null)
@@ -435,6 +471,7 @@ export function usePhotoViewerGestures({
         }
 
         // Clear transitioning asset state after animation completes
+        // This one doesn't need to be tracked since it's just cleanup
         setTimeout(() => {
           setTransitioningAsset(null)
           setTransitionDirection(null)

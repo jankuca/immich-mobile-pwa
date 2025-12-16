@@ -71,12 +71,12 @@ export const PhotoViewer = ({
 
   // Use a single instance of swipe direction hook
   const {
-    swipeDirection,
-    currentX,
-    currentY,
     handleTouchStart,
     handleTouchMove: directionTouchMove,
     resetSwipeDirection,
+    getSwipeDirection,
+    getCurrentX,
+    getCurrentY,
     getHorizontalSwipeDistance,
     getVerticalSwipeDistance,
   } = useSwipeDirection()
@@ -103,9 +103,9 @@ export const PhotoViewer = ({
     onClose: handleClose, // Use our transition handler instead of direct onClose
     preloadAsset: preloadImage,
     onHorizontalSwipingChange: setIsHorizontalSwiping,
-    swipeDirection,
-    currentX,
-    currentY,
+    getSwipeDirection,
+    getCurrentX,
+    getCurrentY,
     getHorizontalSwipeDistance,
     getVerticalSwipeDistance,
     resetSwipeDirection,
