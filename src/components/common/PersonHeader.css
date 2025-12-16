@@ -1,0 +1,122 @@
+/* Person Header with scroll-based collapse animation (JS-driven) */
+
+.person-header {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Override ios-header background - we use .person-header-bg instead */
+.ios-header.person-header {
+  background-color: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* Left action button */
+.person-header-left-action {
+  position: absolute;
+  left: var(--spacing-md);
+  top: calc(env(safe-area-inset-top, 0px) + var(--spacing-md) + 10px);
+  background: none;
+  border: none;
+  color: var(--color-primary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+}
+
+/* Right action button */
+.person-header-right-action {
+  position: absolute;
+  right: var(--spacing-md);
+  top: calc(env(safe-area-inset-top, 0px) + var(--spacing-md) + 10px);
+  background: none;
+  border: none;
+  color: var(--color-primary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+}
+
+/* Main content container */
+.person-header-content {
+  position: relative;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--spacing-sm);
+  z-index: 1;
+}
+
+/* Avatar container */
+.person-header-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  overflow: hidden;
+  background-color: var(--color-gray-light);
+  flex-shrink: 0;
+}
+
+.person-header-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Title */
+.person-header-title {
+  color: var(--color-text);
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+  margin: 0;
+}
+
+/* Photo count */
+.person-header-count {
+  font-size: var(--font-size-sm);
+  color: var(--color-gray);
+  margin: 0;
+}
+
+.person-header-collapser {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  box-sizing: content-box;
+  /* padding-top: env(safe-area-inset-top, 0px); */
+  z-index: 0;
+}
+
+/* Background that shrinks on scroll - uses same blur as ios-header */
+.person-header-bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 100%;
+  background-color: rgba(var(--color-background-rgb), 0.7);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+/* Name pill - positioned at bottom */
+.person-header-pill {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+}

@@ -133,7 +133,7 @@ body {
 
 .person-header {
   height: calc(var(--person-header-height) + env(safe-area-inset-top, 0px) + 2 * var(--spacing-md));
-  min-height: calc(var(--person-header-height) + env(safe-area-inset-top, 0px) + 2 * var(--spacing-md));
+  /* min-height: calc(var(--person-header-height) + env(safe-area-inset-top, 0px) + 2 * var(--spacing-md)); */
   padding-top: calc(env(safe-area-inset-top) + var(--spacing-md));
   padding-bottom: var(--spacing-md);
 }
