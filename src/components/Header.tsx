@@ -1,15 +1,15 @@
-import { useLocation } from 'preact-iso'
+import { useHashLocation } from '../contexts/HashLocationContext'
 
 export function Header() {
-  const { url } = useLocation()
+  const { url } = useHashLocation()
 
   return (
     <header>
       <nav>
-        <a href="/" class={url === '/' ? 'active' : undefined}>
+        <a href="#/" class={url === '/' ? 'active' : undefined}>
           Home
         </a>
-        <a href="/404" class={url === '/404' ? 'active' : undefined}>
+        <a href="#/404" class={url === '/404' ? 'active' : undefined}>
           404
         </a>
       </nav>

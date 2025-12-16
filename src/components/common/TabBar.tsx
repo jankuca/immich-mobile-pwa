@@ -1,7 +1,7 @@
-import { useLocation } from 'preact-iso'
+import { useHashLocation } from '../../contexts/HashLocationContext'
 
 export const TabBar = () => {
-  const { url, route } = useLocation()
+  const { url, route } = useHashLocation()
 
   // Check if the current URL is in the albums section
   const isInAlbumsSection = url === '/albums' || url.startsWith('/albums/')
@@ -16,7 +16,7 @@ export const TabBar = () => {
   return (
     <nav class="ios-tabbar">
       <a
-        href="/"
+        href="#/"
         class={`ios-tabbar-item ${url === '/' ? 'active' : ''}`}
         onClick={(e) => handleTabClick(e, '/')}
       >
@@ -42,7 +42,7 @@ export const TabBar = () => {
       </a>
 
       <a
-        href="/albums"
+        href="#/albums"
         class={`ios-tabbar-item ${isInAlbumsSection ? 'active' : ''}`}
         onClick={(e) => handleTabClick(e, '/albums')}
       >
@@ -83,7 +83,7 @@ export const TabBar = () => {
       </a>
 
       <a
-        href="/people"
+        href="#/people"
         class={`ios-tabbar-item ${isInPeopleSection ? 'active' : ''}`}
         onClick={(e) => handleTabClick(e, '/people')}
       >
@@ -117,7 +117,7 @@ export const TabBar = () => {
       </a>
 
       <a
-        href="/search"
+        href="#/search"
         class={`ios-tabbar-item ${url === '/search' ? 'active' : ''}`}
         onClick={(e) => handleTabClick(e, '/search')}
       >

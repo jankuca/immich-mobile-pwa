@@ -1,13 +1,13 @@
-import { useLocation } from 'preact-iso'
 import { useEffect, useState } from 'preact/hooks'
 import { Header } from '../../components/common/Header'
+import { useHashLocation } from '../../contexts/HashLocationContext'
 import { type Album, apiService } from '../../services/api'
 
 export function Albums() {
   const [albums, setAlbums] = useState<Album[]>([])
   const [isLoading, setIsLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
-  const location = useLocation()
+  const { route } = useHashLocation()
 
   // Group albums by year
   const albumsByYear = albums.reduce(
@@ -53,7 +53,7 @@ export function Albums() {
 
   // Navigate to album detail
   const handleAlbumClick = (albumId: string) => {
-    location.route(`/albums/${albumId}`)
+    route(`/albums/${albumId}`)
   }
 
   return (

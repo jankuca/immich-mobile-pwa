@@ -1,13 +1,13 @@
-import { useLocation } from 'preact-iso'
 import { useEffect, useState } from 'preact/hooks'
 import { Header } from '../../components/common/Header'
+import { useHashLocation } from '../../contexts/HashLocationContext'
 import { type Person, apiService } from '../../services/api'
 
 export function People() {
   const [people, setPeople] = useState<Person[]>([])
   const [isLoading, setIsLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
-  const location = useLocation()
+  const { route } = useHashLocation()
 
   // Fetch people
   useEffect(() => {
@@ -30,7 +30,7 @@ export function People() {
 
   // Navigate to person detail
   const handlePersonClick = (personId: string) => {
-    location.route(`/people/${personId}`)
+    route(`/people/${personId}`)
   }
 
   // Group people by first letter of name

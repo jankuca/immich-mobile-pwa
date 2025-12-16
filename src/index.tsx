@@ -1,11 +1,10 @@
-import { render } from 'preact'
-import type * as preact from 'preact'
-import { LocationProvider, Route, Router, useLocation } from 'preact-iso'
+import { type ComponentChildren, render } from 'preact'
 import { useEffect, useState } from 'preact/hooks'
 import 'preact/debug' // Enable Preact DevTools
 
 import { TabBar } from './components/common/TabBar'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
+import { HashLocationProvider, useHashLocation } from './contexts/HashLocationContext'
 import { AlbumDetail } from './pages/AlbumDetail'
 import { Albums } from './pages/Albums'
 import { Login } from './pages/Login'
@@ -16,24 +15,21 @@ import { Timeline } from './pages/Timeline'
 // Import our styles
 import './styles/global.css'
 
-// Protected route component
-type ProtectedRouteProps<T> = {
-  component: preact.ComponentType<T>
-}
-
-const ProtectedRoute = ({ component: Component, ...rest }: ProtectedRouteProps<unknown>) => {
+// Protected route wrapper - redirects to login if not authenticated
+const ProtectedRoute = ({ children }: { children: ComponentChildren }) => {
   const { isAuthenticated, isLoading } = useAuth()
+  const { route } = useHashLocation()
 
   useEffect(() => {
     if (!(isLoading || isAuthenticated)) {
-      // Save the current path to redirect after login
-      const currentPath = window.location.pathname
+      // Save the current hash path to redirect after login
+      const currentPath = window.location.hash.slice(1) || '/'
       if (currentPath !== '/login') {
         localStorage.setItem('redirect_after_login', currentPath)
-        window.location.href = '/login'
+        route('/login')
       }
     }
-  }, [isAuthenticated, isLoading])
+  }, [isAuthenticated, isLoading, route])
 
   // Show loading while checking authentication
   if (isLoading) {
@@ -70,13 +66,13 @@ const ProtectedRoute = ({ component: Component, ...rest }: ProtectedRouteProps<u
     )
   }
 
-  // Render the component if authenticated
-  return isAuthenticated ? <Component {...rest} /> : null
+  // Render children if authenticated
+  return isAuthenticated ? <>{children}</> : null
 }
 
 // Main app with persistent tabs
 const PersistentTabsApp = () => {
-  const { url } = useLocation()
+  const { url } = useHashLocation()
   const [timelineMounted, setTimelineMounted] = useState<boolean>(false)
   const [albumsMounted, setAlbumsMounted] = useState<boolean>(false)
   const [albumDetailMounted, setAlbumDetailMounted] = useState<boolean>(false)
@@ -218,9 +214,30 @@ const PersistentTabsApp = () => {
   )
 }
 
+// Hash-based route matching
+const HashRouter = () => {
+  const { url } = useHashLocation()
+
+  // Login route is public
+  if (url === '/login') {
+    return <Login />
+  }
+
+  // All other routes are protected
+  return (
+    <ProtectedRoute>
+      <PersistentTabsApp />
+    </ProtectedRoute>
+  )
+}
+
 const AppContent = () => {
   const { isAuthenticated } = useAuth()
+  const { url } = useHashLocation()
   console.log({ isAuthenticated })
+
+  // Don't show tab bar on login page
+  const showTabBar = isAuthenticated && url !== '/login'
 
   return (
     <div
@@ -239,17 +256,9 @@ const AppContent = () => {
           backgroundColor: 'var(--color-background)',
         }}
       >
-        <Router>
-          <Route path="/login" component={Login} />
-          <Route
-            default={true}
-            component={(props: { [key: string]: unknown }) => (
-              <ProtectedRoute component={PersistentTabsApp} {...props} />
-            )}
-          />
-        </Router>
+        <HashRouter />
       </main>
-      {isAuthenticated && <TabBar />}
+      {showTabBar && <TabBar />}
     </div>
   )
 }
@@ -257,9 +266,9 @@ const AppContent = () => {
 export function App() {
   return (
     <AuthProvider>
-      <LocationProvider>
+      <HashLocationProvider>
         <AppContent />
-      </LocationProvider>
+      </HashLocationProvider>
     </AuthProvider>
   )
 }

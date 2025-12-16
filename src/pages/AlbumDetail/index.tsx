@@ -1,8 +1,8 @@
-import { useLocation } from 'preact-iso'
 import { useEffect, useState } from 'preact/hooks'
 import { AlbumHeader } from '../../components/common/AlbumHeader'
 import { PhotoViewer } from '../../components/photoView/PhotoViewer'
 import { VirtualizedTimeline } from '../../components/timeline/VirtualizedTimeline'
+import { useHashLocation } from '../../contexts/HashLocationContext'
 import type { ThumbnailPosition } from '../../hooks/useZoomTransition'
 import { type Album, type Asset, apiService } from '../../services/api'
 
@@ -23,13 +23,12 @@ export function AlbumDetail({ id, albumId }: AlbumDetailProps) {
   const [allBuckets, setAllBuckets] = useState<string[]>([])
   const [loadedBucketCount, setLoadedBucketCount] = useState<number>(0)
   const [hasMoreContent, setHasMoreContent] = useState<boolean>(true)
-  const location = useLocation()
+  const { url, route } = useHashLocation()
 
   // Number of buckets to load at once
   const bucketsPerLoad = 1
 
   // Extract ID from URL if not provided as prop
-  const { url } = location
   const urlId = url.startsWith('/albums/') ? url.split('/')[2] : null
 
   // Use albumId prop, id prop, or extract from URL
@@ -161,7 +160,7 @@ export function AlbumDetail({ id, albumId }: AlbumDetailProps) {
 
   // Handle back button
   const handleBack = () => {
-    location.route('/albums')
+    route('/albums')
   }
 
   return (

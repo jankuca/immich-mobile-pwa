@@ -1,9 +1,9 @@
-import { useLocation } from 'preact-iso'
 import { useEffect, useState } from 'preact/hooks'
 import { Header } from '../../components/common/Header'
 import { PhotoViewer } from '../../components/photoView/PhotoViewer'
 import { VirtualizedTimeline } from '../../components/timeline/VirtualizedTimeline'
 import { useAuth } from '../../contexts/AuthContext'
+import { useHashLocation } from '../../contexts/HashLocationContext'
 import type { ThumbnailPosition } from '../../hooks/useZoomTransition'
 import { type Asset, type SearchResult, apiService } from '../../services/api'
 
@@ -16,7 +16,7 @@ export function Search() {
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null)
   const [selectedThumbnailPosition, setSelectedThumbnailPosition] =
     useState<ThumbnailPosition | null>(null)
-  const location = useLocation()
+  const { route } = useHashLocation()
   const { apiKey, isAuthenticated } = useAuth()
 
   // Load recent searches from localStorage
@@ -105,12 +105,12 @@ export function Search() {
 
   // Handle album click
   const handleAlbumClick = (albumId: string) => {
-    location.route(`/albums/${albumId}`)
+    route(`/albums/${albumId}`)
   }
 
   // Handle person click
   const handlePersonClick = (personId: string) => {
-    location.route(`/people/${personId}`)
+    route(`/people/${personId}`)
   }
 
   // Handle asset click

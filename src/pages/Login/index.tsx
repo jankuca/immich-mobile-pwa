@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'preact/hooks'
 import { useAuth } from '../../contexts/AuthContext'
+import { useHashLocation } from '../../contexts/HashLocationContext'
 
 export function Login() {
   const [apiKey, setApiKey] = useState<string>('')
@@ -8,6 +9,7 @@ export function Login() {
   const [error, setError] = useState<string | null>(null)
 
   const { loginWithApiKey, isAuthenticated } = useAuth()
+  const { route } = useHashLocation()
 
   // Check if user is already authenticated
   useEffect(() => {
@@ -16,10 +18,10 @@ export function Login() {
       const redirectPath = localStorage.getItem('redirect_after_login') || '/'
       // Clear the redirect URL
       localStorage.removeItem('redirect_after_login')
-      // Use hard navigation to ensure full re-render in PWA mode
-      window.location.href = redirectPath
+      // Navigate using hash routing
+      route(redirectPath)
     }
-  }, [isAuthenticated])
+  }, [isAuthenticated, route])
 
   const handleSubmit = async (e: Event) => {
     e.preventDefault()
