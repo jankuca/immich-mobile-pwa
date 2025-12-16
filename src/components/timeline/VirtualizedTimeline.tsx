@@ -2,7 +2,7 @@ import pluralize from 'pluralize'
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks'
 import type { JSX } from 'preact/jsx-runtime'
 import type { ThumbnailPosition } from '../../hooks/useZoomTransition'
-import type { AssetTimelineItem } from '../../services/api'
+import type { AssetOrder, AssetTimelineItem } from '../../services/api'
 import { TimelineThumbnail } from './TimelineThumbnail'
 
 interface VirtualizedTimelineProps<A extends AssetTimelineItem> {
@@ -11,6 +11,7 @@ interface VirtualizedTimelineProps<A extends AssetTimelineItem> {
   showDateHeaders?: boolean
   hasMoreContent?: boolean
   isLoadingMore?: boolean
+  order?: AssetOrder
   onAssetOpenRequest: (asset: A, info: { position: ThumbnailPosition | null }) => void
   onLoadMoreRequest?: () => void
 }
@@ -26,6 +27,7 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
   showDateHeaders = true,
   hasMoreContent = false,
   isLoadingMore = false,
+  order = 'desc',
   onAssetOpenRequest,
   onLoadMoreRequest,
 }: VirtualizedTimelineProps<A>) {
@@ -42,11 +44,11 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
 
     // If showDateHeaders is false, merge all assets into a single section
     if (!showDateHeaders) {
-      // Sort assets by date (newest first)
+      // Sort assets by date based on order prop
       const sortedAssets = [...assets].sort((a, b) => {
         const dateA = a.fileCreatedAt ? new Date(a.fileCreatedAt).getTime() : 0
         const dateB = b.fileCreatedAt ? new Date(b.fileCreatedAt).getTime() : 0
-        return dateB - dateA
+        return order === 'asc' ? dateA - dateB : dateB - dateA
       })
 
       // Create a single section with all assets
@@ -75,12 +77,16 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
       groupedByDate[date].push(asset)
     }
 
-    // Convert to array and sort by date (newest first)
+    // Convert to array and sort by date based on order prop
     const sortedSections = Object.entries(groupedByDate)
       .map(([date, assets]) => ({ date, assets }))
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .sort((a, b) => {
+        const timeA = new Date(a.date).getTime()
+        const timeB = new Date(b.date).getTime()
+        return order === 'asc' ? timeA - timeB : timeB - timeA
+      })
     setSections(sortedSections)
-  }, [assets, showDateHeaders])
+  }, [assets, showDateHeaders, order])
 
   // Update container width on resize
   useEffect(() => {

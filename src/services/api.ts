@@ -103,6 +103,8 @@ export interface Asset extends TimeBucketAsset {
   }>
 }
 
+export type AssetOrder = 'asc' | 'desc'
+
 export interface Album {
   id: string
   albumName: string
@@ -115,6 +117,7 @@ export interface Album {
   albumThumbnailAssetId: string
   startDate?: string
   endDate?: string
+  order?: AssetOrder
 }
 
 export interface Person {
@@ -268,6 +271,7 @@ class ApiService {
     isTrashed?: boolean
     personId?: string
     albumId?: string
+    order?: AssetOrder
   }): Promise<{ timeBucket: string; count: number }[]> {
     const response = await this.api.get('/timeline/buckets', { params })
     return response.data
@@ -281,6 +285,7 @@ class ApiService {
     isTrashed?: boolean
     personId?: string
     albumId?: string
+    order?: AssetOrder
   }): Promise<AssetTimelineItem[]> {
     const response = await this.api.get('/timeline/bucket', {
       params: {
@@ -291,6 +296,7 @@ class ApiService {
         isTrashed: params.isTrashed,
         personId: params.personId,
         albumId: params.albumId,
+        order: params.order,
       },
     })
 

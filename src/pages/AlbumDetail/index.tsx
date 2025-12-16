@@ -58,6 +58,7 @@ export function AlbumDetail({ id, albumId }: AlbumDetailProps) {
           size: 'DAY',
           isTrashed: false,
           albumId: effectiveId,
+          ...(albumData.order && { order: albumData.order }),
         })
 
         // Extract buckets from the response
@@ -72,7 +73,7 @@ export function AlbumDetail({ id, albumId }: AlbumDetailProps) {
         }
 
         // Load the first batch of buckets
-        await loadMoreBuckets(buckets, 0, effectiveId)
+        await loadMoreBuckets(buckets, 0, effectiveId, albumData.order)
       } catch (err) {
         console.error('Error fetching album:', err)
         setError('Failed to load album. Please try again.')
@@ -84,7 +85,12 @@ export function AlbumDetail({ id, albumId }: AlbumDetailProps) {
   }, [effectiveId])
 
   // Function to load more buckets
-  const loadMoreBuckets = async (buckets: string[], startIndex: number, albumId: string) => {
+  const loadMoreBuckets = async (
+    buckets: string[],
+    startIndex: number,
+    albumId: string,
+    order?: 'asc' | 'desc',
+  ) => {
     if (startIndex >= buckets.length) {
       setHasMoreContent(false)
       setIsLoadingMore(false)
@@ -110,6 +116,7 @@ export function AlbumDetail({ id, albumId }: AlbumDetailProps) {
             size: 'DAY',
             isTrashed: false,
             albumId,
+            ...(order && { order }),
           })
 
           if (Array.isArray(bucketAssets)) {
@@ -143,7 +150,7 @@ export function AlbumDetail({ id, albumId }: AlbumDetailProps) {
     if (isLoadingMore || !hasMoreContent || !effectiveId) {
       return
     }
-    loadMoreBuckets(allBuckets, loadedBucketCount, effectiveId)
+    loadMoreBuckets(allBuckets, loadedBucketCount, effectiveId, album?.order)
   }
 
   // Handle asset selection
@@ -320,6 +327,7 @@ export function AlbumDetail({ id, albumId }: AlbumDetailProps) {
             showDateHeaders={false}
             hasMoreContent={hasMoreContent}
             isLoadingMore={isLoadingMore}
+            {...(album?.order && { order: album.order })}
             onAssetOpenRequest={handleAssetClick}
             onLoadMoreRequest={handleLoadMore}
           />
