@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'preact/hooks'
 import type { JSX } from 'preact/jsx-runtime'
 import type { ThumbnailPosition } from '../../hooks/useZoomTransition'
 import type { AssetOrder, AssetTimelineItem } from '../../services/api'
-import { DatePill } from '../common/DatePill'
+import { SectionPill } from '../common/SectionPill'
 import type { ThumbnailPositionGetter } from './TimelineThumbnail'
 import { TimelineThumbnail } from './TimelineThumbnail'
 
@@ -353,9 +353,9 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
     // Add date header if showDateHeaders is true
     if (showDateHeaders) {
       rows.push(
-        <DatePill key={`header-${section.date}`} sticky={true}>
+        <SectionPill key={`header-${section.date}`} sticky={true}>
           {formattedDate}
-        </DatePill>,
+        </SectionPill>,
       )
     }
 

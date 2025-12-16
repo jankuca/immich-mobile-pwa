@@ -1,12 +1,12 @@
-interface DatePillProps {
+interface SectionPillProps {
   children: string
   sticky?: boolean
 }
 
-export function DatePill({ children, sticky = false }: DatePillProps) {
+export function SectionPill({ children, sticky = false }: SectionPillProps) {
   return (
     <div
-      class="date-pill-container"
+      class="section-pill-container"
       style={{
         ...(sticky && {
           position: 'sticky',
@@ -23,7 +23,7 @@ export function DatePill({ children, sticky = false }: DatePillProps) {
       }}
     >
       <div
-        class="date-pill"
+        class="section-pill"
         style={{
           padding: 'var(--spacing-sm) var(--spacing-lg)',
           fontSize: 'var(--font-size-sm)',
@@ -42,4 +42,3 @@ export function DatePill({ children, sticky = false }: DatePillProps) {
     </div>
   )
 }
-

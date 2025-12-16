@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'preact/hooks'
-import { DatePill } from '../../components/common/DatePill'
 import { Header } from '../../components/common/Header'
+import { SectionPill } from '../../components/common/SectionPill'
 import { useHashLocation } from '../../contexts/HashLocationContext'
 import { type Album, apiService } from '../../services/api'
 
@@ -292,7 +292,7 @@ export function Albums() {
           >
             {sortedMonths.map((monthKey) => (
               <div key={monthKey} class="albums-month-section">
-                <DatePill sticky={true}>{formatMonthKey(monthKey)}</DatePill>
+                <SectionPill sticky={true}>{formatMonthKey(monthKey)}</SectionPill>
 
                 <div
                   style={{
