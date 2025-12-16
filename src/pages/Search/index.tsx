@@ -69,7 +69,7 @@ export function Search() {
       saveRecentSearch(submittedQuery)
 
       // Use the updated search method with options
-      const results = await apiService.search(query, {
+      const results = await apiService.search(submittedQuery, {
         page: 1,
         size: 100,
         withArchived: false,
