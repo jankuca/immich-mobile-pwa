@@ -88,19 +88,25 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
     setSections(sortedSections)
   }, [assets, showDateHeaders, order])
 
-  // Update container width on resize
+  // Update container width on resize using ResizeObserver for reliable orientation change detection
   useEffect(() => {
-    const updateWidth = () => {
-      if (containerRef.current) {
-        setContainerWidth(containerRef.current.offsetWidth)
-      }
+    const container = containerRef.current
+    if (!container) {
+      return
     }
 
-    updateWidth()
-    window.addEventListener('resize', updateWidth)
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        // Use contentBoxSize for more accurate measurement
+        const width = entry.contentBoxSize?.[0]?.inlineSize ?? entry.contentRect.width
+        setContainerWidth(width)
+      }
+    })
+
+    resizeObserver.observe(container)
 
     return () => {
-      window.removeEventListener('resize', updateWidth)
+      resizeObserver.disconnect()
     }
   }, [])
 
@@ -151,7 +157,7 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
   const thumbnailSize = containerWidth ? Math.floor(containerWidth / columnCount) - 1 : 0 // 2px for gap
 
   // Render a row in the virtual list
-  const renderRow = (section: TimelineSection, _index: number) => {
+  const renderRow = (section: TimelineSection<A>, _index: number) => {
     const formattedDate = new Date(section.date).toLocaleDateString(undefined, {
       weekday: 'long',
       year: 'numeric',
