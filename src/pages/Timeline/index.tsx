@@ -2,9 +2,9 @@ import { useCallback, useEffect, useState } from 'preact/hooks'
 import { Header } from '../../components/common/Header'
 import { PhotoViewer } from '../../components/photoView/PhotoViewer'
 import { VirtualizedTimeline } from '../../components/timeline/VirtualizedTimeline'
+import { useAuth } from '../../contexts/AuthContext'
 import type { ThumbnailPosition } from '../../hooks/useZoomTransition'
 import { type AssetTimelineItem, apiService } from '../../services/api'
-import { useAuth } from '../../services/auth'
 
 export function Timeline() {
   const [assets, setAssets] = useState<AssetTimelineItem[]>([])

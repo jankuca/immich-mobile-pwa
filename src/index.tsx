@@ -5,13 +5,13 @@ import { useEffect, useState } from 'preact/hooks'
 import 'preact/debug' // Enable Preact DevTools
 
 import { TabBar } from './components/common/TabBar'
+import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { AlbumDetail } from './pages/AlbumDetail'
 import { Albums } from './pages/Albums'
 import { Login } from './pages/Login'
 import { People } from './pages/People'
 import { Search } from './pages/Search'
 import { Timeline } from './pages/Timeline'
-import { useAuth } from './services/auth'
 
 // Import our styles
 import './styles/global.css'
@@ -218,40 +218,49 @@ const PersistentTabsApp = () => {
   )
 }
 
-export function App() {
+const AppContent = () => {
   const { isAuthenticated } = useAuth()
+  console.log({ isAuthenticated })
 
   return (
-    <LocationProvider>
-      <div
-        id="app-container"
+    <div
+      id="app-container"
+      style={{
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        backgroundColor: 'var(--color-background)',
+      }}
+    >
+      <main
         style={{
-          height: '100%',
-          display: 'flex',
-          flexDirection: 'column',
+          flex: 1,
+          overflow: 'hidden',
           backgroundColor: 'var(--color-background)',
         }}
       >
-        <main
-          style={{
-            flex: 1,
-            overflow: 'hidden',
-            backgroundColor: 'var(--color-background)',
-          }}
-        >
-          <Router>
-            <Route path="/login" component={Login} />
-            <Route
-              default={true}
-              component={(props: { [key: string]: unknown }) => (
-                <ProtectedRoute component={PersistentTabsApp} {...props} />
-              )}
-            />
-          </Router>
-        </main>
-        {isAuthenticated && <TabBar />}
-      </div>
-    </LocationProvider>
+        <Router>
+          <Route path="/login" component={Login} />
+          <Route
+            default={true}
+            component={(props: { [key: string]: unknown }) => (
+              <ProtectedRoute component={PersistentTabsApp} {...props} />
+            )}
+          />
+        </Router>
+      </main>
+      {isAuthenticated && <TabBar />}
+    </div>
+  )
+}
+
+export function App() {
+  return (
+    <AuthProvider>
+      <LocationProvider>
+        <AppContent />
+      </LocationProvider>
+    </AuthProvider>
   )
 }
 

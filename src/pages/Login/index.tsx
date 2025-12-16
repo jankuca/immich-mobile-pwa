@@ -1,6 +1,6 @@
 import { useLocation } from 'preact-iso'
 import { useEffect, useState } from 'preact/hooks'
-import { useAuth } from '../../services/auth'
+import { useAuth } from '../../contexts/AuthContext'
 
 export function Login() {
   const [apiKey, setApiKey] = useState<string>('')

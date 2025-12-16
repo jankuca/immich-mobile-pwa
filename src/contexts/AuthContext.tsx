@@ -1,5 +1,7 @@
-import { useState } from 'preact/hooks'
-import { apiService } from './api'
+import { createContext } from 'preact'
+import { useCallback, useContext, useState } from 'preact/hooks'
+import type { ComponentChildren } from 'preact'
+import { apiService } from '../services/api'
 
 // Define the user type
 export interface User {
@@ -13,24 +15,37 @@ export interface User {
 const API_KEY_STORAGE_KEY = 'immich_api_key'
 const USER_STORAGE_KEY = 'immich_user'
 
-// Create a singleton instance to share auth state across components
-let globalApiKey: string | null = localStorage.getItem(API_KEY_STORAGE_KEY)
-let globalUser: User | null = JSON.parse(localStorage.getItem(USER_STORAGE_KEY) || 'null')
-
-// Initialize API service with stored API key
-if (globalApiKey) {
-  apiService.setApiKey(globalApiKey)
+// Auth context type
+interface AuthContextType {
+  apiKey: string | null
+  user: User | null
+  isLoading: boolean
+  error: string | null
+  isAuthenticated: boolean
+  loginWithApiKey: (apiKeyValue: string) => Promise<boolean>
+  logout: () => void
 }
 
-// Auth service
-export const useAuth = () => {
-  const [apiKey, setApiKey] = useState<string | null>(globalApiKey)
-  const [user, setUser] = useState<User | null>(globalUser)
+// Create context with undefined default
+const AuthContext = createContext<AuthContextType | undefined>(undefined)
+
+// Provider component
+export const AuthProvider = ({ children }: { children: ComponentChildren }) => {
+  const [apiKey, setApiKey] = useState<string | null>(() => {
+    const stored = localStorage.getItem(API_KEY_STORAGE_KEY)
+    if (stored) {
+      apiService.setApiKey(stored)
+    }
+    return stored
+  })
+  const [user, setUser] = useState<User | null>(() =>
+    JSON.parse(localStorage.getItem(USER_STORAGE_KEY) || 'null')
+  )
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
 
   // Login with API key
-  const loginWithApiKey = async (apiKeyValue: string): Promise<boolean> => {
+  const loginWithApiKey = useCallback(async (apiKeyValue: string): Promise<boolean> => {
     try {
       setIsLoading(true)
       setError(null)
@@ -61,13 +76,11 @@ export const useAuth = () => {
 
       localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(mockUser))
 
-      // Update global state
-      globalApiKey = apiKeyValue
-      globalUser = mockUser
+      console.log('logged in', apiKeyValue, mockUser)
 
-      // Update component state
+      // Update state
+      setApiKey(cleanApiKey)
       setUser(mockUser)
-      setApiKey(apiKeyValue)
 
       return true
     } catch (err) {
@@ -76,27 +89,23 @@ export const useAuth = () => {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [])
 
   // Logout function
-  const logout = (): void => {
+  const logout = useCallback((): void => {
     localStorage.removeItem(API_KEY_STORAGE_KEY)
     localStorage.removeItem(USER_STORAGE_KEY)
     apiService.setApiKey('')
 
-    // Update global state
-    globalApiKey = null
-    globalUser = null
-
-    // Update component state
+    // Update state
     setApiKey(null)
     setUser(null)
 
     // Redirect to login page
     window.location.href = '/login'
-  }
+  }, [])
 
-  return {
+  const value: AuthContextType = {
     apiKey,
     user,
     isLoading,
@@ -105,4 +114,16 @@ export const useAuth = () => {
     loginWithApiKey,
     logout,
   }
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
+
+// Hook to use the auth context
+export const useAuth = () => {
+  const context = useContext(AuthContext)
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider')
+  }
+  return context
+}
+
