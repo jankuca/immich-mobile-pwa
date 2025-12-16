@@ -164,16 +164,34 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
           key={`header-${section.date}`}
           class="timeline-date-header"
           style={{
-            padding: 'var(--spacing-md)',
-            fontWeight: 'var(--font-weight-semibold)',
             position: 'sticky',
             top: 0,
-            backgroundColor: 'var(--color-background)',
-            color: 'var(--color-text)',
+            padding: 'var(--spacing-sm)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            background:
+              'linear-gradient(180deg, rgba(var(--color-background-rgb), 0.5) 0%, rgba(var(--color-background-rgb), 0) 100%)',
             zIndex: 1,
           }}
         >
-          {formattedDate}
+          <div
+            class="timeline-date-header-text"
+            style={{
+              padding: 'var(--spacing-sm) var(--spacing-lg)',
+              fontSize: 'var(--font-size-sm)',
+              fontWeight: 'var(--font-weight-semibold)',
+              background:
+                'rgba(var(--color-text-rgb), 0.2) linear-gradient(135deg, rgba(var(--color-background-rgb), 0.7) 0%, rgba(var(--color-background-rgb), 0.5) 50%, rgba(var(--color-background-rgb), 0.6) 100%)',
+              border: '0.5px solid rgba(var(--color-text-rgb), 0.1)',
+              borderRadius: '99px',
+              backdropFilter: 'blur(10px)',
+              color: 'var(--color-text)',
+              textAlign: 'center',
+            }}
+          >
+            {formattedDate}
+          </div>
         </div>,
       )
     }
