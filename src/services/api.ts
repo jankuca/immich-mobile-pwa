@@ -81,6 +81,26 @@ export interface Asset extends TimeBucketAsset {
     focalLength?: string | null
     // Add other exif properties as needed
   }
+  people: Array<{
+    birthDate: string | null
+    color: string
+    faces: Array<{
+      boundingBoxX1: number
+      boundingBoxX2: number
+      boundingBoxY1: number
+      boundingBoxY2: number
+      id: string
+      imageHeight: number
+      imageWidth: number
+      sourceType: 'machine-learning' | 'exif' | 'manual'
+    }>
+    id: string
+    isFavorite: boolean
+    isHidden: boolean
+    name: string
+    thumbnailPath: string
+    updatedAt: string
+  }>
 }
 
 export interface Album {
