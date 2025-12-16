@@ -214,12 +214,14 @@ export function People() {
                         flexDirection: 'column',
                         alignItems: 'center',
                         cursor: 'pointer',
+                        minWidth: 0,
                       }}
                     >
                       <div
                         style={{
-                          width: '80px',
-                          height: '80px',
+                          width: '100%',
+                          maxWidth: '80px',
+                          aspectRatio: '1',
                           borderRadius: '50%',
                           overflow: 'hidden',
                           backgroundColor: 'var(--color-gray-light)',
