@@ -122,6 +122,22 @@ body {
   padding-bottom: var(--spacing-md);
 }
 
+/* Person page with taller header */
+.ios-page:has(.person-header) .ios-content {
+  padding-top: var(--measured-header-height, calc(var(--person-header-height) + env(safe-area-inset-top, 0px)));
+}
+
+.ios-page:has(.person-header) .ios-content:has(> .virtualized-timeline) {
+  padding-top: 0;
+}
+
+.person-header {
+  height: calc(var(--person-header-height) + env(safe-area-inset-top, 0px) + 2 * var(--spacing-md));
+  min-height: calc(var(--person-header-height) + env(safe-area-inset-top, 0px) + 2 * var(--spacing-md));
+  padding-top: calc(env(safe-area-inset-top) + var(--spacing-md));
+  padding-bottom: var(--spacing-md);
+}
+
 /* VirtualizedTimeline header offset - can be overridden by parent context */
 .virtualized-timeline {
   --timeline-header-offset: calc(var(--header-height) + env(safe-area-inset-top, 0px));
@@ -129,6 +145,10 @@ body {
 
 .ios-page:has(.album-header) .virtualized-timeline {
   --timeline-header-offset: var(--measured-header-height, calc(var(--album-header-height) + env(safe-area-inset-top, 0px)));
+}
+
+.ios-page:has(.person-header) .virtualized-timeline {
+  --timeline-header-offset: var(--measured-header-height, calc(var(--person-header-height) + env(safe-area-inset-top, 0px)));
 }
 
 .ios-content::after {

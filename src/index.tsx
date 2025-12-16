@@ -9,6 +9,7 @@ import { AlbumDetail } from './pages/AlbumDetail'
 import { Albums } from './pages/Albums'
 import { Login } from './pages/Login'
 import { People } from './pages/People'
+import { PersonDetail } from './pages/PersonDetail'
 import { Search } from './pages/Search'
 import { Timeline } from './pages/Timeline'
 
@@ -78,11 +79,14 @@ const PersistentTabsApp = () => {
   const [albumDetailMounted, setAlbumDetailMounted] = useState<boolean>(false)
   const [albumDetailId, setAlbumDetailId] = useState<string | null>(null)
   const [peopleMounted, setPeopleMounted] = useState<boolean>(false)
+  const [personDetailMounted, setPersonDetailMounted] = useState<boolean>(false)
+  const [personDetailId, setPersonDetailId] = useState<string | null>(null)
   const [searchMounted, setSearchMounted] = useState<boolean>(false)
 
   // Determine which tab is active based on the URL
   const basePath = `/${url.split('/')[1] || ''}`
   const isAlbumDetail = url.startsWith('/albums/') && url !== '/albums'
+  const isPersonDetail = url.startsWith('/people/') && url !== '/people'
 
   // Extract album ID from URL if on album detail page
   useEffect(() => {
@@ -95,20 +99,33 @@ const PersistentTabsApp = () => {
       setAlbumDetailMounted(false)
     }
   }, [isAlbumDetail, url])
+
+  // Extract person ID from URL if on person detail page
+  useEffect(() => {
+    if (isPersonDetail) {
+      const id = url.split('/')[2] || ''
+      setPersonDetailId(id)
+      setPersonDetailMounted(true)
+      setPeopleMounted(true) // Ensure people list is also mounted
+    } else {
+      setPersonDetailMounted(false)
+    }
+  }, [isPersonDetail, url])
+
   useEffect(() => {
     if (url === '/') {
       setTimelineMounted(true)
     } else if (url === '/albums' || isAlbumDetail) {
       setAlbumsMounted(true)
-    } else if (url === '/people') {
+    } else if (url === '/people' || isPersonDetail) {
       setPeopleMounted(true)
     } else if (url === '/search') {
       setSearchMounted(true)
     }
-  }, [url, isAlbumDetail])
+  }, [url, isAlbumDetail, isPersonDetail])
 
   // Determine which tab is active for styling
-  const activeTab = isAlbumDetail ? '/albums' : basePath
+  const activeTab = isAlbumDetail ? '/albums' : isPersonDetail ? '/people' : basePath
 
   return (
     <div
@@ -181,7 +198,7 @@ const PersistentTabsApp = () => {
         </div>
       </div>
 
-      {/* People Tab */}
+      {/* People Tab with Navigation Stack */}
       <div
         style={{
           height: '100%',
@@ -194,7 +211,37 @@ const PersistentTabsApp = () => {
           backgroundColor: 'var(--color-background)',
         }}
       >
-        {peopleMounted && <People />}
+        {/* People List */}
+        <div
+          style={{
+            height: '100%',
+            width: '100%',
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            visibility: isPersonDetail ? 'hidden' : 'visible',
+            zIndex: isPersonDetail ? 0 : 1,
+            backgroundColor: 'var(--color-background)',
+          }}
+        >
+          {peopleMounted && <People />}
+        </div>
+
+        {/* Person Detail */}
+        <div
+          style={{
+            height: '100%',
+            width: '100%',
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            visibility: isPersonDetail ? 'visible' : 'hidden',
+            zIndex: isPersonDetail ? 1 : 0,
+            backgroundColor: 'var(--color-background)',
+          }}
+        >
+          {personDetailMounted && personDetailId && <PersonDetail personId={personDetailId} />}
+        </div>
       </div>
 
       {/* Search Tab */}
