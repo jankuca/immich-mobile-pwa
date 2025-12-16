@@ -1,3 +1,4 @@
+import { createPortal } from 'preact/compat'
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks'
 import { useImagePreloader } from '../../hooks/useImagePreloader'
 import { usePhotoViewerGestures } from '../../hooks/usePhotoViewerGestures'
@@ -160,7 +161,8 @@ export const PhotoViewer = ({
     }
   }, [])
 
-  return (
+  // Use createPortal to render directly to document.body, escaping all stacking contexts
+  return createPortal(
     <div
       ref={containerRef}
       class="photo-viewer"
@@ -170,7 +172,7 @@ export const PhotoViewer = ({
         left: 0,
         right: 0,
         bottom: 0,
-        zIndex: 1000,
+        zIndex: 'var(--z-index-photo-viewer)',
         overflow: 'hidden', // Prevent content from being visible outside the container
         WebkitTouchCallout: 'none', // Disable iOS context menu globally
         userSelect: 'none', // Prevent selection globally
@@ -259,6 +261,7 @@ export const PhotoViewer = ({
         {/* Photo details - directly follows the photo container */}
         <PhotoDetails assetTimelineItem={currentAsset} />
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

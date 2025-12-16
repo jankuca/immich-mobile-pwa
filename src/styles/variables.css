@@ -59,6 +59,7 @@
   --z-index-tabbar: 100;
   --z-index-header: 90;
   --z-index-modal: 1000;
+  --z-index-photo-viewer: 10000;
 
   /* Dimensions */
   --tabbar-height: 56px;

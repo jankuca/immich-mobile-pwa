@@ -50,7 +50,7 @@ export const PhotoDetails = ({ assetTimelineItem }: PhotoDetailsProps) => {
       style={{
         backgroundColor: 'var(--color-background)',
         padding: 'var(--spacing-lg)',
-        paddingBottom: 'calc(var(--tabbar-height) + env(safe-area-inset-bottom, 0px))',
+        paddingBottom: 'env(safe-area-inset-bottom, 0px))',
         overflowX: 'hidden',
       }}
     >
