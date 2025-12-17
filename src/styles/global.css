@@ -109,7 +109,7 @@ html, body {
   bottom: calc(var(--tabbar-height) + env(safe-area-inset-bottom, 0px));
   left: 0;
   right: 0;
-  padding: var(--spacing-sm) var(--spacing-md);
+  padding: 0 var(--spacing-lg);
   z-index: var(--z-index-tabbar);
 }
 
