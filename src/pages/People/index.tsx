@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'preact/hooks'
 import { Header } from '../../components/common/Header'
 import { SectionPill } from '../../components/common/SectionPill'
+import { SearchInput } from '../../components/search/SearchInput'
 import { useHashLocation } from '../../contexts/HashLocationContext'
 import { usePeople } from '../../hooks/usePeople'
 import type { Person } from '../../services/api'
 import { apiService } from '../../services/api'
+import { fuzzyFilter } from '../../utils/fuzzySearch'
 
 type SortMode = 'name' | 'photoCount'
 
@@ -12,6 +14,7 @@ export function People() {
   const { people, isLoading, error } = usePeople()
   const [sortMode, setSortMode] = useState<SortMode>('name')
   const [showSortDropdown, setShowSortDropdown] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
   const { route } = useHashLocation()
 
   // Navigate to person detail
@@ -19,20 +22,34 @@ export function People() {
     route(`/people/${personId}`)
   }
 
-  // Filter out people without names and hidden people, then sort/group
-  const { sortedPeople, peopleByLetter, sortedLetters } = useMemo(() => {
+  // Filter out people without names and hidden people, then apply search filter
+  const { sortedPeople, peopleByLetter, sortedLetters, hasSearchResults } = useMemo(() => {
     // Filter out hidden people and those without names
-    const filteredPeople = people.filter((person) => !person.isHidden && person.name.trim() !== '')
+    let filteredPeople = people.filter(
+      (person: Person) => !person.isHidden && person.name.trim() !== '',
+    )
+
+    // Apply search filter if there's a query
+    if (searchQuery.trim()) {
+      filteredPeople = fuzzyFilter(filteredPeople, searchQuery, (person: Person) => person.name)
+    }
+
+    const hasResults = filteredPeople.length > 0
 
     if (sortMode === 'photoCount') {
       // Sort by photo count (API order) - no grouping
-      return { sortedPeople: filteredPeople, peopleByLetter: {}, sortedLetters: [] }
+      return {
+        sortedPeople: filteredPeople,
+        peopleByLetter: {} as Record<string, Person[]>,
+        sortedLetters: [] as string[],
+        hasSearchResults: hasResults,
+      }
     }
 
     // Sort by name using locale-aware comparison
     const collator = new Intl.Collator(undefined, { sensitivity: 'base' })
     const sortedByName = [...filteredPeople].sort((a, b) => collator.compare(a.name, b.name))
-    const byLetter: Record<string, typeof filteredPeople> = {}
+    const byLetter: Record<string, Person[]> = {}
 
     for (const person of sortedByName) {
       const firstLetter = person.name.charAt(0).toLocaleUpperCase()
@@ -44,8 +61,13 @@ export function People() {
 
     // Sort letter sections using locale-aware comparison
     const letters = Object.keys(byLetter).sort((a, b) => collator.compare(a, b))
-    return { sortedPeople: sortedByName, peopleByLetter: byLetter, sortedLetters: letters }
-  }, [people, sortMode])
+    return {
+      sortedPeople: sortedByName,
+      peopleByLetter: byLetter,
+      sortedLetters: letters,
+      hasSearchResults: hasResults,
+    }
+  }, [people, sortMode, searchQuery])
 
   const handleSortChange = (mode: SortMode) => {
     setSortMode(mode)
@@ -180,6 +202,46 @@ export function People() {
       )
     }
 
+    if (!hasSearchResults && searchQuery.trim()) {
+      return (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 'var(--spacing-xl)',
+            color: 'var(--color-gray)',
+            flexDirection: 'column',
+            textAlign: 'center',
+          }}
+        >
+          <svg
+            width="48"
+            height="48"
+            viewBox="0 0 24 24"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M11 19C15.4183 19 19 15.4183 19 11C19 6.58172 15.4183 3 11 3C6.58172 3 3 6.58172 3 11C3 15.4183 6.58172 19 11 19Z"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+            <path
+              d="M21 21L16.65 16.65"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+          <p style={{ marginTop: 'var(--spacing-md)' }}>No people found for "{searchQuery}"</p>
+        </div>
+      )
+    }
+
     if (sortedPeople.length === 0) {
       return (
         <div
@@ -228,7 +290,7 @@ export function People() {
                 gap: 'var(--spacing-md)',
               }}
             >
-              {peopleByLetter[letter].map(renderPersonCard)}
+              {peopleByLetter[letter]?.map(renderPersonCard)}
             </div>
           </div>
         ))}
@@ -257,6 +319,16 @@ export function People() {
           onClick: () => setShowSortDropdown(!showSortDropdown),
         }}
       />
+
+      {/* Search Input */}
+      <div
+        style={{
+          padding: 'var(--spacing-sm) var(--spacing-md)',
+          backgroundColor: 'var(--color-background)',
+        }}
+      >
+        <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search people..." />
+      </div>
 
       {/* Sort dropdown */}
       {showSortDropdown && (
