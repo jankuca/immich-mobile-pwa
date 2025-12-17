@@ -19,6 +19,8 @@ interface VirtualizedTimelineProps<A extends AssetTimelineItem> {
   hasMoreContent?: boolean
   isLoadingMore?: boolean
   order?: AssetOrder
+  /** Whether to include top padding for the page header offset (default: true) */
+  includeHeaderOffset?: boolean
   onAssetOpenRequest: (asset: A, info: { position: ThumbnailPosition | null }) => void
   onLoadMoreRequest?: () => void
   /** Callback to provide the getThumbnailPosition function to parent */
@@ -38,6 +40,7 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
   hasMoreContent = false,
   isLoadingMore = false,
   order = 'desc',
+  includeHeaderOffset = true,
   onAssetOpenRequest,
   onLoadMoreRequest,
   onThumbnailPositionGetterReady,
@@ -423,7 +426,7 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
             height: '100%',
             overflow: 'auto',
             backgroundColor: 'var(--color-background)',
-            paddingTop: 'var(--timeline-header-offset)',
+            paddingTop: includeHeaderOffset ? 'var(--timeline-header-offset)' : undefined,
             paddingBottom: 'var(--tabbar-height)',
           }}
         >

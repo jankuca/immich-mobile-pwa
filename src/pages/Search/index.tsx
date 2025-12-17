@@ -690,6 +690,7 @@ export function Search() {
                 <VirtualizedTimeline
                   assets={searchResults.assets}
                   showDateHeaders={false}
+                  includeHeaderOffset={false}
                   onAssetOpenRequest={handleAssetClick}
                   onThumbnailPositionGetterReady={setGetThumbnailPosition}
                   anchorAssetId={selectedAsset?.id}
