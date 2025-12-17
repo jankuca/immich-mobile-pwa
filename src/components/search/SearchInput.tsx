@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'preact/hooks'
+import { useEffect, useRef } from 'preact/hooks'
 
 interface SearchInputProps {
   value: string
@@ -147,4 +147,3 @@ export function SearchInput({
     </form>
   )
 }
-
