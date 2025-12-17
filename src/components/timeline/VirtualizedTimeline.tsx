@@ -427,7 +427,7 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
             overflow: 'auto',
             backgroundColor: 'var(--color-background)',
             paddingTop: includeHeaderOffset ? 'var(--timeline-header-offset)' : undefined,
-            paddingBottom: 'var(--tabbar-height)',
+            paddingBottom: 'var(--timeline-bottom-offset, var(--tabbar-height))',
           }}
         >
           {sections.map((section, index) => renderRow(section, index))}

@@ -103,15 +103,14 @@ html, body {
   margin-right: var(--spacing-sm);
 }
 
-/* Search wrapper positioned below header */
+/* Search wrapper positioned at the bottom above tab bar */
 .ios-search-wrapper {
-  position: absolute;
-  top: calc(var(--header-height) + env(safe-area-inset-top, 0px));
+  position: fixed;
+  bottom: calc(var(--tabbar-height) + env(safe-area-inset-bottom, 0px));
   left: 0;
   right: 0;
   padding: var(--spacing-sm) var(--spacing-md);
-  background-color: var(--color-background);
-  z-index: calc(var(--z-index-header) - 1);
+  z-index: var(--z-index-tabbar);
 }
 
 .ios-content {
@@ -121,18 +120,8 @@ html, body {
   padding-top: calc(var(--header-height) + env(safe-area-inset-top, 0px));
 }
 
-/* When page has search wrapper, add extra padding for ios-content */
-.ios-page:has(.ios-search-wrapper) .ios-content {
-  padding-top: calc(var(--header-height) + var(--search-input-height) + var(--spacing-sm) * 2 + env(safe-area-inset-top, 0px));
-}
-
 /* When ios-content contains only virtualized-timeline, let timeline handle its own padding */
 .ios-content:has(> .virtualized-timeline) {
-  padding-top: 0;
-}
-
-/* When page has search wrapper and timeline, timeline needs to account for search wrapper too */
-.ios-page:has(.ios-search-wrapper) .ios-content:has(> .virtualized-timeline) {
   padding-top: 0;
 }
 
@@ -173,11 +162,6 @@ html, body {
   --timeline-header-offset: calc(var(--header-height) + env(safe-area-inset-top, 0px));
 }
 
-/* When page has search wrapper, add extra offset for the search input */
-.ios-page:has(.ios-search-wrapper) .virtualized-timeline {
-  --timeline-header-offset: calc(var(--header-height) + var(--search-input-height) + var(--spacing-sm) * 2 + env(safe-area-inset-top, 0px));
-}
-
 .ios-page:has(.album-header) .virtualized-timeline {
   --timeline-header-offset: var(--measured-header-height, calc(var(--album-header-height) + env(safe-area-inset-top, 0px)));
 }
@@ -186,10 +170,24 @@ html, body {
   --timeline-header-offset: var(--measured-header-height, calc(var(--person-header-height) + env(safe-area-inset-top, 0px)));
 }
 
+/* Timeline bottom offset - accounts for tabbar and optional search wrapper */
+.virtualized-timeline {
+  --timeline-bottom-offset: var(--tabbar-height);
+}
+
+.ios-page:has(.ios-search-wrapper) .virtualized-timeline {
+  --timeline-bottom-offset: calc(var(--tabbar-height) + var(--search-input-height) + var(--spacing-sm) * 2);
+}
+
 .ios-content::after {
   display: block;
   height: calc(var(--tabbar-height) + calc(var(--spacing-sm) + env(safe-area-inset-bottom, 0px)));
   content: '';
+}
+
+/* When page has search wrapper, add extra bottom padding to ios-content */
+.ios-page:has(.ios-search-wrapper) .ios-content::after {
+  height: calc(var(--tabbar-height) + var(--search-input-height) + var(--spacing-sm) * 2 + calc(var(--spacing-sm) + env(safe-area-inset-bottom, 0px)));
 }
 
 .ios-tabbar-area {
