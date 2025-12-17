@@ -25,7 +25,6 @@ export function Search() {
   const [selectedAsset, setSelectedAsset] = useState<AssetTimelineItem | null>(null)
   const [selectedThumbnailPosition, setSelectedThumbnailPosition] =
     useState<ThumbnailPosition | null>(null)
-  const [keyboardHeight, setKeyboardHeight] = useState(0)
   const { route, url } = useHashLocation()
   const { apiKey, isAuthenticated } = useAuth()
   const inputRef = useRef<HTMLInputElement>(null)
@@ -64,23 +63,34 @@ export function Search() {
   }, [])
 
   // Track keyboard height using VisualViewport API
+  // Store initial window height to compare against - this doesn't change when keyboard opens
+  const initialWindowHeight = useRef(window.innerHeight)
+  const [keyboardHeight, setKeyboardHeight] = useState(0)
+
   useEffect(() => {
     const viewport = window.visualViewport
     if (!viewport) {
       return
     }
 
+    // Capture the initial height when no keyboard is present
+    initialWindowHeight.current = window.innerHeight
+
     const handleResize = () => {
-      const keyboardHeight = window.innerHeight - viewport.height
-      setKeyboardHeight(Math.max(0, keyboardHeight))
+      // The keyboard height is the difference between the initial window height
+      // and the current visual viewport height
+      // We use initialWindowHeight (captured once) to avoid issues with window.innerHeight changing
+      const kbHeight = Math.max(0, Math.round(initialWindowHeight.current - viewport.height))
+
+      // Always update the keyboard height - we use CSS max() to handle the minimum offset
+      setKeyboardHeight(kbHeight)
     }
 
+    // Only listen to resize, not scroll - scroll events can cause jitter
     viewport.addEventListener('resize', handleResize)
-    viewport.addEventListener('scroll', handleResize)
 
     return () => {
       viewport.removeEventListener('resize', handleResize)
-      viewport.removeEventListener('scroll', handleResize)
     }
   }, [])
 
@@ -200,11 +210,13 @@ export function Search() {
     setSelectedThumbnailPosition(null)
   }
 
-  // Calculate bottom offset based on keyboard or tabbar
-  const bottomOffset =
-    keyboardHeight > 0
-      ? keyboardHeight
-      : 'calc(var(--tabbar-height) + var(--spacing-sm) + env(safe-area-inset-bottom, 0px))'
+  // Base offset using CSS variables (tab bar + spacing + safe area)
+  const baseOffset =
+    'calc(var(--tabbar-height) + var(--spacing-sm) + env(safe-area-inset-bottom, 0px))'
+
+  // Always use CSS max() to ensure we never go below the base offset
+  // This keeps the CSS expression structure consistent and lets the browser handle the comparison
+  const formBottom = `max(${keyboardHeight}px, ${baseOffset})`
 
   // Whether to show the search input UI (initial state, no results, no search in progress)
   const showSearchUI = !searchResults && !isSearching
@@ -222,7 +234,7 @@ export function Search() {
             class="search-input-bar"
             style={{
               position: 'fixed',
-              bottom: bottomOffset,
+              bottom: formBottom,
               left: 0,
               right: 0,
               padding:
@@ -641,10 +653,8 @@ export function Search() {
               position: 'fixed',
               left: 0,
               right: 0,
-              bottom:
-                keyboardHeight > 0
-                  ? `calc(${keyboardHeight}px + var(--tabbar-height) + var(--spacing-sm))`
-                  : 'calc(var(--tabbar-height) + var(--spacing-sm) + env(safe-area-inset-bottom, 0px) + var(--tabbar-height) + var(--spacing-sm))',
+              // Position above the search form (base offset + another tab bar height for the form)
+              bottom: `calc(max(${keyboardHeight}px, ${baseOffset}) + var(--tabbar-height) + var(--spacing-sm))`,
               maxHeight: '50vh',
               overflowY: 'auto',
               display: 'flex',
@@ -743,10 +753,8 @@ export function Search() {
               position: 'fixed',
               left: 0,
               right: 0,
-              bottom:
-                keyboardHeight > 0
-                  ? `calc(${keyboardHeight}px + var(--tabbar-height) + var(--spacing-lg))`
-                  : 'calc(var(--tabbar-height) + var(--spacing-sm) + env(safe-area-inset-bottom, 0px) + var(--tabbar-height) + var(--spacing-lg))',
+              // Position above the search form
+              bottom: `calc(max(${keyboardHeight}px, ${baseOffset}) + var(--tabbar-height) + var(--spacing-lg))`,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
