@@ -8,6 +8,43 @@ interface SearchInputProps {
   autoFocus?: boolean
 }
 
+/**
+ * iOS Safari hack: Use a dummy input to open the keyboard without scrolling.
+ *
+ * When focusing an input, iOS scrolls to bring it into view. By creating a
+ * temporary input at the same position as the real input and focusing it first,
+ * we can open the keyboard without triggering the scroll behavior. Then we
+ * transfer focus to the real input.
+ *
+ * @see https://stackoverflow.com/questions/54424729/ios-show-keyboard-on-input-focus
+ */
+function focusWithDummyInput(el: HTMLInputElement, timeout = 50) {
+  // Get the position of the real input using getBoundingClientRect
+  // This gives us the position relative to the viewport
+  const rect = el.getBoundingClientRect()
+
+  // Create a temporary input positioned exactly where the real input is
+  const tempInput = document.createElement('input')
+  tempInput.style.position = 'fixed'
+  tempInput.style.top = `${rect.top}px`
+  tempInput.style.left = `${rect.left}px`
+  tempInput.style.width = `${rect.width}px`
+  tempInput.style.height = `${rect.height}px`
+  tempInput.style.opacity = '0'
+  tempInput.style.zIndex = '9999'
+  tempInput.style.fontSize = '16px' // Prevent iOS zoom
+
+  // Append to body and focus - this opens the keyboard
+  document.body.appendChild(tempInput)
+  tempInput.focus()
+
+  // After a short delay, transfer focus to the real input and remove the temp
+  setTimeout(() => {
+    el.focus()
+    document.body.removeChild(tempInput)
+  }, timeout)
+}
+
 export function SearchInput({
   value,
   onChange,
@@ -21,7 +58,6 @@ export function SearchInput({
     if (autoFocus && inputRef.current) {
       // Small delay to ensure the component is mounted
       const timer = setTimeout(() => {
-        // Use preventScroll to avoid iOS scrolling the page when auto-focusing
         inputRef.current?.focus({ preventScroll: true })
       }, 100)
       return () => clearTimeout(timer)
@@ -40,21 +76,28 @@ export function SearchInput({
 
   const handleClear = () => {
     onChange('')
-    // Use preventScroll to avoid iOS scrolling the page when refocusing
     inputRef.current?.focus({ preventScroll: true })
   }
 
-  // Handle focus - the input is already visible in a fixed position,
-  // so we don't need to do anything special here.
-  // The keyboard height hook handles repositioning the input above the keyboard.
-  const handleFocus = () => {
-    // No-op - iOS may still scroll, but the CSS transition smooths the effect
+  // Handle click on the container - use the dummy input hack for iOS
+  const handleContainerClick = (e: MouseEvent) => {
+    // Only intercept if we're not already focused and not clicking the clear button
+    if (
+      inputRef.current &&
+      document.activeElement !== inputRef.current &&
+      !(e.target as HTMLElement).closest('button')
+    ) {
+      e.preventDefault()
+      focusWithDummyInput(inputRef.current)
+    }
   }
 
   return (
     <form onSubmit={handleSubmit} style={{ display: 'contents' }}>
+      {/* Use onClick on container to intercept taps and use the dummy input hack */}
       <div
         class="liquid-glass"
+        onClick={handleContainerClick}
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -100,7 +143,6 @@ export function SearchInput({
           type="text"
           value={value}
           onInput={handleInput}
-          onFocus={handleFocus}
           placeholder={placeholder}
           style={{
             height: '24px',
