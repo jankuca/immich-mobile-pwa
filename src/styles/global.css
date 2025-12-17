@@ -29,25 +29,22 @@ html {
   position: relative;
   width: 100%;
   height: calc(100% + env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px));
-  overflow: hidden;
+  overflow: clip;
   overscroll-behavior: none;
-  /* padding-top: env(safe-area-inset-top); */
-  /* padding-bottom: 0; */
+  touch-action: none;
 }
 
 body {
   width: 100%;
-  /* height: calc(100% - env(safe-area-inset-top, 0px)); */
   height: 100%;
-  overflow: hidden;
+  overflow: clip;
   position: fixed;
-  /* top: env(safe-area-inset-top); */
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
   overscroll-behavior: none;
-  -webkit-overflow-scrolling: touch;
+  touch-action: none;
   background-color: var(--color-background);
   color: var(--color-text);
 }
@@ -58,6 +55,18 @@ body {
   width: 100%;
   display: flex;
   flex-direction: column;
+  overflow: clip;
+}
+
+/* Hide scrollbars globally */
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  display: none;
+}
+
+html, body {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
 }
 
 /* iOS-like styling */

@@ -16,6 +16,36 @@ import { Timeline } from './pages/Timeline'
 // Import our styles
 import './styles/global.css'
 
+// Prevent document-level scrolling (iOS PWA fix)
+if (typeof document !== 'undefined') {
+  // Prevent scroll on document/window level
+  document.addEventListener(
+    'scroll',
+    (e) => {
+      if (
+        e.target === document ||
+        e.target === document.documentElement ||
+        e.target === document.body
+      ) {
+        e.preventDefault()
+        window.scrollTo(0, 0)
+      }
+    },
+    { passive: false, capture: true },
+  )
+
+  // Also prevent touchmove on document level if target is html/body
+  document.addEventListener(
+    'touchmove',
+    (e) => {
+      if (e.target === document.documentElement || e.target === document.body) {
+        e.preventDefault()
+      }
+    },
+    { passive: false },
+  )
+}
+
 // Protected route wrapper - redirects to login if not authenticated
 const ProtectedRoute = ({ children }: { children: ComponentChildren }) => {
   const { isAuthenticated, isLoading } = useAuth()
