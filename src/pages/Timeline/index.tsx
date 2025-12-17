@@ -245,7 +245,7 @@ export function Timeline() {
   return (
     <div class="ios-page">
       <Header
-        title="Timeline"
+        title={isSearchMode ? 'Search' : 'Timeline'}
         rightAction={{
           icon: (
             <svg
