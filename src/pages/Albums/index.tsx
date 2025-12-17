@@ -1,44 +1,59 @@
-import { useEffect, useState } from 'preact/hooks'
+import { useEffect, useMemo, useState } from 'preact/hooks'
 import { Header } from '../../components/common/Header'
 import { SectionPill } from '../../components/common/SectionPill'
+import { SearchInput } from '../../components/search/SearchInput'
 import { useHashLocation } from '../../contexts/HashLocationContext'
 import { type Album, apiService } from '../../services/api'
+import { fuzzyFilter } from '../../utils/fuzzySearch'
 
 export function Albums() {
   const [albums, setAlbums] = useState<Album[]>([])
   const [isLoading, setIsLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
   const { route } = useHashLocation()
 
-  // Group albums by year+month and sort within each group by end/start date
-  const albumsByMonth = albums.reduce(
-    (acc, album) => {
-      // Use the end date, start date, or created date to determine the month
-      const date = new Date(album.endDate || album.startDate || album.createdAt)
-      // Key format: "YYYY-MM" for sorting, will be formatted for display
-      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+  // Filter albums based on search query
+  const filteredAlbums = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return albums
+    }
+    return fuzzyFilter(albums, searchQuery, (album) => album.albumName)
+  }, [albums, searchQuery])
 
-      if (!acc[key]) {
-        acc[key] = []
-      }
+  // Group filtered albums by year+month and sort within each group by end/start date
+  const { albumsByMonth, sortedMonths } = useMemo(() => {
+    const grouped = filteredAlbums.reduce(
+      (acc, album) => {
+        // Use the end date, start date, or created date to determine the month
+        const date = new Date(album.endDate || album.startDate || album.createdAt)
+        // Key format: "YYYY-MM" for sorting, will be formatted for display
+        const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
 
-      acc[key].push(album)
-      return acc
-    },
-    {} as Record<string, Album[]>,
-  )
+        if (!acc[key]) {
+          acc[key] = []
+        }
 
-  // Sort albums within each month by end/start date (most recent first)
-  for (const key of Object.keys(albumsByMonth)) {
-    albumsByMonth[key]?.sort((a, b) => {
-      const dateA = new Date(a.endDate || a.startDate || a.createdAt).getTime()
-      const dateB = new Date(b.endDate || b.startDate || b.createdAt).getTime()
-      return dateB - dateA
-    })
-  }
+        acc[key].push(album)
+        return acc
+      },
+      {} as Record<string, Album[]>,
+    )
 
-  // Sort months in descending order
-  const sortedMonths = Object.keys(albumsByMonth).sort((a, b) => b.localeCompare(a))
+    // Sort albums within each month by end/start date (most recent first)
+    for (const key of Object.keys(grouped)) {
+      grouped[key]?.sort((a, b) => {
+        const dateA = new Date(a.endDate || a.startDate || a.createdAt).getTime()
+        const dateB = new Date(b.endDate || b.startDate || b.createdAt).getTime()
+        return dateB - dateA
+      })
+    }
+
+    // Sort months in descending order
+    const sorted = Object.keys(grouped).sort((a, b) => b.localeCompare(a))
+
+    return { albumsByMonth: grouped, sortedMonths: sorted }
+  }, [filteredAlbums])
 
   // Format month key (YYYY-MM) to display string (e.g., "March 2024")
   const formatMonthKey = (key: string) => {
@@ -106,6 +121,16 @@ export function Albums() {
           },
         }}
       />
+
+      {/* Search Input */}
+      <div
+        style={{
+          padding: 'var(--spacing-sm) var(--spacing-md)',
+          backgroundColor: 'var(--color-background)',
+        }}
+      >
+        <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search albums..." />
+      </div>
 
       <div class="ios-content">
         {isLoading ? (
@@ -196,6 +221,42 @@ export function Albums() {
               Retry
             </button>
           </div>
+        ) : filteredAlbums.length === 0 && searchQuery.trim() ? (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 'var(--spacing-xl)',
+              color: 'var(--color-gray)',
+              flexDirection: 'column',
+              textAlign: 'center',
+            }}
+          >
+            <svg
+              width="48"
+              height="48"
+              viewBox="0 0 24 24"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M11 19C15.4183 19 19 15.4183 19 11C19 6.58172 15.4183 3 11 3C6.58172 3 3 6.58172 3 11C3 15.4183 6.58172 19 11 19Z"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+              <path
+                d="M21 21L16.65 16.65"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+            <p style={{ marginTop: 'var(--spacing-md)' }}>No albums found for "{searchQuery}"</p>
+          </div>
         ) : albums.length === 0 ? (
           <div
             style={{
@@ -239,6 +300,7 @@ export function Albums() {
             </svg>
             <p style={{ marginTop: 'var(--spacing-md)', textAlign: 'center' }}>No albums found</p>
             <button
+              type="button"
               onClick={() => {
                 console.log('Create album')
               }}
