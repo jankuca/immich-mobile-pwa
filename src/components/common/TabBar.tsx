@@ -1,4 +1,5 @@
 import { useHashLocation } from '../../contexts/HashLocationContext'
+import { FOCUS_SEARCH_INPUT_EVENT } from '../../pages/Search/events'
 
 export const TabBar = () => {
   const { url, route } = useHashLocation()
@@ -11,6 +12,14 @@ export const TabBar = () => {
   const handleTabClick = (e: MouseEvent, path: string) => {
     e.preventDefault()
     route(path)
+  }
+
+  // Handle search tab click - focus input when clicking search tab
+  const handleSearchClick = (e: MouseEvent) => {
+    e.preventDefault()
+    route('/search')
+    // Dispatch event to focus search input
+    window.dispatchEvent(new CustomEvent(FOCUS_SEARCH_INPUT_EVENT))
   }
 
   return (
@@ -122,7 +131,7 @@ export const TabBar = () => {
         <a
           href="#/search"
           class={`ios-tabbar-item ios-tabbar-icon-item ${url === '/search' ? 'active' : ''}`}
-          onClick={(e) => handleTabClick(e, '/search')}
+          onClick={handleSearchClick}
         >
           <div class="ios-tabbar-icon">
             <svg

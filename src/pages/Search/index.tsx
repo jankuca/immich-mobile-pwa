@@ -14,6 +14,7 @@ import {
   type SearchResult,
   apiService,
 } from '../../services/api'
+import { FOCUS_SEARCH_INPUT_EVENT } from './events'
 
 export function Search() {
   const [query, setQuery] = useState<string>('')
@@ -24,8 +25,10 @@ export function Search() {
   const [selectedAsset, setSelectedAsset] = useState<AssetTimelineItem | null>(null)
   const [selectedThumbnailPosition, setSelectedThumbnailPosition] =
     useState<ThumbnailPosition | null>(null)
-  const { route } = useHashLocation()
+  const [keyboardHeight, setKeyboardHeight] = useState(0)
+  const { route, url } = useHashLocation()
   const { apiKey, isAuthenticated } = useAuth()
+  const inputRef = useRef<HTMLInputElement>(null)
 
   // Store the thumbnail position getter from VirtualizedTimeline
   const [getThumbnailPosition, setGetThumbnailPosition] = useState<GetThumbnailPosition | null>(
@@ -37,6 +40,47 @@ export function Search() {
     const savedSearches = localStorage.getItem('immich_recent_searches')
     if (savedSearches) {
       setRecentSearches(JSON.parse(savedSearches))
+    }
+  }, [])
+
+  // Focus input when page becomes visible or on mount
+  useEffect(() => {
+    // Small delay to ensure the page is visible
+    const timer = setTimeout(() => {
+      if (url === '/search' && inputRef.current) {
+        inputRef.current.focus()
+      }
+    }, 100)
+    return () => clearTimeout(timer)
+  }, [url])
+
+  // Listen for focus event from TabBar
+  useEffect(() => {
+    const handleFocusEvent = () => {
+      inputRef.current?.focus()
+    }
+    window.addEventListener(FOCUS_SEARCH_INPUT_EVENT, handleFocusEvent)
+    return () => window.removeEventListener(FOCUS_SEARCH_INPUT_EVENT, handleFocusEvent)
+  }, [])
+
+  // Track keyboard height using VisualViewport API
+  useEffect(() => {
+    const viewport = window.visualViewport
+    if (!viewport) {
+      return
+    }
+
+    const handleResize = () => {
+      const keyboardHeight = window.innerHeight - viewport.height
+      setKeyboardHeight(Math.max(0, keyboardHeight))
+    }
+
+    viewport.addEventListener('resize', handleResize)
+    viewport.addEventListener('scroll', handleResize)
+
+    return () => {
+      viewport.removeEventListener('resize', handleResize)
+      viewport.removeEventListener('scroll', handleResize)
     }
   }, [])
 
@@ -156,116 +200,147 @@ export function Search() {
     setSelectedThumbnailPosition(null)
   }
 
+  // Calculate bottom offset based on keyboard or tabbar
+  const bottomOffset =
+    keyboardHeight > 0
+      ? keyboardHeight
+      : 'calc(var(--tabbar-height) + var(--spacing-sm) + env(safe-area-inset-bottom, 0px))'
+
+  // Whether to show the search input UI (initial state, no results, no search in progress)
+  const showSearchUI = !searchResults && !isSearching
+
   return (
     <div class="ios-page">
-      <Header title="Search" />
+      {/* Only show header when there are search results */}
+      {!showSearchUI && <Header title="Search" />}
 
-      <div class="ios-content">
-        {/* Search form */}
-        <form
-          onSubmit={handleSubmit}
-          style={{
-            padding: 'var(--spacing-sm)',
-            position: 'sticky',
-            top: 0,
-            backgroundColor: 'var(--color-background)',
-            zIndex: 20,
-          }}
-        >
-          <div
+      <div class="ios-content" style={{ overflow: showSearchUI ? 'hidden' : undefined }}>
+        {/* Fixed bottom search form - only shown in search UI mode */}
+        {showSearchUI && (
+          <form
+            onSubmit={handleSubmit}
+            class="search-input-bar"
             style={{
-              display: 'flex',
-              alignItems: 'center',
-              backgroundColor: 'var(--color-light)',
-              borderRadius: 'var(--radius-lg)',
-              padding: 'var(--spacing-sm) var(--spacing-md)',
-              gap: 'var(--spacing-sm)',
+              position: 'fixed',
+              bottom: bottomOffset,
+              left: 0,
+              right: 0,
+              padding:
+                '0 max(var(--spacing-lg), env(safe-area-inset-right)) 0 max(var(--spacing-lg), env(safe-area-inset-left))',
+              zIndex: 'var(--z-index-tabbar)',
             }}
           >
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                height: 'var(--tabbar-height)',
+                // Liquid glass effect - same as tab bar
+                background: `rgba(var(--color-text-rgb), 0.2) linear-gradient(
+                  135deg,
+                  rgba(var(--color-background-rgb), 0.7) 0%,
+                  rgba(var(--color-background-rgb), 0.5) 50%,
+                  rgba(var(--color-background-rgb), 0.6) 100%
+                )`,
+                backdropFilter: 'blur(10px) saturate(180%)',
+                WebkitBackdropFilter: 'blur(10px) saturate(180%)',
+                borderRadius: '9999px',
+                border: '0.5px solid rgba(var(--color-text-rgb), 0.1)',
+                boxShadow: `
+                  0 4px 24px rgba(0, 0, 0, 0.08),
+                  0 1px 3px rgba(0, 0, 0, 0.04),
+                  inset 0 0.5px 0.5px rgba(255, 255, 255, 1)
+                `,
+                padding: '0 var(--spacing-md)',
+                gap: 'var(--spacing-sm)',
+              }}
             >
-              <path
-                d="M11 19C15.4183 19 19 15.4183 19 11C19 6.58172 15.4183 3 11 3C6.58172 3 3 6.58172 3 11C3 15.4183 6.58172 19 11 19Z"
-                stroke="var(--color-gray)"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-              <path
-                d="M21 21L16.65 16.65"
-                stroke="var(--color-gray)"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-            </svg>
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M11 19C15.4183 19 19 15.4183 19 11C19 6.58172 15.4183 3 11 3C6.58172 3 3 6.58172 3 11C3 15.4183 6.58172 19 11 19Z"
+                  stroke="var(--color-gray)"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+                <path
+                  d="M21 21L16.65 16.65"
+                  stroke="var(--color-gray)"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
 
-            <style scoped={true}>
-              {`
+              <style scoped={true}>
+                {`
               input::placeholder {
                 color: var(--color-gray);
               }
               `}
-            </style>
-            <input
-              type="text"
-              value={query}
-              onInput={handleInputChange}
-              placeholder="Search photos, albums, people..."
-              style={{
-                height: '24px',
-                flex: 1,
-                border: 'none',
-                backgroundColor: 'transparent',
-                fontSize: 'var(--font-size-md)',
-                outline: 'none',
-                color: 'var(--color-text)',
-              }}
-            />
-
-            {query && (
-              <button
-                type="button"
-                onClick={() => setQuery('')}
+              </style>
+              <input
+                ref={inputRef}
+                type="text"
+                value={query}
+                onInput={handleInputChange}
+                placeholder="Search photos, albums, people..."
                 style={{
-                  background: 'none',
+                  height: '24px',
+                  flex: 1,
                   border: 'none',
-                  padding: 0,
-                  cursor: 'pointer',
-                  color: 'var(--color-gray)',
+                  backgroundColor: 'transparent',
+                  fontSize: 'var(--font-size-md)',
+                  outline: 'none',
+                  color: 'var(--color-text)',
                 }}
-              >
-                <svg
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
+              />
+
+              {query && (
+                <button
+                  type="button"
+                  onClick={() => setQuery('')}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    padding: 0,
+                    cursor: 'pointer',
+                    color: 'var(--color-gray)',
+                  }}
                 >
-                  <path
-                    d="M18 6L6 18"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  />
-                  <path
-                    d="M6 6L18 18"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  />
-                </svg>
-              </button>
-            )}
-          </div>
-        </form>
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M18 6L6 18"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                    <path
+                      d="M6 6L18 18"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                </button>
+              )}
+            </div>
+          </form>
+        )}
 
         {/* Loading indicator */}
         {isSearching && (
@@ -558,24 +633,44 @@ export function Search() {
           </div>
         )}
 
-        {/* Recent searches */}
-        {!(searchResults || isSearching) && recentSearches.length > 0 && (
-          <div class="recent-searches" style={{ padding: 'var(--spacing-md)' }}>
+        {/* Recent searches - positioned above search input, grows from bottom */}
+        {showSearchUI && recentSearches.length > 0 && (
+          <div
+            class="recent-searches"
+            style={{
+              position: 'fixed',
+              left: 0,
+              right: 0,
+              bottom:
+                keyboardHeight > 0
+                  ? `calc(${keyboardHeight}px + var(--tabbar-height) + var(--spacing-sm))`
+                  : 'calc(var(--tabbar-height) + var(--spacing-sm) + env(safe-area-inset-bottom, 0px) + var(--tabbar-height) + var(--spacing-sm))',
+              maxHeight: '50vh',
+              overflowY: 'auto',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'flex-end',
+              padding:
+                '0 max(var(--spacing-lg), env(safe-area-inset-right)) 0 max(var(--spacing-lg), env(safe-area-inset-left))',
+            }}
+          >
             <div
               style={{
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                marginBottom: 'var(--spacing-md)',
+                marginBottom: 'var(--spacing-sm)',
+                padding: '0 var(--spacing-sm)',
               }}
             >
               <h2
                 style={{
-                  fontSize: 'var(--font-size-lg)',
+                  fontSize: 'var(--font-size-md)',
                   fontWeight: 'var(--font-weight-semibold)',
+                  color: 'var(--color-gray)',
                 }}
               >
-                Recent Searches
+                Recent
               </h2>
 
               <button
@@ -604,12 +699,12 @@ export function Search() {
                   key={index}
                   onClick={() => handleRecentSearchClick(search)}
                   style={{
-                    padding: 'var(--spacing-md)',
-                    borderBottom: '1px solid var(--color-gray-light)',
+                    padding: 'var(--spacing-sm) var(--spacing-md)',
                     display: 'flex',
                     alignItems: 'center',
                     gap: 'var(--spacing-md)',
                     cursor: 'pointer',
+                    borderRadius: 'var(--radius-md)',
                   }}
                 >
                   <svg
@@ -641,14 +736,20 @@ export function Search() {
           </div>
         )}
 
-        {/* Empty state */}
-        {!(searchResults || isSearching) && recentSearches.length === 0 && (
+        {/* Empty state - when in search UI mode with no recent searches */}
+        {showSearchUI && recentSearches.length === 0 && (
           <div
             style={{
+              position: 'fixed',
+              left: 0,
+              right: 0,
+              bottom:
+                keyboardHeight > 0
+                  ? `calc(${keyboardHeight}px + var(--tabbar-height) + var(--spacing-lg))`
+                  : 'calc(var(--tabbar-height) + var(--spacing-sm) + env(safe-area-inset-bottom, 0px) + var(--tabbar-height) + var(--spacing-lg))',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              height: 'calc(100% - 80px)', // Subtract search form height
               flexDirection: 'column',
               color: 'var(--color-gray)',
               padding: 'var(--spacing-lg)',
