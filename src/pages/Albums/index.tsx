@@ -123,12 +123,7 @@ export function Albums() {
       />
 
       {/* Search Input */}
-      <div
-        style={{
-          padding: 'var(--spacing-sm) var(--spacing-md)',
-          backgroundColor: 'var(--color-background)',
-        }}
-      >
+      <div class="ios-search-wrapper">
         <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search albums..." />
       </div>
 
