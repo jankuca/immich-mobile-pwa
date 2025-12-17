@@ -90,11 +90,7 @@ export function fuzzyScore(query: string, target: string): number {
 /**
  * Filter and sort an array of items by fuzzy matching a name field.
  */
-export function fuzzyFilter<T>(
-  items: T[],
-  query: string,
-  getName: (item: T) => string,
-): T[] {
+export function fuzzyFilter<T>(items: T[], query: string, getName: (item: T) => string): T[] {
   if (!query.trim()) {
     return items
   }
@@ -110,3 +106,38 @@ export function fuzzyFilter<T>(
   return scored.map(({ item }) => item)
 }
 
+/**
+ * Get the indices of matched characters for highlighting.
+ * Returns an array of indices in the target string that matched the query.
+ */
+export function getMatchIndices(query: string, target: string): number[] {
+  if (!query || !target) return []
+
+  const normalizedQuery = query.toLowerCase()
+  const normalizedTarget = target.toLowerCase()
+
+  // Check for substring match first (most common case)
+  const substringIndex = normalizedTarget.indexOf(normalizedQuery)
+  if (substringIndex !== -1) {
+    // Return consecutive indices for the substring match
+    return Array.from({ length: normalizedQuery.length }, (_, i) => substringIndex + i)
+  }
+
+  // Fuzzy match: find character positions
+  const indices: number[] = []
+  let queryIndex = 0
+
+  for (let i = 0; i < normalizedTarget.length && queryIndex < normalizedQuery.length; i++) {
+    if (normalizedTarget[i] === normalizedQuery[queryIndex]) {
+      indices.push(i)
+      queryIndex++
+    }
+  }
+
+  // Only return indices if all query characters were found
+  if (queryIndex === normalizedQuery.length) {
+    return indices
+  }
+
+  return []
+}

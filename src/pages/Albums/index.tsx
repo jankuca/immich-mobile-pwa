@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from 'preact/hooks'
 import { Header } from '../../components/common/Header'
 import { SectionPill } from '../../components/common/SectionPill'
+import { HighlightedText } from '../../components/search/HighlightedText'
 import { SearchInput } from '../../components/search/SearchInput'
 import { SearchInputWrapper } from '../../components/search/SearchInputWrapper'
 import { useHashLocation } from '../../contexts/HashLocationContext'
 import { type Album, apiService } from '../../services/api'
 import { fuzzyFilter } from '../../utils/fuzzySearch'
+
+const SEARCH_RESULT_THUMBNAIL_SIZE = 56
 
 export function Albums() {
   const [albums, setAlbums] = useState<Album[]>([])
@@ -193,6 +196,84 @@ export function Albums() {
             'No photos'
           )}
         </p>
+      </div>
+    </div>
+  )
+
+  const renderAlbumSearchResult = (album: Album) => (
+    <div
+      key={album.id}
+      onClick={() => handleAlbumClick(album.id)}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 'var(--spacing-md)',
+        padding: 'var(--spacing-sm)',
+        borderRadius: 'var(--radius-md)',
+        cursor: 'pointer',
+        backgroundColor: 'var(--color-light)',
+      }}
+    >
+      {/* Thumbnail */}
+      <div
+        style={{
+          width: SEARCH_RESULT_THUMBNAIL_SIZE,
+          height: SEARCH_RESULT_THUMBNAIL_SIZE,
+          borderRadius: 'var(--radius-sm)',
+          overflow: 'hidden',
+          backgroundColor: 'var(--color-gray)',
+          flexShrink: 0,
+        }}
+      >
+        {album.albumThumbnailAssetId && (
+          <img
+            src={apiService.getAssetThumbnailUrl(album.albumThumbnailAssetId)}
+            alt={album.albumName}
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+            }}
+            loading="lazy"
+          />
+        )}
+      </div>
+
+      {/* Album info */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <HighlightedText
+          text={album.albumName}
+          query={searchQuery}
+          style={{
+            color: 'var(--color-dark)',
+            fontSize: 'var(--font-size-md)',
+            fontWeight: 'var(--font-weight-semibold)',
+            display: 'block',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        />
+        <div
+          style={{
+            fontSize: 'var(--font-size-xs)',
+            color: 'var(--color-gray)',
+            marginTop: '2px',
+          }}
+        >
+          {album.assetCount} {album.assetCount === 1 ? 'photo' : 'photos'}
+          {album.startDate && (
+            <>
+              {' · '}
+              {new Date(album.startDate).toLocaleDateString(undefined, {
+                localeMatcher: 'best fit',
+              })}
+              {album.endDate &&
+                album.startDate !== album.endDate &&
+                ` - ${new Date(album.endDate).toLocaleDateString(undefined, { localeMatcher: 'best fit' })}`}
+            </>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -449,22 +530,17 @@ export function Albums() {
             </button>
           </div>
         ) : isSearching ? (
-          // Search mode - flat grid sorted by relevance
+          // Search mode - list sorted by relevance
           <div
             class="albums-list"
             style={{
               padding: 'var(--spacing-md)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 'var(--spacing-sm)',
             }}
           >
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(2, 1fr)',
-                gap: 'var(--spacing-md)',
-              }}
-            >
-              {filteredAlbums.map(renderAlbumCard)}
-            </div>
+            {filteredAlbums.map(renderAlbumSearchResult)}
           </div>
         ) : (
           // Normal mode - grouped by month

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'preact/hooks'
 import { Header } from '../../components/common/Header'
 import { SectionPill } from '../../components/common/SectionPill'
+import { HighlightedText } from '../../components/search/HighlightedText'
 import { SearchInput } from '../../components/search/SearchInput'
 import { SearchInputWrapper } from '../../components/search/SearchInputWrapper'
 import { useHashLocation } from '../../contexts/HashLocationContext'
@@ -8,6 +9,8 @@ import { usePeople } from '../../hooks/usePeople'
 import type { Person } from '../../services/api'
 import { apiService } from '../../services/api'
 import { fuzzyFilter } from '../../utils/fuzzySearch'
+
+const SEARCH_RESULT_AVATAR_SIZE = 44
 
 type SortMode = 'name' | 'photoCount'
 
@@ -146,6 +149,64 @@ export function People() {
     </button>
   )
 
+  const renderPersonSearchResult = (person: Person) => (
+    <button
+      key={person.id}
+      type="button"
+      onClick={() => handlePersonClick(person.id)}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 'var(--spacing-md)',
+        padding: 'var(--spacing-sm)',
+        borderRadius: 'var(--radius-md)',
+        cursor: 'pointer',
+        backgroundColor: 'var(--color-light)',
+        border: 'none',
+        width: '100%',
+        textAlign: 'left',
+        font: 'inherit',
+        color: 'inherit',
+      }}
+    >
+      {/* Avatar */}
+      <div
+        style={{
+          width: SEARCH_RESULT_AVATAR_SIZE,
+          height: SEARCH_RESULT_AVATAR_SIZE,
+          borderRadius: '50%',
+          overflow: 'hidden',
+          backgroundColor: 'var(--color-gray-light)',
+          flexShrink: 0,
+        }}
+      >
+        {person.thumbnailPath && (
+          <img
+            src={apiService.getPersonThumbnailUrl(person.id)}
+            alt={person.name}
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+            }}
+            loading="lazy"
+          />
+        )}
+      </div>
+
+      {/* Name */}
+      <HighlightedText
+        text={person.name}
+        query={searchQuery}
+        style={{
+          color: 'var(--color-dark)',
+          fontSize: 'var(--font-size-md)',
+          fontWeight: 'var(--font-weight-medium)',
+        }}
+      />
+    </button>
+  )
+
   const renderContent = () => {
     if (isLoading) {
       return (
@@ -272,8 +333,24 @@ export function People() {
       )
     }
 
-    // Search mode or photo count mode - flat grid sorted by relevance/count
-    if (isSearching || sortMode === 'photoCount') {
+    // Search mode - list sorted by relevance
+    if (isSearching) {
+      return (
+        <div
+          style={{
+            padding: 'var(--spacing-md)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 'var(--spacing-sm)',
+          }}
+        >
+          {sortedPeople.map(renderPersonSearchResult)}
+        </div>
+      )
+    }
+
+    // Photo count mode - flat grid
+    if (sortMode === 'photoCount') {
       return (
         <div style={{ padding: 'var(--spacing-md)' }}>
           <div
