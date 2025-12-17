@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'preact/hooks'
+import { useEffect, useRef, useState } from 'preact/hooks'
 
 interface SearchInputProps {
   value: string
@@ -9,41 +9,19 @@ interface SearchInputProps {
 }
 
 /**
- * iOS Safari hack: Use a dummy input to open the keyboard without scrolling.
+ * iOS Safari keyboard focus hack.
  *
- * When focusing an input, iOS scrolls to bring it into view. By creating a
- * temporary input at the same position as the real input and focusing it first,
- * we can open the keyboard without triggering the scroll behavior. Then we
- * transfer focus to the real input.
+ * The problem: When focusing an input at the bottom of the page, iOS Safari
+ * scrolls the page content to bring the input into view, causing layout jumps.
  *
- * @see https://stackoverflow.com/questions/54424729/ios-show-keyboard-on-input-focus
+ * The solution (from blog.opendigerati.com):
+ * 1. Position the real input at the TOP of the viewport initially
+ * 2. Show a fake tappable area at the bottom where users expect the search bar
+ * 3. When user taps, focus the real input (at top) - Safari doesn't scroll
+ * 4. After keyboard opens, move the real input to the bottom
+ *
+ * @see https://blog.opendigerati.com/the-eccentric-ways-of-ios-safari-with-the-keyboard-b5aa3f34228d
  */
-function focusWithDummyInput(el: HTMLInputElement, timeout = 50) {
-  // Get the position of the real input using getBoundingClientRect
-  // This gives us the position relative to the viewport
-  const rect = el.getBoundingClientRect()
-
-  // Create a temporary input positioned exactly where the real input is
-  const tempInput = document.createElement('input')
-  tempInput.style.position = 'fixed'
-  tempInput.style.top = `${rect.top}px`
-  tempInput.style.left = `${rect.left}px`
-  tempInput.style.width = `${rect.width}px`
-  tempInput.style.height = `${rect.height}px`
-  tempInput.style.opacity = '0'
-  tempInput.style.zIndex = '9999'
-  tempInput.style.fontSize = '16px' // Prevent iOS zoom
-
-  // Append to body and focus - this opens the keyboard
-  document.body.appendChild(tempInput)
-  tempInput.focus()
-
-  // After a short delay, transfer focus to the real input and remove the temp
-  setTimeout(() => {
-    el.focus()
-    document.body.removeChild(tempInput)
-  }, timeout)
-}
 
 export function SearchInput({
   value,
@@ -53,12 +31,14 @@ export function SearchInput({
   autoFocus = false,
 }: SearchInputProps) {
   const inputRef = useRef<HTMLInputElement>(null)
+  // Track whether the input is focused and should be shown in its final position
+  const [isActive, setIsActive] = useState(false)
 
   useEffect(() => {
     if (autoFocus && inputRef.current) {
-      // Small delay to ensure the component is mounted
       const timer = setTimeout(() => {
         inputRef.current?.focus({ preventScroll: true })
+        setIsActive(true)
       }, 100)
       return () => clearTimeout(timer)
     }
@@ -79,22 +59,58 @@ export function SearchInput({
     inputRef.current?.focus({ preventScroll: true })
   }
 
-  // Handle click on the container - use the dummy input hack for iOS
+  const handleFocus = () => {
+    // Move to active position after a short delay to let keyboard open
+    setTimeout(() => {
+      setIsActive(true)
+    }, 50)
+  }
+
+  const handleBlur = () => {
+    // Move back to top position when blurred
+    setIsActive(false)
+  }
+
+  // Handle click on the container - focus the real input
   const handleContainerClick = (e: MouseEvent) => {
-    // Only intercept if we're not already focused and not clicking the clear button
-    if (
-      inputRef.current &&
-      document.activeElement !== inputRef.current &&
-      !(e.target as HTMLElement).closest('button')
-    ) {
+    // Don't intercept if clicking the clear button
+    if ((e.target as HTMLElement).closest('button')) {
+      return
+    }
+
+    if (inputRef.current && document.activeElement !== inputRef.current) {
       e.preventDefault()
-      focusWithDummyInput(inputRef.current)
+      // Focus the input (which is at the top of the viewport)
+      // Safari won't scroll because the input is already visible at top
+      inputRef.current.focus({ preventScroll: true })
     }
   }
 
+  // When not active, position the input at the top of the viewport (offscreen but focusable)
+  // When active (after focus), render it inline in the container
+  const inputStyle = isActive
+    ? {
+        height: '24px',
+        flex: 1,
+        border: 'none',
+        backgroundColor: 'transparent',
+        fontSize: 'var(--font-size-md)',
+        outline: 'none',
+        color: 'var(--color-text)',
+      }
+    : {
+        position: 'fixed' as const,
+        top: '0px',
+        left: '0px',
+        width: '100%',
+        height: '44px',
+        opacity: 0,
+        fontSize: '16px', // Prevent iOS zoom
+        zIndex: -1,
+      }
+
   return (
     <form onSubmit={handleSubmit} style={{ display: 'contents' }}>
-      {/* Use onClick on container to intercept taps and use the dummy input hack */}
       <div
         class="liquid-glass"
         onClick={handleContainerClick}
@@ -131,28 +147,37 @@ export function SearchInput({
           />
         </svg>
 
-        <style scoped={true}>
+        <style>
           {`
             input::placeholder {
               color: var(--color-gray);
             }
           `}
         </style>
+
+        {/* When not active, show placeholder text to indicate the search field */}
+        {!isActive && (
+          <span
+            style={{
+              flex: 1,
+              color: 'var(--color-gray)',
+              fontSize: 'var(--font-size-md)',
+            }}
+          >
+            {placeholder}
+          </span>
+        )}
+
+        {/* The real input - positioned at top when not active, inline when active */}
         <input
           ref={inputRef}
           type="text"
           value={value}
           onInput={handleInput}
+          onFocus={handleFocus}
+          onBlur={handleBlur}
           placeholder={placeholder}
-          style={{
-            height: '24px',
-            flex: 1,
-            border: 'none',
-            backgroundColor: 'transparent',
-            fontSize: 'var(--font-size-md)',
-            outline: 'none',
-            color: 'var(--color-text)',
-          }}
+          style={inputStyle}
         />
 
         {/* Clear Button */}
