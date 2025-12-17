@@ -111,6 +111,8 @@ html, body {
   right: 0;
   padding: 0 var(--spacing-lg);
   z-index: var(--z-index-tabbar);
+  /* Smooth transition when keyboard opens/closes */
+  transition: bottom 0.15s ease-out;
 }
 
 .ios-content {

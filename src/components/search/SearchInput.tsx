@@ -21,7 +21,8 @@ export function SearchInput({
     if (autoFocus && inputRef.current) {
       // Small delay to ensure the component is mounted
       const timer = setTimeout(() => {
-        inputRef.current?.focus()
+        // Use preventScroll to avoid iOS scrolling the page when auto-focusing
+        inputRef.current?.focus({ preventScroll: true })
       }, 100)
       return () => clearTimeout(timer)
     }
@@ -39,7 +40,15 @@ export function SearchInput({
 
   const handleClear = () => {
     onChange('')
-    inputRef.current?.focus()
+    // Use preventScroll to avoid iOS scrolling the page when refocusing
+    inputRef.current?.focus({ preventScroll: true })
+  }
+
+  // Handle focus - the input is already visible in a fixed position,
+  // so we don't need to do anything special here.
+  // The keyboard height hook handles repositioning the input above the keyboard.
+  const handleFocus = () => {
+    // No-op - iOS may still scroll, but the CSS transition smooths the effect
   }
 
   return (
@@ -91,6 +100,7 @@ export function SearchInput({
           type="text"
           value={value}
           onInput={handleInput}
+          onFocus={handleFocus}
           placeholder={placeholder}
           style={{
             height: '24px',
