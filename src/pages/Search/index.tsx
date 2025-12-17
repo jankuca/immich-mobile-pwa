@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks'
 import { Header } from '../../components/common/Header'
+import { SectionPill } from '../../components/common/SectionPill'
 import { PhotoViewer } from '../../components/photoView/PhotoViewer'
 import {
   type GetThumbnailPosition,
@@ -503,15 +504,7 @@ export function Search() {
             {/* Albums results */}
             {searchResults.albums && searchResults.albums.length > 0 && (
               <div class="search-section">
-                <h2
-                  style={{
-                    fontSize: 'var(--font-size-lg)',
-                    fontWeight: 'var(--font-weight-semibold)',
-                    marginBottom: 'var(--spacing-md)',
-                  }}
-                >
-                  Albums
-                </h2>
+                <SectionPill sticky={true}>Albums</SectionPill>
 
                 <div
                   style={{
@@ -591,15 +584,7 @@ export function Search() {
             {/* People results */}
             {searchResults.people && searchResults.people.length > 0 && (
               <div class="search-section" style={{ marginTop: 'var(--spacing-sm)' }}>
-                <h2
-                  style={{
-                    fontSize: 'var(--font-size-lg)',
-                    fontWeight: 'var(--font-weight-semibold)',
-                    marginBottom: 'var(--spacing-md)',
-                  }}
-                >
-                  People
-                </h2>
+                <SectionPill sticky={true}>People</SectionPill>
 
                 <div
                   style={{
@@ -675,17 +660,7 @@ export function Search() {
                   marginTop: 'var(--spacing-sm)',
                 }}
               >
-                <h2
-                  style={{
-                    fontSize: 'var(--font-size-lg)',
-                    fontWeight: 'var(--font-weight-semibold)',
-                    marginBottom: 'var(--spacing-md)',
-                    paddingLeft: 'var(--spacing-md)',
-                    paddingRight: 'var(--spacing-md)',
-                  }}
-                >
-                  Photos
-                </h2>
+                <SectionPill sticky={true}>Photos</SectionPill>
 
                 <VirtualizedTimeline
                   assets={searchResults.assets}
