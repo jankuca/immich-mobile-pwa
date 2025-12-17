@@ -1,5 +1,4 @@
 import type { ComponentChildren } from 'preact'
-import { createPortal } from 'preact/compat'
 import { useKeyboardHeight } from '../../hooks/useKeyboardHeight'
 
 interface SearchInputWrapperProps {
@@ -11,8 +10,10 @@ interface SearchInputWrapperProps {
  * at the bottom of the screen, above the tab bar, and adjusts for the
  * on-screen keyboard when it appears.
  *
- * Uses a portal to render at the document body level, which prevents iOS
- * from scrolling the page content when focusing the input.
+ * Note: Previously used a portal to render at document.body level to prevent
+ * iOS scroll issues, but this caused problems with persistent tabs where
+ * multiple search inputs would be rendered simultaneously. The iOS scroll
+ * issue is now handled by the dummy input hack in SearchInput.
  */
 export function SearchInputWrapper({ children }: SearchInputWrapperProps) {
   const keyboardHeight = useKeyboardHeight()
@@ -24,7 +25,7 @@ export function SearchInputWrapper({ children }: SearchInputWrapperProps) {
   // When keyboard is visible, position above it with some spacing
   const bottomOffset = `max(${keyboardHeight}px + var(--spacing-md), ${baseOffset})`
 
-  const content = (
+  return (
     <div
       class="ios-search-wrapper"
       style={{
@@ -34,8 +35,4 @@ export function SearchInputWrapper({ children }: SearchInputWrapperProps) {
       {children}
     </div>
   )
-
-  // Render via portal to document.body to prevent iOS from scrolling
-  // the page content when the input is focused
-  return createPortal(content, document.body)
 }
