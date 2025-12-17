@@ -14,17 +14,25 @@ export function Albums() {
   const [searchQuery, setSearchQuery] = useState('')
   const { route } = useHashLocation()
 
-  // Filter albums based on search query
+  // Check if we're in search mode
+  const isSearching = searchQuery.trim().length > 0
+
+  // Filter albums based on search query - sorted by relevance when searching
   const filteredAlbums = useMemo(() => {
-    if (!searchQuery.trim()) {
+    if (!isSearching) {
       return albums
     }
     return fuzzyFilter(albums, searchQuery, (album) => album.albumName)
-  }, [albums, searchQuery])
+  }, [albums, searchQuery, isSearching])
 
-  // Group filtered albums by year+month and sort within each group by end/start date
+  // Group albums by year+month - only computed when not searching
   const { albumsByMonth, sortedMonths } = useMemo(() => {
-    const grouped = filteredAlbums.reduce(
+    // When searching, don't group - return empty structures
+    if (isSearching) {
+      return { albumsByMonth: {} as Record<string, Album[]>, sortedMonths: [] as string[] }
+    }
+
+    const grouped = albums.reduce(
       (acc, album) => {
         // Use the end date, start date, or created date to determine the month
         const date = new Date(album.endDate || album.startDate || album.createdAt)
@@ -54,7 +62,7 @@ export function Albums() {
     const sorted = Object.keys(grouped).sort((a, b) => b.localeCompare(a))
 
     return { albumsByMonth: grouped, sortedMonths: sorted }
-  }, [filteredAlbums])
+  }, [albums, isSearching])
 
   // Format month key (YYYY-MM) to display string (e.g., "March 2024")
   const formatMonthKey = (key: string) => {
@@ -87,6 +95,107 @@ export function Albums() {
   const handleAlbumClick = (albumId: string) => {
     route(`/albums/${albumId}`)
   }
+
+  const renderAlbumCard = (album: Album) => (
+    <div
+      key={album.id}
+      class="album-card"
+      onClick={() => handleAlbumClick(album.id)}
+      style={{
+        borderRadius: 'var(--radius-md)',
+        overflow: 'hidden',
+        boxShadow: 'var(--shadow-sm)',
+        cursor: 'pointer',
+      }}
+    >
+      <div
+        style={{
+          position: 'relative',
+          paddingBottom: '100%', // 1:1 aspect ratio
+          backgroundColor: 'var(--color-gray)',
+        }}
+      >
+        {album.albumThumbnailAssetId && (
+          <img
+            src={apiService.getAssetThumbnailUrl(album.albumThumbnailAssetId)}
+            alt={album.albumName}
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+            }}
+            loading="lazy"
+          />
+        )}
+
+        {/* Album info overlay */}
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            padding: 'var(--spacing-sm)',
+            background: 'linear-gradient(transparent, rgba(0,0,0,0.7))',
+            color: 'white',
+          }}
+        >
+          <div
+            style={{
+              fontSize: 'var(--font-size-sm)',
+              fontWeight: 'var(--font-weight-medium)',
+            }}
+          >
+            {album.assetCount} {album.assetCount === 1 ? 'photo' : 'photos'}
+          </div>
+        </div>
+      </div>
+
+      <div
+        style={{
+          padding: 'var(--spacing-sm)',
+          backgroundColor: 'var(--color-light)',
+        }}
+      >
+        <h3
+          style={{
+            color: 'var(--color-dark)',
+            fontSize: 'var(--font-size-md)',
+            fontWeight: 'var(--font-weight-semibold)',
+            marginBottom: 'var(--spacing-xs)',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          {album.albumName}
+        </h3>
+
+        <p
+          style={{
+            fontSize: 'var(--font-size-xs)',
+            color: 'var(--color-gray)',
+          }}
+        >
+          {album.startDate ? (
+            <>
+              {new Date(album.startDate).toLocaleDateString(undefined, {
+                localeMatcher: 'best fit',
+              })}
+              {album.endDate &&
+                album.startDate !== album.endDate &&
+                ` - ${new Date(album.endDate).toLocaleDateString(undefined, { localeMatcher: 'best fit' })}`}
+            </>
+          ) : (
+            'No photos'
+          )}
+        </p>
+      </div>
+    </div>
+  )
 
   return (
     <div class="ios-page">
@@ -339,7 +448,26 @@ export function Albums() {
               <span>Create Album</span>
             </button>
           </div>
+        ) : isSearching ? (
+          // Search mode - flat grid sorted by relevance
+          <div
+            class="albums-list"
+            style={{
+              padding: 'var(--spacing-md)',
+            }}
+          >
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(2, 1fr)',
+                gap: 'var(--spacing-md)',
+              }}
+            >
+              {filteredAlbums.map(renderAlbumCard)}
+            </div>
+          </div>
         ) : (
+          // Normal mode - grouped by month
           <div
             class="albums-list"
             style={{
@@ -359,106 +487,7 @@ export function Albums() {
                     gap: 'var(--spacing-md)',
                   }}
                 >
-                  {albumsByMonth[monthKey]?.map((album) => (
-                    <div
-                      key={album.id}
-                      class="album-card"
-                      onClick={() => handleAlbumClick(album.id)}
-                      style={{
-                        borderRadius: 'var(--radius-md)',
-                        overflow: 'hidden',
-                        boxShadow: 'var(--shadow-sm)',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <div
-                        style={{
-                          position: 'relative',
-                          paddingBottom: '100%', // 1:1 aspect ratio
-                          backgroundColor: 'var(--color-gray)',
-                        }}
-                      >
-                        {album.albumThumbnailAssetId && (
-                          <img
-                            src={apiService.getAssetThumbnailUrl(album.albumThumbnailAssetId)}
-                            alt={album.albumName}
-                            style={{
-                              position: 'absolute',
-                              top: 0,
-                              left: 0,
-                              width: '100%',
-                              height: '100%',
-                              objectFit: 'cover',
-                            }}
-                            loading="lazy"
-                          />
-                        )}
-
-                        {/* Album info overlay */}
-                        <div
-                          style={{
-                            position: 'absolute',
-                            bottom: 0,
-                            left: 0,
-                            right: 0,
-                            padding: 'var(--spacing-sm)',
-                            background: 'linear-gradient(transparent, rgba(0,0,0,0.7))',
-                            color: 'white',
-                          }}
-                        >
-                          <div
-                            style={{
-                              fontSize: 'var(--font-size-sm)',
-                              fontWeight: 'var(--font-weight-medium)',
-                            }}
-                          >
-                            {album.assetCount} {album.assetCount === 1 ? 'photo' : 'photos'}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div
-                        style={{
-                          padding: 'var(--spacing-sm)',
-                          backgroundColor: 'var(--color-light)',
-                        }}
-                      >
-                        <h3
-                          style={{
-                            color: 'var(--color-dark)',
-                            fontSize: 'var(--font-size-md)',
-                            fontWeight: 'var(--font-weight-semibold)',
-                            marginBottom: 'var(--spacing-xs)',
-                            whiteSpace: 'nowrap',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                          }}
-                        >
-                          {album.albumName}
-                        </h3>
-
-                        <p
-                          style={{
-                            fontSize: 'var(--font-size-xs)',
-                            color: 'var(--color-gray)',
-                          }}
-                        >
-                          {album.startDate ? (
-                            <>
-                              {new Date(album.startDate).toLocaleDateString(undefined, {
-                                localeMatcher: 'best fit',
-                              })}
-                              {album.endDate &&
-                                album.startDate !== album.endDate &&
-                                ` - ${new Date(album.endDate).toLocaleDateString(undefined, { localeMatcher: 'best fit' })}`}
-                            </>
-                          ) : (
-                            'No photos'
-                          )}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
+                  {albumsByMonth[monthKey]?.map(renderAlbumCard)}
                 </div>
               </div>
             ))}

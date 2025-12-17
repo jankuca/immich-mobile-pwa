@@ -24,51 +24,62 @@ export function People() {
   }
 
   // Filter out people without names and hidden people, then apply search filter
-  const { sortedPeople, peopleByLetter, sortedLetters, hasSearchResults } = useMemo(() => {
-    // Filter out hidden people and those without names
-    let filteredPeople = people.filter(
-      (person: Person) => !person.isHidden && person.name.trim() !== '',
-    )
+  const { sortedPeople, peopleByLetter, sortedLetters, hasSearchResults, isSearching } =
+    useMemo(() => {
+      // Filter out hidden people and those without names
+      const basePeople = people.filter(
+        (person: Person) => !person.isHidden && person.name.trim() !== '',
+      )
 
-    // Apply search filter if there's a query
-    if (searchQuery.trim()) {
-      filteredPeople = fuzzyFilter(filteredPeople, searchQuery, (person: Person) => person.name)
-    }
+      const hasQuery = searchQuery.trim().length > 0
 
-    const hasResults = filteredPeople.length > 0
+      // When searching, return fuzzy-filtered results sorted by relevance (no grouping)
+      if (hasQuery) {
+        const filtered = fuzzyFilter(basePeople, searchQuery, (person: Person) => person.name)
+        return {
+          sortedPeople: filtered,
+          peopleByLetter: {} as Record<string, Person[]>,
+          sortedLetters: [] as string[],
+          hasSearchResults: filtered.length > 0,
+          isSearching: true,
+        }
+      }
 
-    if (sortMode === 'photoCount') {
-      // Sort by photo count (API order) - no grouping
+      // No search query - apply normal sorting and grouping
+      if (sortMode === 'photoCount') {
+        // Sort by photo count (API order) - no grouping
+        return {
+          sortedPeople: basePeople,
+          peopleByLetter: {} as Record<string, Person[]>,
+          sortedLetters: [] as string[],
+          hasSearchResults: basePeople.length > 0,
+          isSearching: false,
+        }
+      }
+
+      // Sort by name using locale-aware comparison
+      const collator = new Intl.Collator(undefined, { sensitivity: 'base' })
+      const sortedByName = [...basePeople].sort((a, b) => collator.compare(a.name, b.name))
+      const byLetter: Record<string, Person[]> = {}
+
+      for (const person of sortedByName) {
+        const firstLetter = person.name.charAt(0).toLocaleUpperCase()
+        if (!byLetter[firstLetter]) {
+          byLetter[firstLetter] = []
+        }
+        byLetter[firstLetter].push(person)
+      }
+
+      // Sort letter sections using locale-aware comparison
+      const letters = Object.keys(byLetter).sort((a, b) => collator.compare(a, b))
       return {
-        sortedPeople: filteredPeople,
-        peopleByLetter: {} as Record<string, Person[]>,
-        sortedLetters: [] as string[],
-        hasSearchResults: hasResults,
+        sortedPeople: sortedByName,
+        peopleByLetter: byLetter,
+        sortedLetters: letters,
+        hasSearchResults: sortedByName.length > 0,
+        isSearching: false,
       }
-    }
-
-    // Sort by name using locale-aware comparison
-    const collator = new Intl.Collator(undefined, { sensitivity: 'base' })
-    const sortedByName = [...filteredPeople].sort((a, b) => collator.compare(a.name, b.name))
-    const byLetter: Record<string, Person[]> = {}
-
-    for (const person of sortedByName) {
-      const firstLetter = person.name.charAt(0).toLocaleUpperCase()
-      if (!byLetter[firstLetter]) {
-        byLetter[firstLetter] = []
-      }
-      byLetter[firstLetter].push(person)
-    }
-
-    // Sort letter sections using locale-aware comparison
-    const letters = Object.keys(byLetter).sort((a, b) => collator.compare(a, b))
-    return {
-      sortedPeople: sortedByName,
-      peopleByLetter: byLetter,
-      sortedLetters: letters,
-      hasSearchResults: hasResults,
-    }
-  }, [people, sortMode, searchQuery])
+    }, [people, sortMode, searchQuery])
 
   const handleSortChange = (mode: SortMode) => {
     setSortMode(mode)
@@ -261,8 +272,8 @@ export function People() {
       )
     }
 
-    // Photo count mode - flat grid
-    if (sortMode === 'photoCount') {
+    // Search mode or photo count mode - flat grid sorted by relevance/count
+    if (isSearching || sortMode === 'photoCount') {
       return (
         <div style={{ padding: 'var(--spacing-md)' }}>
           <div
