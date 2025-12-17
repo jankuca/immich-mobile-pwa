@@ -81,8 +81,11 @@ export function SearchInput({
   }
 
   const handleClear = () => {
+    const wasFocused = document.activeElement === inputRef.current
     onChange('')
-    inputRef.current?.focus({ preventScroll: true })
+    if (wasFocused) {
+      inputRef.current?.focus({ preventScroll: true })
+    }
   }
 
   // Handle click on the container - use the dummy input trick
