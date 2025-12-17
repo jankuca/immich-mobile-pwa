@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'preact/hooks'
 import { Header } from '../../components/common/Header'
 import { PhotoViewer } from '../../components/photoView/PhotoViewer'
 import { SearchInput } from '../../components/search/SearchInput'
+import { SearchInputWrapper } from '../../components/search/SearchInputWrapper'
 import {
   type GetThumbnailPosition,
   VirtualizedTimeline,
@@ -282,9 +283,9 @@ export function Timeline() {
       />
 
       {/* Search Input */}
-      <div class="ios-search-wrapper">
+      <SearchInputWrapper>
         <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search photos..." />
-      </div>
+      </SearchInputWrapper>
 
       <div class="ios-content">
         <style>{`

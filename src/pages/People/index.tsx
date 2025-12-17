@@ -2,6 +2,7 @@ import { useMemo, useState } from 'preact/hooks'
 import { Header } from '../../components/common/Header'
 import { SectionPill } from '../../components/common/SectionPill'
 import { SearchInput } from '../../components/search/SearchInput'
+import { SearchInputWrapper } from '../../components/search/SearchInputWrapper'
 import { useHashLocation } from '../../contexts/HashLocationContext'
 import { usePeople } from '../../hooks/usePeople'
 import type { Person } from '../../services/api'
@@ -321,9 +322,9 @@ export function People() {
       />
 
       {/* Search Input */}
-      <div class="ios-search-wrapper">
+      <SearchInputWrapper>
         <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search people..." />
-      </div>
+      </SearchInputWrapper>
 
       {/* Sort dropdown */}
       {showSortDropdown && (

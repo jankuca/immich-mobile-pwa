@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'preact/hooks'
 import { Header } from '../../components/common/Header'
 import { SectionPill } from '../../components/common/SectionPill'
 import { SearchInput } from '../../components/search/SearchInput'
+import { SearchInputWrapper } from '../../components/search/SearchInputWrapper'
 import { useHashLocation } from '../../contexts/HashLocationContext'
 import { type Album, apiService } from '../../services/api'
 import { fuzzyFilter } from '../../utils/fuzzySearch'
@@ -123,9 +124,9 @@ export function Albums() {
       />
 
       {/* Search Input */}
-      <div class="ios-search-wrapper">
+      <SearchInputWrapper>
         <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search albums..." />
-      </div>
+      </SearchInputWrapper>
 
       <div class="ios-content">
         {isLoading ? (
