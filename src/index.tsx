@@ -10,7 +10,6 @@ import { Albums } from './pages/Albums'
 import { Login } from './pages/Login'
 import { People } from './pages/People'
 import { PersonDetail } from './pages/PersonDetail'
-import { Search } from './pages/Search'
 import { Timeline } from './pages/Timeline'
 
 // Import our styles
@@ -111,7 +110,6 @@ const PersistentTabsApp = () => {
   const [peopleMounted, setPeopleMounted] = useState<boolean>(false)
   const [personDetailMounted, setPersonDetailMounted] = useState<boolean>(false)
   const [personDetailId, setPersonDetailId] = useState<string | null>(null)
-  const [searchMounted, setSearchMounted] = useState<boolean>(false)
 
   // Determine which tab is active based on the URL
   const basePath = `/${url.split('/')[1] || ''}`
@@ -149,8 +147,6 @@ const PersistentTabsApp = () => {
       setAlbumsMounted(true)
     } else if (url === '/people' || isPersonDetail) {
       setPeopleMounted(true)
-    } else if (url === '/search') {
-      setSearchMounted(true)
     }
   }, [url, isAlbumDetail, isPersonDetail])
 
@@ -272,22 +268,6 @@ const PersistentTabsApp = () => {
         >
           {personDetailMounted && personDetailId && <PersonDetail personId={personDetailId} />}
         </div>
-      </div>
-
-      {/* Search Tab */}
-      <div
-        style={{
-          height: '100%',
-          width: '100%',
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          visibility: activeTab === '/search' ? 'visible' : 'hidden',
-          zIndex: activeTab === '/search' ? 1 : 0,
-          backgroundColor: 'var(--color-background)',
-        }}
-      >
-        {searchMounted && <Search />}
       </div>
     </div>
   )
