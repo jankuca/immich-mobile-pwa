@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from 'preact/hooks'
 import { Header } from '../../components/common/Header'
 import { PhotoViewer } from '../../components/photoView/PhotoViewer'
+import { SearchInput } from '../../components/search/SearchInput'
 import {
   type GetThumbnailPosition,
   VirtualizedTimeline,
 } from '../../components/timeline/VirtualizedTimeline'
 import { useAuth } from '../../contexts/AuthContext'
+import { useTimelineSearch } from '../../hooks/useTimelineSearch'
 import type { ThumbnailPosition } from '../../hooks/useZoomTransition'
 import { type AssetTimelineItem, apiService } from '../../services/api'
 
@@ -21,6 +23,18 @@ export function Timeline() {
   const [loadedBucketCount, setLoadedBucketCount] = useState<number>(0)
   const [hasMoreContent, setHasMoreContent] = useState<boolean>(true)
   const { logout } = useAuth()
+
+  // Search state
+  const {
+    query: searchQuery,
+    setQuery: setSearchQuery,
+    isSearching,
+    searchResults,
+    error: searchError,
+  } = useTimelineSearch()
+
+  // Determine if we're in search mode
+  const isSearchMode = searchQuery.trim().length > 0 || searchResults !== null
 
   // Store the thumbnail position getter from VirtualizedTimeline
   const [getThumbnailPosition, setGetThumbnailPosition] = useState<GetThumbnailPosition | null>(
@@ -150,6 +164,83 @@ export function Timeline() {
     logout()
   }
 
+  // Get the assets to display (search results or timeline)
+  const displayAssets = isSearchMode && searchResults?.assets ? searchResults.assets : assets
+  const displayError = isSearchMode ? searchError : error
+
+  // Render search results content
+  const renderSearchContent = () => {
+    if (isSearching) {
+      return (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 'var(--spacing-lg)',
+            color: 'var(--color-gray)',
+          }}
+        >
+          <div
+            class="loading-spinner"
+            style={{
+              width: '24px',
+              height: '24px',
+              border: '3px solid var(--color-gray-light)',
+              borderTopColor: 'var(--color-primary)',
+              borderRadius: '50%',
+              animation: 'spin 1s linear infinite',
+              marginRight: 'var(--spacing-md)',
+            }}
+          />
+          <p>Searching...</p>
+        </div>
+      )
+    }
+
+    if (searchResults?.assets && searchResults.assets.length === 0) {
+      return (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 'var(--spacing-xl)',
+            color: 'var(--color-gray)',
+            flexDirection: 'column',
+            textAlign: 'center',
+          }}
+        >
+          <svg
+            width="48"
+            height="48"
+            viewBox="0 0 24 24"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M11 19C15.4183 19 19 15.4183 19 11C19 6.58172 15.4183 3 11 3C6.58172 3 3 6.58172 3 11C3 15.4183 6.58172 19 11 19Z"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+            <path
+              d="M21 21L16.65 16.65"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+          <p style={{ marginTop: 'var(--spacing-md)' }}>No photos found for "{searchQuery}"</p>
+        </div>
+      )
+    }
+
+    return null
+  }
+
   return (
     <div class="ios-page">
       <Header
@@ -190,8 +281,39 @@ export function Timeline() {
         }}
       />
 
+      {/* Search Input */}
+      <div
+        style={{
+          padding: 'var(--spacing-sm) var(--spacing-md)',
+          backgroundColor: 'var(--color-background)',
+        }}
+      >
+        <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search photos..." />
+      </div>
+
       <div class="ios-content">
-        {isLoading ? (
+        <style>{`
+          @keyframes spin {
+            to { transform: rotate(360deg); }
+          }
+        `}</style>
+
+        {/* Search mode content */}
+        {isSearchMode && renderSearchContent()}
+
+        {/* Search results timeline */}
+        {isSearchMode && !isSearching && displayAssets.length > 0 && (
+          <VirtualizedTimeline
+            assets={displayAssets}
+            showDateHeaders={false}
+            onAssetOpenRequest={handleAssetClick}
+            onThumbnailPositionGetterReady={setGetThumbnailPosition}
+            anchorAssetId={selectedAsset?.id}
+          />
+        )}
+
+        {/* Regular timeline content (non-search mode) */}
+        {!isSearchMode && isLoading && (
           <div
             style={{
               display: 'flex',
@@ -214,14 +336,10 @@ export function Timeline() {
               }}
             />
             <p style={{ marginTop: 'var(--spacing-md)' }}>Loading photos...</p>
-
-            <style>{`
-              @keyframes spin {
-                to { transform: rotate(360deg); }
-              }
-            `}</style>
           </div>
-        ) : error ? (
+        )}
+
+        {!isSearchMode && displayError && (
           <div
             style={{
               display: 'flex',
@@ -262,8 +380,9 @@ export function Timeline() {
                 stroke-linejoin="round"
               />
             </svg>
-            <p style={{ marginTop: 'var(--spacing-md)', textAlign: 'center' }}>{error}</p>
+            <p style={{ marginTop: 'var(--spacing-md)', textAlign: 'center' }}>{displayError}</p>
             <button
+              type="button"
               onClick={() => window.location.reload()}
               style={{
                 marginTop: 'var(--spacing-lg)',
@@ -279,7 +398,9 @@ export function Timeline() {
               Retry
             </button>
           </div>
-        ) : (
+        )}
+
+        {!isSearchMode && !isLoading && !displayError && (
           <VirtualizedTimeline
             assets={assets}
             hasMoreContent={hasMoreContent}
@@ -295,7 +416,7 @@ export function Timeline() {
       {selectedAsset && (
         <PhotoViewer
           asset={selectedAsset}
-          assets={assets}
+          assets={displayAssets}
           onClose={handleCloseViewer}
           thumbnailPosition={selectedThumbnailPosition}
           getThumbnailPosition={getThumbnailPosition ?? undefined}
