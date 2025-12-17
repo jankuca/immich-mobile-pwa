@@ -63,8 +63,9 @@ export function Search() {
   }, [])
 
   // Track keyboard height using VisualViewport API
-  // Store initial window height to compare against - this doesn't change when keyboard opens
-  const initialWindowHeight = useRef(window.innerHeight)
+  // Store baseline dimensions to compare against
+  const baselineHeight = useRef(window.innerHeight)
+  const baselineWidth = useRef(window.innerWidth)
   const [keyboardHeight, setKeyboardHeight] = useState(0)
 
   useEffect(() => {
@@ -73,16 +74,27 @@ export function Search() {
       return
     }
 
-    // Capture the initial height when no keyboard is present
-    initialWindowHeight.current = window.innerHeight
+    // Capture the initial dimensions when no keyboard is present
+    baselineHeight.current = window.innerHeight
+    baselineWidth.current = window.innerWidth
 
     const handleResize = () => {
-      // The keyboard height is the difference between the initial window height
-      // and the current visual viewport height
-      // We use initialWindowHeight (captured once) to avoid issues with window.innerHeight changing
-      const kbHeight = Math.max(0, Math.round(initialWindowHeight.current - viewport.height))
+      // Detect orientation change: width changed significantly
+      const widthChanged = Math.abs(window.innerWidth - baselineWidth.current) > 50
 
-      // Always update the keyboard height - we use CSS max() to handle the minimum offset
+      if (widthChanged) {
+        // Orientation changed - update baseline dimensions
+        // Use window.innerHeight as the new baseline (layout viewport height)
+        baselineHeight.current = window.innerHeight
+        baselineWidth.current = window.innerWidth
+        // Reset keyboard height on orientation change since viewport.height
+        // might not have updated yet, causing incorrect calculations
+        setKeyboardHeight(0)
+        return
+      }
+
+      // Calculate keyboard height as difference from baseline
+      const kbHeight = Math.max(0, Math.round(baselineHeight.current - viewport.height))
       setKeyboardHeight(kbHeight)
     }
 
