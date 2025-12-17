@@ -24,7 +24,7 @@ export const TabBar = () => {
 
   return (
     <div class="ios-tabbar-area">
-      <nav class="ios-tabbar ios-tabbar-labeled">
+      <nav class="ios-tabbar ios-tabbar-labeled liquid-glass">
         <a
           href="#/"
           class={`ios-tabbar-item ios-tabbar-labeled-item ${url === '/' ? 'active' : ''}`}
@@ -127,7 +127,7 @@ export const TabBar = () => {
         </a>
       </nav>
 
-      <nav class="ios-tabbar">
+      <nav class="ios-tabbar liquid-glass">
         <a
           href="#/search"
           class={`ios-tabbar-item ios-tabbar-icon-item ${url === '/search' ? 'active' : ''}`}

@@ -63,6 +63,7 @@
 
   /* Dimensions */
   --tabbar-height: 56px;
+  --search-input-height: 44px;
   --header-height: 44px;
   --album-header-height: 72px;
   --person-header-height: 120px;

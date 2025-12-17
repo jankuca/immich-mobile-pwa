@@ -185,17 +185,8 @@ html, body {
   z-index: var(--z-index-tabbar);
 }
 
-.ios-tabbar {
-  /* position: fixed;
-  bottom: calc(var(--spacing-sm) + env(safe-area-inset-bottom, 0px));
-  left: var(--spacing-lg);
-  right: var(--spacing-lg); */
-  height: var(--tabbar-height);
-  /* padding: 0 var(--spacing-sm); */
-  display: flex;
-  align-items: center;
-  /* justify-content: space-around; */
-  /* Liquid glass effect - glossy translucent background */
+/* Liquid glass effect - reusable glossy translucent background */
+.liquid-glass {
   background: rgba(var(--color-text-rgb), 0.2) linear-gradient(
     135deg,
     rgba(var(--color-background-rgb), 0.7) 0%,
@@ -204,15 +195,22 @@ html, body {
   );
   backdrop-filter: blur(10px) saturate(180%);
   -webkit-backdrop-filter: blur(10px) saturate(180%);
-  /* Squircle-like fully rounded corners */
   border-radius: 9999px;
-  /* Subtle border for glass edge */
   border: 0.5px solid rgba(var(--color-text-rgb), 0.1);
-  /* Shadow for depth */
   box-shadow:
     0 4px 24px rgba(0, 0, 0, 0.08),
     0 1px 3px rgba(0, 0, 0, 0.04),
     inset 0 0.5px 0.5px rgba(255, 255, 255, 1);
+}
+
+.liquid-glass:focus-within {
+  border-color: rgba(var(--color-primary-rgb, 59, 130, 246), 0.5);
+}
+
+.ios-tabbar {
+  height: var(--tabbar-height);
+  display: flex;
+  align-items: center;
   z-index: var(--z-index-tabbar);
 }
 
@@ -254,11 +252,15 @@ html, body {
 
 /* Dark mode support */
 @media (prefers-color-scheme: dark) {
-  .ios-tabbar {
+  .liquid-glass {
     border-color: rgba(255, 255, 255, 0.15);
     box-shadow:
       0 4px 24px rgba(0, 0, 0, 0.3),
       0 1px 3px rgba(0, 0, 0, 0.15),
       inset 0 0.5px 0.5px rgba(255, 255, 255, 0.1);
+  }
+
+  .liquid-glass:focus-within {
+    border-color: rgba(var(--color-primary-rgb, 59, 130, 246), 0.6);
   }
 }

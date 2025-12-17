@@ -223,8 +223,7 @@ export function Search() {
   }
 
   // Base offset using CSS variables (tab bar + spacing + safe area)
-  const baseOffset =
-    'calc(var(--tabbar-height) + var(--spacing-sm) + env(safe-area-inset-bottom, 0px))'
+  const baseOffset = 'calc(var(--tabbar-height) + env(safe-area-inset-bottom, 0px))'
 
   // Always use CSS max() to ensure we never go below the base offset
   // This keeps the CSS expression structure consistent and lets the browser handle the comparison
@@ -260,26 +259,11 @@ export function Search() {
             }}
           >
             <div
+              class="liquid-glass"
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                height: 'var(--tabbar-height)',
-                // Liquid glass effect - same as tab bar
-                background: `rgba(var(--color-text-rgb), 0.2) linear-gradient(
-                  135deg,
-                  rgba(var(--color-background-rgb), 0.7) 0%,
-                  rgba(var(--color-background-rgb), 0.5) 50%,
-                  rgba(var(--color-background-rgb), 0.6) 100%
-                )`,
-                backdropFilter: 'blur(10px) saturate(180%)',
-                WebkitBackdropFilter: 'blur(10px) saturate(180%)',
-                borderRadius: '9999px',
-                border: '0.5px solid rgba(var(--color-text-rgb), 0.1)',
-                boxShadow: `
-                  0 4px 24px rgba(0, 0, 0, 0.08),
-                  0 1px 3px rgba(0, 0, 0, 0.04),
-                  inset 0 0.5px 0.5px rgba(255, 255, 255, 1)
-                `,
+                height: 'var(--search-input-height)',
                 padding: '0 var(--spacing-md)',
                 gap: 'var(--spacing-sm)',
               }}
