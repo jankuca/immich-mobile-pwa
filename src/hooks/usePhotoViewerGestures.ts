@@ -1,8 +1,21 @@
 import type { RefObject } from 'preact'
 import { useEffect, useRef, useState } from 'preact/hooks'
 import type { AssetTimelineItem } from '../services/api'
-import type { SwipeDirection } from './useSwipeDirection'
-import { useSwipeVelocity } from './useSwipeVelocity'
+
+/**
+ * Gesture state for the photo viewer
+ * - idle: No gesture in progress
+ * - detecting: Touch started, direction not yet determined
+ * - swiping-horizontal: Horizontal swipe in progress (navigating between photos)
+ * - swiping-vertical: Vertical swipe in progress (closing the viewer)
+ * - animating: Transition animation in progress
+ */
+export type GestureState =
+  | 'idle'
+  | 'detecting'
+  | 'swiping-horizontal'
+  | 'swiping-vertical'
+  | 'animating'
 
 interface UsePhotoViewerGesturesProps {
   /**
@@ -41,37 +54,13 @@ interface UsePhotoViewerGesturesProps {
    * Callback when horizontal swiping state changes
    */
   onHorizontalSwipingChange?: (isHorizontalSwiping: boolean) => void
-  /**
-   * Get swipe direction synchronously (reads from ref)
-   */
-  getSwipeDirection: () => SwipeDirection
-  /**
-   * Get current X coordinate synchronously (reads from ref)
-   */
-  getCurrentX: () => number | null
-  /**
-   * Get current Y coordinate synchronously (reads from ref)
-   */
-  getCurrentY: () => number | null
-  /**
-   * Get horizontal swipe distance
-   */
-  getHorizontalSwipeDistance: () => number
-  /**
-   * Get vertical swipe distance
-   */
-  getVerticalSwipeDistance: () => number
-  /**
-   * Check if horizontal movement is dominant during detection phase
-   */
-  isHorizontalDominant: () => boolean
-  /**
-   * Reset swipe direction
-   */
-  resetSwipeDirection: () => void
 }
 
 interface UsePhotoViewerGesturesReturn {
+  /**
+   * Current gesture state
+   */
+  gestureState: GestureState
   /**
    * Current asset being viewed
    */
@@ -84,6 +73,10 @@ interface UsePhotoViewerGesturesReturn {
    * Direction of the transition
    */
   transitionDirection: 'left' | 'right' | null
+  /**
+   * Handler for touch start event
+   */
+  handleTouchStart: (e: TouchEvent) => void
   /**
    * Handler for touch move event
    */
@@ -102,8 +95,13 @@ interface UsePhotoViewerGesturesReturn {
   scrollContainerRef: RefObject<HTMLDivElement>
 }
 
+// Direction detection threshold in pixels
+const DIRECTION_THRESHOLD = 10
+
 /**
- * Combined hook for photo viewer swipe gestures
+ * Combined hook for photo viewer swipe gestures.
+ * Handles direction detection, velocity tracking, horizontal navigation,
+ * and vertical close gestures.
  */
 export function usePhotoViewerGestures({
   asset,
@@ -115,61 +113,158 @@ export function usePhotoViewerGestures({
   onClose,
   preloadAsset,
   onHorizontalSwipingChange,
-  getSwipeDirection,
-  getCurrentX,
-  getCurrentY,
-  getHorizontalSwipeDistance,
-  getVerticalSwipeDistance,
-  isHorizontalDominant,
-  resetSwipeDirection,
 }: UsePhotoViewerGesturesProps): UsePhotoViewerGesturesReturn {
+  // Asset state
   const [currentAsset, setCurrentAsset] = useState<AssetTimelineItem>(asset)
   const [transitioningAsset, setTransitioningAsset] = useState<AssetTimelineItem | null>(null)
   const [transitionDirection, setTransitionDirection] = useState<'left' | 'right' | null>(null)
   const [horizontalSwipeOffset, setHorizontalSwipeOffset] = useState<number>(0)
 
+  // Gesture state
+  const [gestureState, setGestureState] = useState<GestureState>('idle')
+
+  // Refs for DOM elements
   const photoContainerRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
   // Track pending transition timeouts so we can cancel them on rapid swipes
   const pendingTransitionRef = useRef<number | null>(null)
 
+  // Touch tracking refs (using refs for synchronous access within event handlers)
+  const startXRef = useRef<number | null>(null)
+  const startYRef = useRef<number | null>(null)
+  const currentXRef = useRef<number | null>(null)
+  const currentYRef = useRef<number | null>(null)
+
+  // Velocity tracking refs
+  const lastXRef = useRef<number | null>(null)
+  const lastMoveTimeRef = useRef<number | null>(null)
+  const velocityRef = useRef<number>(0)
+
   // Find the index of the current asset in the assets array
   const currentIndex = assets.findIndex((a) => a.id === currentAsset.id)
 
-  // Use swipe velocity hook
-  const { swipeVelocity, updateVelocity, resetVelocity } = useSwipeVelocity()
+  // Helper: Check if horizontal movement is dominant during detection phase
+  const isHorizontalDominant = (): boolean => {
+    if (
+      startXRef.current === null ||
+      startYRef.current === null ||
+      currentXRef.current === null ||
+      currentYRef.current === null
+    ) {
+      return false
+    }
+    const absX = Math.abs(currentXRef.current - startXRef.current)
+    const absY = Math.abs(currentYRef.current - startYRef.current)
+    return absX >= absY
+  }
 
-  const handleTouchMove = (e: TouchEvent) => {
-    // Read current values synchronously from refs
-    const currentX = getCurrentX()
-    const currentY = getCurrentY()
-    const swipeDirection = getSwipeDirection()
+  // Helper: Get horizontal swipe distance
+  const getHorizontalSwipeDistance = (): number => {
+    if (startXRef.current === null || currentXRef.current === null) {
+      return 0
+    }
+    return currentXRef.current - startXRef.current
+  }
 
-    if (currentX === null || currentY === null) {
+  // Helper: Get vertical swipe distance
+  const getVerticalSwipeDistance = (): number => {
+    if (startYRef.current === null || currentYRef.current === null) {
+      return 0
+    }
+    return currentYRef.current - startYRef.current
+  }
+
+  // Helper: Update velocity for momentum calculations
+  const updateVelocity = (currentX: number) => {
+    const currentTime = Date.now()
+
+    if (lastXRef.current === null || lastMoveTimeRef.current === null) {
+      lastXRef.current = currentX
+      lastMoveTimeRef.current = currentTime
       return
     }
 
-    // Update velocity for momentum calculations
-    updateVelocity(currentX)
+    const timeDelta = currentTime - lastMoveTimeRef.current
+    if (timeDelta > 0) {
+      const distance = currentX - lastXRef.current
+      velocityRef.current = distance / timeDelta // pixels per millisecond
+    }
 
-    // If direction is not yet determined, prevent scrolling if horizontal movement
-    // is dominant. This stops the scroll container from scrolling during the
-    // detection phase when the user might be starting a horizontal swipe.
-    if (swipeDirection === null) {
-      if (isHorizontalDominant()) {
-        e.preventDefault()
-      }
+    lastXRef.current = currentX
+    lastMoveTimeRef.current = currentTime
+  }
+
+  // Helper: Reset all gesture tracking state
+  const resetGestureState = () => {
+    startXRef.current = null
+    startYRef.current = null
+    currentXRef.current = null
+    currentYRef.current = null
+    lastXRef.current = null
+    lastMoveTimeRef.current = null
+    velocityRef.current = 0
+    setGestureState('idle')
+  }
+
+  const handleTouchStart = (e: TouchEvent) => {
+    const touch = e.touches[0]
+    if (!touch) {
       return
+    }
+
+    const x = touch.clientX
+    const y = touch.clientY
+
+    startXRef.current = x
+    startYRef.current = y
+    currentXRef.current = x
+    currentYRef.current = y
+    lastXRef.current = null
+    lastMoveTimeRef.current = null
+    velocityRef.current = 0
+
+    setGestureState('detecting')
+  }
+
+  const handleTouchMove = (e: TouchEvent) => {
+    // Update current touch position
+    const touch = e.touches[0]
+    if (!touch || startXRef.current === null || startYRef.current === null) {
+      return
+    }
+
+    const x = touch.clientX
+    const y = touch.clientY
+    currentXRef.current = x
+    currentYRef.current = y
+
+    // Update velocity for momentum calculations
+    updateVelocity(x)
+
+    // Determine direction if still detecting
+    if (gestureState === 'detecting') {
+      const diffX = x - startXRef.current
+      const diffY = y - startYRef.current
+      const absX = Math.abs(diffX)
+      const absY = Math.abs(diffY)
+
+      if (absX > absY && absX > DIRECTION_THRESHOLD) {
+        setGestureState('swiping-horizontal')
+        onHorizontalSwipingChange?.(true)
+      } else if (absY > absX && absY > DIRECTION_THRESHOLD) {
+        setGestureState('swiping-vertical')
+      } else {
+        // Still detecting - prevent scroll if horizontal movement is dominant
+        if (isHorizontalDominant()) {
+          e.preventDefault()
+        }
+        return
+      }
     }
 
     // Handle horizontal swipe
-    if (swipeDirection === 'horizontal') {
-      // Notify parent that horizontal swiping has started
-      if (onHorizontalSwipingChange) {
-        onHorizontalSwipingChange(true)
-      }
-
+    if (gestureState === 'swiping-horizontal') {
       e.preventDefault() // Prevent default scrolling behavior
 
       // If the image is zoomed in, only allow swiping if we're at an edge
@@ -274,7 +369,7 @@ export function usePhotoViewerGestures({
       setHorizontalSwipeOffset(swipeOffset)
     }
     // Handle vertical swipe (swipe down to close functionality)
-    else if (swipeDirection === 'vertical' && isAtTop && !isZoomed) {
+    else if (gestureState === 'swiping-vertical' && isAtTop && !isZoomed) {
       // Only handle downward swipes when at the top and not zoomed in
       const diffY = getVerticalSwipeDistance()
       if (diffY > 10) {
@@ -300,34 +395,31 @@ export function usePhotoViewerGestures({
   }
 
   const handleTouchEnd = () => {
-    // Read current swipe direction synchronously from ref
-    const swipeDirection = getSwipeDirection()
-
     // Notify parent that horizontal swiping has ended
-    if (onHorizontalSwipingChange) {
-      onHorizontalSwipingChange(false)
-    }
+    onHorizontalSwipingChange?.(false)
+
+    // Get current velocity for momentum calculations
+    const swipeVelocity = velocityRef.current
 
     // If the image is zoomed in, only handle swipe completion if at an edge
     if (isZoomed) {
       // If we're at an edge and swiping horizontally, allow navigation
       if (
-        swipeDirection === 'horizontal' &&
+        gestureState === 'swiping-horizontal' &&
         ((edgeReached === 'left' && currentIndex > 0) ||
           (edgeReached === 'right' && currentIndex < assets.length - 1))
       ) {
         // Continue with swipe completion logic
       } else {
         // Otherwise, reset state and return
-        resetSwipeDirection()
-        resetVelocity()
+        resetGestureState()
         setHorizontalSwipeOffset(0)
         return
       }
     }
 
     // Handle horizontal swipe completion
-    if (swipeDirection === 'horizontal' && photoContainerRef.current) {
+    if (gestureState === 'swiping-horizontal' && photoContainerRef.current) {
       const threshold = window.innerWidth * 0.3 // 30% of screen width as threshold
 
       // Calculate momentum-based threshold
@@ -487,7 +579,12 @@ export function usePhotoViewerGestures({
       }
     }
     // Handle vertical swipe completion (swipe down to close functionality)
-    else if (swipeDirection === 'vertical' && isAtTop && !isZoomed && scrollContainerRef.current) {
+    else if (
+      gestureState === 'swiping-vertical' &&
+      isAtTop &&
+      !isZoomed &&
+      scrollContainerRef.current
+    ) {
       const transform = scrollContainerRef.current.style.transform
       const match = transform.match(/translateY\((\d+)px\)/)
 
@@ -514,8 +611,7 @@ export function usePhotoViewerGestures({
     }
 
     // Reset state
-    resetSwipeDirection()
-    resetVelocity()
+    resetGestureState()
     setHorizontalSwipeOffset(0)
   }
 
@@ -525,9 +621,11 @@ export function usePhotoViewerGestures({
   }, [asset])
 
   return {
+    gestureState,
     currentAsset,
     transitioningAsset,
     transitionDirection,
+    handleTouchStart,
     handleTouchMove,
     handleTouchEnd,
     photoContainerRef,

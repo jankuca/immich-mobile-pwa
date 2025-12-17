@@ -2,7 +2,6 @@ import { createPortal } from 'preact/compat'
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks'
 import { useImagePreloader } from '../../hooks/useImagePreloader'
 import { usePhotoViewerGestures } from '../../hooks/usePhotoViewerGestures'
-import { useSwipeDirection } from '../../hooks/useSwipeDirection'
 import { type ThumbnailPosition, useZoomTransition } from '../../hooks/useZoomTransition'
 import type { AssetTimelineItem } from '../../services/api'
 import { PhotoDetails } from './PhotoDetails'
@@ -89,25 +88,13 @@ export const PhotoViewer = ({
   // Use the image preloader hook
   const { loadingStatus, preloadImage, handleImageLoad } = useImagePreloader(assets, asset.id)
 
-  // Use a single instance of swipe direction hook
-  const {
-    handleTouchStart,
-    handleTouchMove: directionTouchMove,
-    resetSwipeDirection,
-    getSwipeDirection,
-    getCurrentX,
-    getCurrentY,
-    getHorizontalSwipeDistance,
-    getVerticalSwipeDistance,
-    isHorizontalDominant,
-  } = useSwipeDirection()
-
-  // Use the photo viewer gestures hook
+  // Use the photo viewer gestures hook (consolidated direction detection, velocity tracking, and gestures)
   const {
     currentAsset,
     transitioningAsset,
     transitionDirection,
-    handleTouchMove: gesturesTouchMove,
+    handleTouchStart,
+    handleTouchMove,
     handleTouchEnd,
     photoContainerRef,
     scrollContainerRef,
@@ -124,13 +111,6 @@ export const PhotoViewer = ({
     onClose: handleClose, // Use our transition handler instead of direct onClose
     preloadAsset: preloadImage,
     onHorizontalSwipingChange: setIsHorizontalSwiping,
-    getSwipeDirection,
-    getCurrentX,
-    getCurrentY,
-    getHorizontalSwipeDistance,
-    getVerticalSwipeDistance,
-    isHorizontalDominant,
-    resetSwipeDirection,
   })
 
   // Keep currentAssetRef updated for zoom-out animation and notify parent of asset change
@@ -141,15 +121,6 @@ export const PhotoViewer = ({
       onAssetChange?.(currentAsset)
     }
   }, [asset.id, currentAsset, onAssetChange])
-
-  // Combined touch move handler
-  const handleTouchMove = useCallback(
-    (e: TouchEvent) => {
-      directionTouchMove(e)
-      gesturesTouchMove(e)
-    },
-    [directionTouchMove, gesturesTouchMove],
-  )
 
   // Calculate the photo container height based on scroll position
   // As we scroll down, the photo container shrinks from 100vh to a minimum height
