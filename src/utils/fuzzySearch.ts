@@ -1,13 +1,26 @@
 /**
+ * Normalize a string for fuzzy matching by:
+ * 1. Converting to lowercase
+ * 2. Removing diacritics (accents) so "café" matches "cafe"
+ */
+function normalizeForSearch(str: string): string {
+  return str
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+}
+
+/**
  * Simple fuzzy search implementation for filtering lists by name.
  * Matches if all characters in the query appear in order in the target string.
+ * Diacritics are treated as optional (e.g., "cafe" matches "café").
  */
 export function fuzzyMatch(query: string, target: string): boolean {
   if (!query) return true
   if (!target) return false
 
-  const normalizedQuery = query.toLowerCase()
-  const normalizedTarget = target.toLowerCase()
+  const normalizedQuery = normalizeForSearch(query)
+  const normalizedTarget = normalizeForSearch(target)
 
   // Simple contains check first (most common case)
   if (normalizedTarget.includes(normalizedQuery)) {
@@ -28,13 +41,14 @@ export function fuzzyMatch(query: string, target: string): boolean {
 /**
  * Calculate a match score for sorting results.
  * Higher scores indicate better matches.
+ * Diacritics are treated as optional (e.g., "cafe" matches "café").
  */
 export function fuzzyScore(query: string, target: string): number {
   if (!query) return 0
   if (!target) return -1
 
-  const normalizedQuery = query.toLowerCase()
-  const normalizedTarget = target.toLowerCase()
+  const normalizedQuery = normalizeForSearch(query)
+  const normalizedTarget = normalizeForSearch(target)
 
   // Exact match gets highest score
   if (normalizedTarget === normalizedQuery) {
@@ -107,36 +121,73 @@ export function fuzzyFilter<T>(items: T[], query: string, getName: (item: T) => 
 }
 
 /**
+ * Build a mapping from normalized string indices to original string indices.
+ * When NFD normalization splits "é" into "e" + combining accent, we need to
+ * know which original character each normalized character came from.
+ */
+function buildIndexMapping(original: string): number[] {
+  const mapping: number[] = []
+  const normalized = original.toLowerCase().normalize('NFD')
+
+  let normalizedIdx = 0
+  for (let origIdx = 0; origIdx < original.length; origIdx++) {
+    // Get the NFD form of this single character
+    const charNormalized = original[origIdx].toLowerCase().normalize('NFD')
+    for (let j = 0; j < charNormalized.length; j++) {
+      if (normalizedIdx < normalized.length) {
+        mapping[normalizedIdx] = origIdx
+        normalizedIdx++
+      }
+    }
+  }
+
+  return mapping
+}
+
+/**
  * Get the indices of matched characters for highlighting.
  * Returns an array of indices in the target string that matched the query.
+ * Diacritics are treated as optional (e.g., "cafe" matches "café").
  */
 export function getMatchIndices(query: string, target: string): number[] {
   if (!query || !target) return []
 
-  const normalizedQuery = query.toLowerCase()
-  const normalizedTarget = target.toLowerCase()
+  const normalizedQuery = normalizeForSearch(query)
+  const normalizedTarget = normalizeForSearch(target)
+
+  // Build mapping from normalized indices to original indices
+  const indexMapping = buildIndexMapping(target)
 
   // Check for substring match first (most common case)
   const substringIndex = normalizedTarget.indexOf(normalizedQuery)
   if (substringIndex !== -1) {
-    // Return consecutive indices for the substring match
-    return Array.from({ length: normalizedQuery.length }, (_, i) => substringIndex + i)
+    // Map normalized indices back to original indices, deduplicating
+    const originalIndices = new Set<number>()
+    for (let i = 0; i < normalizedQuery.length; i++) {
+      const normalizedIdx = substringIndex + i
+      if (normalizedIdx < indexMapping.length) {
+        originalIndices.add(indexMapping[normalizedIdx])
+      }
+    }
+    return Array.from(originalIndices).sort((a, b) => a - b)
   }
 
   // Fuzzy match: find character positions
-  const indices: number[] = []
+  const originalIndices = new Set<number>()
   let queryIndex = 0
 
   for (let i = 0; i < normalizedTarget.length && queryIndex < normalizedQuery.length; i++) {
     if (normalizedTarget[i] === normalizedQuery[queryIndex]) {
-      indices.push(i)
+      if (i < indexMapping.length) {
+        originalIndices.add(indexMapping[i])
+      }
       queryIndex++
     }
   }
 
   // Only return indices if all query characters were found
   if (queryIndex === normalizedQuery.length) {
-    return indices
+    return Array.from(originalIndices).sort((a, b) => a - b)
   }
 
   return []

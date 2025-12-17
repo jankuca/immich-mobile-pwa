@@ -157,6 +157,12 @@ export function SearchInput({
           value={value}
           onInput={handleInput}
           placeholder={placeholder}
+          onMouseDown={(e) => {
+            // Prevent default focus - we'll handle it via the container click
+            if (document.activeElement !== inputRef.current) {
+              e.preventDefault()
+            }
+          }}
           style={{
             height: '24px',
             flex: 1,

@@ -1,26 +1,21 @@
-import { useEffect, useRef, useState } from 'preact/hooks'
+import { useEffect, useState } from 'preact/hooks'
+
+// Shared baseline dimensions - captured once when no keyboard is present
+// This ensures all hook instances use the same baseline regardless of mount timing
+let sharedBaselineHeight = window.innerHeight
+let sharedBaselineWidth = window.innerWidth
 
 /**
  * Hook to track the on-screen keyboard height using the VisualViewport API.
  * This is useful for positioning elements above the keyboard on mobile devices.
  *
- * Uses debouncing to avoid multiple state updates during keyboard animation,
- * which can cause layout jitter.
+ * Uses a shared baseline across all hook instances to ensure consistent
+ * keyboard height calculation regardless of when each component mounts.
  *
  * @returns The current keyboard height in pixels
  */
 export function useKeyboardHeight() {
   const [keyboardHeight, setKeyboardHeight] = useState(0)
-
-  // Store baseline dimensions to compare against
-  const baselineHeight = useRef(window.innerHeight)
-  const baselineWidth = useRef(window.innerWidth)
-
-  // Debounce timer ref
-  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  // Track if we've set the initial keyboard height (for immediate first update)
-  const hasInitialUpdate = useRef(false)
 
   useEffect(() => {
     const viewport = window.visualViewport
@@ -28,61 +23,37 @@ export function useKeyboardHeight() {
       return
     }
 
-    // Capture the initial dimensions when no keyboard is present
-    baselineHeight.current = window.innerHeight
-    baselineWidth.current = window.innerWidth
-
     const handleResize = () => {
       // Detect orientation change: width changed significantly
-      const widthChanged = Math.abs(window.innerWidth - baselineWidth.current) > 50
+      const widthChanged = Math.abs(window.innerWidth - sharedBaselineWidth) > 50
 
       if (widthChanged) {
-        // Orientation changed - update baseline dimensions
-        baselineHeight.current = window.innerHeight
-        baselineWidth.current = window.innerWidth
-        // Reset keyboard height on orientation change
+        // Orientation changed - update shared baseline dimensions
+        sharedBaselineHeight = window.innerHeight
+        sharedBaselineWidth = window.innerWidth
         setKeyboardHeight(0)
-        hasInitialUpdate.current = false
         return
       }
 
-      // Calculate keyboard height as difference from baseline
-      const kbHeight = Math.max(0, Math.round(baselineHeight.current - viewport.height))
-
-      // Clear any pending debounce
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current)
+      // If keyboard is closed (viewport matches window), update baseline
+      // This handles cases where the initial baseline was captured with keyboard open
+      if (Math.abs(viewport.height - window.innerHeight) < 10) {
+        sharedBaselineHeight = window.innerHeight
+        sharedBaselineWidth = window.innerWidth
       }
 
-      // If keyboard is opening (height increased from 0), update immediately
-      // to move the search input above the keyboard right away
-      if (!hasInitialUpdate.current && kbHeight > 0) {
-        setKeyboardHeight(kbHeight)
-        hasInitialUpdate.current = true
-        return
-      }
-
-      // If keyboard is closing (height going to 0), update immediately
-      if (kbHeight === 0) {
-        setKeyboardHeight(0)
-        hasInitialUpdate.current = false
-        return
-      }
-
-      // For incremental changes during animation, debounce to avoid jitter
-      debounceTimerRef.current = setTimeout(() => {
-        setKeyboardHeight(kbHeight)
-      }, 50)
+      // Calculate keyboard height as difference from shared baseline
+      const kbHeight = Math.max(0, Math.round(sharedBaselineHeight - viewport.height))
+      setKeyboardHeight(kbHeight)
     }
 
-    // Only listen to resize, not scroll - scroll events can cause jitter
+    // Check current state immediately
+    handleResize()
+
     viewport.addEventListener('resize', handleResize)
 
     return () => {
       viewport.removeEventListener('resize', handleResize)
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current)
-      }
     }
   }, [])
 
