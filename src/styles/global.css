@@ -177,7 +177,7 @@ html, body {
   --timeline-bottom-offset: var(--tabbar-height);
 }
 
-.ios-page:has(.ios-search-wrapper) .virtualized-timeline {
+.ios-page.has-search-input .virtualized-timeline {
   --timeline-bottom-offset: calc(var(--tabbar-height) + var(--search-input-height) + var(--spacing-sm) * 2);
 }
 
@@ -187,8 +187,8 @@ html, body {
   content: '';
 }
 
-/* When page has search wrapper, add extra bottom padding to ios-content */
-.ios-page:has(.ios-search-wrapper) .ios-content::after {
+/* When page has search input, add extra bottom padding to ios-content */
+.ios-page.has-search-input .ios-content::after {
   height: calc(var(--tabbar-height) + var(--search-input-height) + var(--spacing-sm) * 2 + calc(var(--spacing-sm) + env(safe-area-inset-bottom, 0px)));
 }
 

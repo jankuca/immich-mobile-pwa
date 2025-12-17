@@ -243,7 +243,7 @@ export function Timeline() {
   }
 
   return (
-    <div class="ios-page">
+    <div class="ios-page has-search-input">
       <Header
         title={isSearchMode ? 'Search' : 'Timeline'}
         rightAction={{

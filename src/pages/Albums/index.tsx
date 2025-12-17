@@ -279,7 +279,7 @@ export function Albums() {
   )
 
   return (
-    <div class="ios-page">
+    <div class="ios-page has-search-input">
       <Header
         title="Albums"
         rightAction={{

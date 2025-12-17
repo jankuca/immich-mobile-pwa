@@ -400,7 +400,7 @@ export function People() {
   )
 
   return (
-    <div class="ios-page">
+    <div class="ios-page has-search-input">
       <Header
         title="People"
         rightAction={{
