@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
-import { usePinchZoom } from '../../hooks/usePinchZoom'
+import { useImageGestures } from '../../hooks/useImageGestures'
 import type { Asset, AssetTimelineItem } from '../../services/api'
 import { apiService } from '../../services/api'
 import { AssetImage } from './AssetImage'
@@ -79,7 +79,7 @@ export const PhotoViewerCarouselItem = ({
     }
   }, [])
 
-  // Use pinch zoom hook for main images only
+  // Use image gestures hook for main images only
   const {
     isZoomed,
     isAtLeftEdge,
@@ -90,7 +90,7 @@ export const PhotoViewerCarouselItem = ({
     handleDoubleTap,
     getTransformStyle,
     resetZoom,
-  } = usePinchZoom({
+  } = useImageGestures({
     minZoom: 1,
     maxZoom: 5,
     initialZoom: 1,

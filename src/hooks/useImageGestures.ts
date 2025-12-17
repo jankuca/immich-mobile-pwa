@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
 
-interface UsePinchZoomProps {
+interface UseImageGesturesProps {
   /**
    * Minimum zoom level
    */
@@ -39,7 +39,7 @@ interface UsePinchZoomProps {
   doubleTapZoomDuration?: number
 }
 
-interface UsePinchZoomReturn {
+interface UseImageGesturesReturn {
   /**
    * Current zoom level
    */
@@ -95,9 +95,9 @@ interface UsePinchZoomReturn {
 }
 
 /**
- * Hook to handle pinch zoom and pan gestures
+ * Hook to handle image-level gestures: pinch zoom, pan, and double-tap
  */
-export function usePinchZoom({
+export function useImageGestures({
   minZoom = 1,
   maxZoom = 5,
   initialZoom = 1,
@@ -107,7 +107,7 @@ export function usePinchZoom({
   containerWidth = window.innerWidth,
   containerHeight = window.innerHeight,
   doubleTapZoomDuration = 300,
-}: UsePinchZoomProps = {}): UsePinchZoomReturn {
+}: UseImageGesturesProps = {}): UseImageGesturesReturn {
   const [zoom, setZoom] = useState<number>(initialZoom)
   const [panX, setPanX] = useState<number>(0)
   const [panY, setPanY] = useState<number>(0)
