@@ -15,13 +15,42 @@ interface SearchInputProps {
  * scrolls the page content to bring the input into view, causing layout jumps.
  *
  * The solution (from blog.opendigerati.com):
- * 1. Have a dummy input at the TOP of the viewport (invisible)
- * 2. Real input stays inline at the bottom where users expect it
- * 3. When user taps, focus the dummy input first (at top) - Safari doesn't scroll
- * 4. After keyboard opens, transfer focus to the real input
+ * 1. Create a temporary dummy input at the TOP of the viewport
+ * 2. Focus it to open keyboard (Safari doesn't scroll because it's at top)
+ * 3. Transfer focus to the real input
+ * 4. Remove the dummy input
  *
  * @see https://blog.opendigerati.com/the-eccentric-ways-of-ios-safari-with-the-keyboard-b5aa3f34228d
  */
+
+/**
+ * Focus an input using the iOS dummy input hack.
+ * Creates a temporary input at the top of the viewport, focuses it to open
+ * the keyboard, then transfers focus to the real input and removes the dummy.
+ */
+function focusWithIOSHack(targetInput: HTMLInputElement) {
+  // Create a temporary input at the top of the viewport
+  const dummyInput = document.createElement('input')
+  dummyInput.style.position = 'fixed'
+  dummyInput.style.top = '0'
+  dummyInput.style.left = '0'
+  dummyInput.style.width = '100%'
+  dummyInput.style.height = '44px'
+  dummyInput.style.opacity = '0'
+  dummyInput.style.zIndex = '-1'
+  dummyInput.style.fontSize = '16px' // Prevent iOS zoom
+  dummyInput.setAttribute('aria-hidden', 'true')
+
+  // Add to body and focus - this opens the keyboard without scrolling
+  document.body.appendChild(dummyInput)
+  dummyInput.focus()
+
+  // After keyboard opens, transfer focus to real input and remove dummy
+  setTimeout(() => {
+    targetInput.focus({ preventScroll: true })
+    document.body.removeChild(dummyInput)
+  }, 50)
+}
 
 export function SearchInput({
   value,
@@ -31,7 +60,6 @@ export function SearchInput({
   autoFocus = false,
 }: SearchInputProps) {
   const inputRef = useRef<HTMLInputElement>(null)
-  const dummyInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (autoFocus && inputRef.current) {
@@ -71,38 +99,13 @@ export function SearchInput({
 
     e.preventDefault()
 
-    // Focus the dummy input at the top first - this opens the keyboard
-    // without causing Safari to scroll the page
-    if (dummyInputRef.current) {
-      dummyInputRef.current.focus()
-
-      // After the keyboard is open, transfer focus to the real input
-      setTimeout(() => {
-        inputRef.current?.focus({ preventScroll: true })
-      }, 50)
+    if (inputRef.current) {
+      focusWithIOSHack(inputRef.current)
     }
   }
 
   return (
     <form onSubmit={handleSubmit} style={{ display: 'contents' }}>
-      {/* Dummy input at top of viewport - used to open keyboard without scroll */}
-      <input
-        ref={dummyInputRef}
-        type="text"
-        aria-hidden="true"
-        tabIndex={-1}
-        style={{
-          position: 'fixed',
-          top: '0px',
-          left: '0px',
-          width: '1px',
-          height: '1px',
-          opacity: 0,
-          fontSize: '16px', // Prevent iOS zoom
-          pointerEvents: 'none',
-        }}
-      />
-
       <div
         class="liquid-glass"
         onClick={handleContainerClick}
