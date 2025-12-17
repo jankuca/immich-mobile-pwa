@@ -216,7 +216,7 @@ export function Search() {
 
   // Always use CSS max() to ensure we never go below the base offset
   // This keeps the CSS expression structure consistent and lets the browser handle the comparison
-  const formBottom = `max(${keyboardHeight}px, ${baseOffset})`
+  const formBottom = `max(${keyboardHeight}px + var(--spacing-md), ${baseOffset})`
 
   // Whether to show the search input UI (initial state, no results, no search in progress)
   const showSearchUI = !searchResults && !isSearching
@@ -228,7 +228,7 @@ export function Search() {
 
       <div class="ios-content" style={{ overflow: showSearchUI ? 'hidden' : undefined }}>
         {/* Fixed bottom search form - only shown in search UI mode */}
-        {showSearchUI && (
+        {
           <form
             onSubmit={handleSubmit}
             class="search-input-bar"
@@ -239,6 +239,11 @@ export function Search() {
               right: 0,
               padding:
                 '0 max(var(--spacing-lg), env(safe-area-inset-right)) 0 max(var(--spacing-lg), env(safe-area-inset-left))',
+              display: 'flex',
+              flexDirection: 'column-reverse',
+              alignItems: 'stretch',
+              justifyContent: 'flex-end',
+              gap: 'var(--spacing-md)',
               zIndex: 'var(--z-index-tabbar)',
             }}
           >
@@ -351,8 +356,102 @@ export function Search() {
                 </button>
               )}
             </div>
+
+            {/* Recent searches - positioned above search input, grows from bottom */}
+            {showSearchUI && recentSearches.length > 0 && (
+              <div
+                class="recent-searches"
+                style={{
+                  maxHeight: '50vh',
+                  overflowY: 'auto',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'flex-end',
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginBottom: 'var(--spacing-sm)',
+                    padding: '0 var(--spacing-sm)',
+                  }}
+                >
+                  <h2
+                    style={{
+                      fontSize: 'var(--font-size-md)',
+                      fontWeight: 'var(--font-weight-semibold)',
+                      color: 'var(--color-gray)',
+                    }}
+                  >
+                    Recent
+                  </h2>
+
+                  <button
+                    onClick={handleClearRecentSearches}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--color-primary)',
+                      fontSize: 'var(--font-size-sm)',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Clear
+                  </button>
+                </div>
+
+                <ul
+                  style={{
+                    listStyle: 'none',
+                    padding: 0,
+                    margin: 0,
+                  }}
+                >
+                  {recentSearches.map((search, index) => (
+                    <li
+                      key={index}
+                      onClick={() => handleRecentSearchClick(search)}
+                      style={{
+                        padding: 'var(--spacing-sm) var(--spacing-md)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 'var(--spacing-sm)',
+                        cursor: 'pointer',
+                        borderRadius: 'var(--radius-md)',
+                      }}
+                    >
+                      <svg
+                        width="20"
+                        height="20"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          d="M12 8V12L15 15"
+                          stroke="var(--color-gray)"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        />
+                        <path
+                          d="M3.05 11a9 9 0 1 1 .5 4"
+                          stroke="var(--color-gray)"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        />
+                      </svg>
+                      <span>{search}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </form>
-        )}
+        }
 
         {/* Loading indicator */}
         {isSearching && (
@@ -642,107 +741,6 @@ export function Search() {
                   <p style={{ marginTop: 'var(--spacing-md)' }}>No results found for "{query}"</p>
                 </div>
               )}
-          </div>
-        )}
-
-        {/* Recent searches - positioned above search input, grows from bottom */}
-        {showSearchUI && recentSearches.length > 0 && (
-          <div
-            class="recent-searches"
-            style={{
-              position: 'fixed',
-              left: 0,
-              right: 0,
-              // Position above the search form (base offset + another tab bar height for the form)
-              bottom: `calc(max(${keyboardHeight}px, ${baseOffset}) + var(--tabbar-height) + var(--spacing-sm))`,
-              maxHeight: '50vh',
-              overflowY: 'auto',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'flex-end',
-              padding:
-                '0 max(var(--spacing-lg), env(safe-area-inset-right)) 0 max(var(--spacing-lg), env(safe-area-inset-left))',
-            }}
-          >
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginBottom: 'var(--spacing-sm)',
-                padding: '0 var(--spacing-sm)',
-              }}
-            >
-              <h2
-                style={{
-                  fontSize: 'var(--font-size-md)',
-                  fontWeight: 'var(--font-weight-semibold)',
-                  color: 'var(--color-gray)',
-                }}
-              >
-                Recent
-              </h2>
-
-              <button
-                onClick={handleClearRecentSearches}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: 'var(--color-primary)',
-                  fontSize: 'var(--font-size-sm)',
-                  cursor: 'pointer',
-                }}
-              >
-                Clear
-              </button>
-            </div>
-
-            <ul
-              style={{
-                listStyle: 'none',
-                padding: 0,
-                margin: 0,
-              }}
-            >
-              {recentSearches.map((search, index) => (
-                <li
-                  key={index}
-                  onClick={() => handleRecentSearchClick(search)}
-                  style={{
-                    padding: 'var(--spacing-sm) var(--spacing-md)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 'var(--spacing-md)',
-                    cursor: 'pointer',
-                    borderRadius: 'var(--radius-md)',
-                  }}
-                >
-                  <svg
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path
-                      d="M12 8V12L15 15"
-                      stroke="var(--color-gray)"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    />
-                    <path
-                      d="M3.05 11a9 9 0 1 1 .5 4"
-                      stroke="var(--color-gray)"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    />
-                  </svg>
-                  <span>{search}</span>
-                </li>
-              ))}
-            </ul>
           </div>
         )}
 
