@@ -588,6 +588,7 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
                 position: 'sticky',
                 top: 0,
                 zIndex: 10,
+                height: `${HEADER_HEIGHT}px`,
                 marginBottom: `-${HEADER_HEIGHT}px`, // Compensate for the space it takes
                 transform: stickyOffset > 0 ? `translateY(-${stickyOffset}px)` : undefined,
               }}
