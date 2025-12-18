@@ -35,10 +35,13 @@ const ACTIVE_MONTH_ITEM_HEIGHT = 32 // 14px font + 12px padding-y + 6px gap
 
 interface MonthItemProps {
   label: string
+  year: number
   isActive: boolean
 }
 
-function MonthItem({ label, isActive }: MonthItemProps) {
+function MonthItem({ label, year, isActive }: MonthItemProps) {
+  const displayLabel = `${label} ${year}`
+
   if (isActive) {
     return (
       <div
@@ -53,7 +56,7 @@ function MonthItem({ label, isActive }: MonthItemProps) {
           border: 'none',
         }}
       >
-        {label}
+        {displayLabel}
       </div>
     )
   }
@@ -69,7 +72,7 @@ function MonthItem({ label, isActive }: MonthItemProps) {
         fontWeight: 'var(--font-weight-regular)',
       }}
     >
-      {label}
+      {displayLabel}
     </div>
   )
 }
@@ -86,14 +89,12 @@ function ScrubberList({ yearGroups, activeYearIndex, currentPosition, dragY }: S
   // We need to know how much height is above the active month
   let heightAboveActive = 0
 
+  // Inactive years before active year: each shows just a year label
   for (let i = 0; i < activeYearIndex; i++) {
-    heightAboveActive += YEAR_ITEM_HEIGHT // Each year label
+    heightAboveActive += YEAR_ITEM_HEIGHT
   }
 
-  // Add height of current year label
-  heightAboveActive += YEAR_ITEM_HEIGHT
-
-  // Add height of months above active month in the active year
+  // Active year has no year label, just months - add height of months above active month
   const activeGroup = yearGroups[activeYearIndex]
   if (activeGroup) {
     for (const month of activeGroup.months) {
@@ -132,24 +133,28 @@ function ScrubberList({ yearGroups, activeYearIndex, currentPosition, dragY }: S
             key={group.year}
             style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}
           >
-            <div
-              style={{
-                padding: '2px 8px',
-                marginRight: '8px',
-                borderRadius: '10px',
-                fontWeight: isActive ? 'var(--font-weight-semibold)' : 'var(--font-weight-regular)',
-                fontSize: '11px',
-                color: isActive ? 'var(--color-text)' : 'var(--color-gray)',
-                background: isActive ? 'rgba(var(--color-text-rgb), 0.08)' : 'transparent',
-              }}
-            >
-              {group.year}
-            </div>
+            {/* Inactive years: show just the year label */}
+            {!isActive && (
+              <div
+                style={{
+                  padding: '2px 8px',
+                  marginRight: '8px',
+                  borderRadius: '10px',
+                  fontWeight: 'var(--font-weight-regular)',
+                  fontSize: '11px',
+                  color: 'var(--color-gray)',
+                }}
+              >
+                {group.year}
+              </div>
+            )}
+            {/* Active year: show months with year (e.g. "Mar 2016") */}
             {isActive &&
               group.months.map((month) => (
                 <MonthItem
                   key={month.month}
                   label={month.label}
+                  year={group.year}
                   isActive={month.month === currentPosition.month}
                 />
               ))}
