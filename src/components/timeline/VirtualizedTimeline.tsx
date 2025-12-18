@@ -110,6 +110,15 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
   // Throttle visible date updates to avoid excessive re-renders
   const lastVisibleDateRef = useRef<string | null>(null)
 
+  // Cache of bucket heights - once a bucket is loaded, we lock its height to prevent layout jumps
+  const bucketHeightCacheRef = useRef<Map<number, number>>(new Map())
+
+  // Current bucket tracking - tracks which bucket the user is viewing, independent of scroll position
+  // This prevents bugs where bucket height changes cause scroll position to map to wrong bucket
+  const currentBucketIndexRef = useRef<number>(0)
+  const offsetWithinBucketRef = useRef<number>(0)
+  const isAdjustingScrollRef = useRef<boolean>(false)
+
   // Get actual scroll position from DOM (fallback to state for SSR/initial render)
   const getScrollTop = useCallback(() => {
     return scrollContainerRef.current?.scrollTop ?? scrollTop
@@ -184,6 +193,7 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
 
     const positions: BucketPosition[] = []
     let currentTop = 0
+    const heightCache = bucketHeightCacheRef.current
 
     for (let i = 0; i < allBuckets.length; i++) {
       const bucket = allBuckets[i]
@@ -193,12 +203,18 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
 
       const bucketSections = sectionsByBucket.get(i)
       // A bucket is truly loaded only if we have sections for it
-      // This prevents race conditions where loadedBucketIndices updates before sections
       const isLoaded = bucketSections !== undefined && bucketSections.length > 0
 
       let bucketHeight: number
 
-      if (isLoaded) {
+      // Check if we have a cached height for this bucket
+      // Once a bucket's actual height is known, we use it forever to prevent layout jumps
+      const cachedHeight = heightCache.get(i)
+
+      if (cachedHeight !== undefined) {
+        // Use cached height (from when bucket was loaded)
+        bucketHeight = cachedHeight
+      } else if (isLoaded) {
         // Loaded bucket: calculate exact height based on actual sections
         // Each section has 1 header (if showing) + N rows
         let height = 0
@@ -210,8 +226,10 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
           height += sectionRowCount * rowHeight
         }
         bucketHeight = height
+        // Cache this height for future use
+        heightCache.set(i, bucketHeight)
       } else {
-        // Unloaded bucket: estimate height
+        // Unloaded bucket without cached height: estimate
         // We don't know how many days are in this bucket, so estimate 1 header per bucket
         const bucketRowCount = Math.ceil(bucket.count / columnCount)
         const headerHeight = showDateHeaders ? HEADER_HEIGHT : 0
@@ -253,6 +271,11 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
 
       const bucketPos = bucketPositions[bucketIndex]
       if (bucketPos) {
+        // Update bucket tracking BEFORE scrolling
+        currentBucketIndexRef.current = bucketIndex
+        offsetWithinBucketRef.current = 0
+        // Mark as programmatic scroll to prevent scroll handler from re-processing
+        isAdjustingScrollRef.current = true
         scrollContainer.scrollTop = bucketPos.top
       }
     },
@@ -667,6 +690,12 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
       return
     }
 
+    // Skip if this is a programmatic scroll adjustment (to prevent loops)
+    if (isAdjustingScrollRef.current) {
+      isAdjustingScrollRef.current = false
+      return
+    }
+
     // Use RAF to batch scroll updates
     if (scrollRafRef.current) {
       cancelAnimationFrame(scrollRafRef.current)
@@ -692,44 +721,63 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
         firstVisibleAssetIdRef.current = visibleItem.assets[0]?.id ?? null
       }
 
-      // Always check for unloaded buckets in the visible viewport and request loading
-      // This is needed even when some loaded content is visible, because the user may be
-      // scrolling into an unloaded area while still seeing loaded content from another bucket
-      if (bucketPositions.length > 0 && onBucketLoadRequest) {
-        // Binary search to find first bucket that might be visible
-        let lo = 0
-        let hi = bucketPositions.length - 1
-        while (lo < hi) {
-          const mid = Math.floor((lo + hi) / 2)
-          const bp = bucketPositions[mid]
-          if (bp && bp.top + bp.height <= newScrollTop) {
-            lo = mid + 1
+      // Update current bucket tracking based on scroll position
+      // This tracks which bucket the user is viewing to prevent wrong bucket loading
+      if (bucketPositions.length > 0) {
+        const currentBucket = bucketPositions[currentBucketIndexRef.current]
+        if (currentBucket) {
+          // Calculate current position relative to our tracked bucket
+          const currentBucketTop = currentBucket.top
+          const newOffset = newScrollTop - currentBucketTop
+
+          // Check if we've scrolled into a different bucket
+          if (newOffset < 0) {
+            // Scrolled up into previous bucket
+            const prevIndex = Math.max(0, currentBucketIndexRef.current - 1)
+            currentBucketIndexRef.current = prevIndex
+            const prevBucket = bucketPositions[prevIndex]
+            if (prevBucket) {
+              offsetWithinBucketRef.current = newScrollTop - prevBucket.top
+            }
+          } else if (newOffset >= currentBucket.height) {
+            // Scrolled down into next bucket
+            const nextIndex = Math.min(
+              bucketPositions.length - 1,
+              currentBucketIndexRef.current + 1,
+            )
+            currentBucketIndexRef.current = nextIndex
+            const nextBucket = bucketPositions[nextIndex]
+            if (nextBucket) {
+              offsetWithinBucketRef.current = newScrollTop - nextBucket.top
+            }
           } else {
-            hi = mid
+            offsetWithinBucketRef.current = newOffset
+          }
+        }
+      }
+
+      // Request loading of buckets around the TRACKED current bucket, not scroll position
+      // This prevents loading wrong buckets when bucket heights change
+      if (bucketPositions.length > 0 && onBucketLoadRequest) {
+        const currentIdx = currentBucketIndexRef.current
+        // Load a few buckets around the current one
+        const loadRadius = 2
+        for (
+          let i = Math.max(0, currentIdx - loadRadius);
+          i <= Math.min(bucketPositions.length - 1, currentIdx + loadRadius);
+          i++
+        ) {
+          const bp = bucketPositions[i]
+          if (bp && !bp.loaded) {
+            onBucketLoadRequest(bp.bucketIndex)
           }
         }
 
-        // Check buckets starting from the first potentially visible one
-        for (let i = lo; i < bucketPositions.length; i++) {
-          const bp = bucketPositions[i]
-          if (!bp) {
-            continue
-          }
-
-          // Early exit if we've passed the viewport
-          if (bp.top >= newScrollTop + clientHeight) {
-            break
-          }
-
-          // Check if bucket is in viewport
-          if (bp.top + bp.height > newScrollTop) {
-            if (!bp.loaded) {
-              onBucketLoadRequest(bp.bucketIndex)
-            }
-            // Use first visible bucket's date if we don't have a visible loaded item
-            if (!visibleDate) {
-              visibleDate = bp.timeBucket
-            }
+        // Use tracked bucket's date for visible date if we don't have loaded content
+        if (!visibleDate) {
+          const currentBp = bucketPositions[currentIdx]
+          if (currentBp) {
+            visibleDate = currentBp.timeBucket
           }
         }
       }
