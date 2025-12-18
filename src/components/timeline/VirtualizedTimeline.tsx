@@ -9,6 +9,7 @@ import { useTimelineScroll } from '../../hooks/useTimelineScroll'
 import { useVirtualization } from '../../hooks/useVirtualization'
 import type { ThumbnailPosition } from '../../hooks/useZoomTransition'
 import type { AssetOrder, AssetTimelineItem } from '../../services/api'
+import { ChunkedSpacer } from './ChunkedSpacer'
 import { TimelineEmptyState } from './TimelineEmptyState'
 import { TimelineHeaderItem, TimelinePlaceholderRow, TimelineRow } from './TimelineItem'
 import { TimelineLoadingIndicator } from './TimelineLoadingIndicator'
@@ -273,13 +274,14 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
           )}
 
           {/* Top spacer - reserves space for items above visible range */}
-          <div style={{ height: `${topSpacerHeight}px` }} />
+          {/* Use chunked spacers to avoid browser height limits */}
+          <ChunkedSpacer height={topSpacerHeight} />
 
           {/* Visible items rendered in normal document flow */}
           {visibleItems.map((item) => renderItem(item))}
 
           {/* Bottom spacer - reserves space for items below visible range */}
-          <div style={{ height: `${bottomSpacerHeight}px` }} />
+          <ChunkedSpacer height={bottomSpacerHeight} />
 
           {/* Loading indicator */}
           {isLoadingMore && <TimelineLoadingIndicator />}
