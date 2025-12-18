@@ -18,6 +18,8 @@ export interface LayoutItem<A> {
   isPlaceholder?: boolean
   /** Whether this is a collapsed bucket placeholder */
   isBucketPlaceholder?: boolean
+  /** Bucket index this item belongs to (for placeholder loading state) */
+  bucketIndex?: number
 }
 
 interface UseTimelineLayoutOptions<A> {
@@ -130,6 +132,7 @@ export function useTimelineLayout<A>({
               height: HEADER_HEIGHT,
               date: bucketPos.timeBucket,
               isPlaceholder: true,
+              bucketIndex: bucketPos.bucketIndex,
             })
             offsetWithinBucket += HEADER_HEIGHT
           }
@@ -146,6 +149,7 @@ export function useTimelineLayout<A>({
               date: bucketPos.timeBucket,
               isPlaceholder: true,
               rowIndex,
+              bucketIndex: bucketPos.bucketIndex,
             })
             offsetWithinBucket += rowHeight
           }
@@ -159,6 +163,7 @@ export function useTimelineLayout<A>({
             date: bucketPos.timeBucket,
             isPlaceholder: true,
             isBucketPlaceholder: true,
+            bucketIndex: bucketPos.bucketIndex,
           })
         }
       }

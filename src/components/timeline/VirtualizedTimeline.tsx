@@ -34,6 +34,8 @@ interface VirtualizedTimelineProps<A extends AssetTimelineItem> {
   allBuckets?: TimelineBucket[]
   /** Set of bucket indices that have been loaded */
   loadedBucketIndices?: Set<number>
+  /** Set of bucket indices that are currently loading */
+  loadingBucketIndices?: Set<number>
   showDateHeaders?: boolean
   hasMoreContent?: boolean
   isLoadingMore?: boolean
@@ -60,6 +62,7 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
   assets,
   allBuckets,
   loadedBucketIndices: _loadedBucketIndices,
+  loadingBucketIndices,
   showDateHeaders = true,
   hasMoreContent = false,
   isLoadingMore = false,
@@ -216,6 +219,10 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
 
     // Row type - placeholder or loaded
     if (item.isPlaceholder) {
+      const isLoading =
+        item.bucketIndex !== undefined &&
+        loadingBucketIndices !== undefined &&
+        loadingBucketIndices.has(item.bucketIndex)
       return (
         <TimelinePlaceholderRow
           key={item.key}
@@ -223,6 +230,7 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
           height={item.height}
           columnCount={columnCount}
           thumbnailSize={thumbnailSize}
+          isLoading={isLoading}
         />
       )
     }

@@ -276,6 +276,20 @@ html, body {
   font-size: var(--font-size-xl);
 }
 
+/* Placeholder loading animation */
+@keyframes placeholder-pulse {
+  0%, 100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+.placeholder-loading {
+  animation: placeholder-pulse 1.2s ease-in-out infinite;
+}
+
 /* Dark mode support */
 @media (prefers-color-scheme: dark) {
   .liquid-glass {

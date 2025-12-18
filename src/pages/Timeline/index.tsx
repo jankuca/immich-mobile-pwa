@@ -42,6 +42,8 @@ export function Timeline() {
   const loadAbortControllerRef = useRef<AbortController | null>(null)
   // Track which buckets are currently being loaded (to avoid duplicate requests)
   const loadingBucketsRef = useRef<Set<number>>(new Set())
+  // State version of loading buckets for UI updates (spinners on placeholders)
+  const [loadingBucketIndices, setLoadingBucketIndices] = useState<Set<number>>(new Set())
   const { logout } = useAuth()
 
   // Search state
@@ -236,6 +238,9 @@ export function Timeline() {
         return
       }
 
+      // Update UI state to show loading spinners
+      setLoadingBucketIndices(new Set(loadingSet))
+
       // Reuse existing AbortController if we have one - don't cancel ongoing loads
       // This allows multiple scroll events to request loads without aborting each other
       let abortController = loadAbortControllerRef.current
@@ -339,6 +344,9 @@ export function Timeline() {
           setLoadedBucketIndices(new Set(loadedSet))
         }
 
+        // Update loading state to remove completed buckets
+        setLoadingBucketIndices(new Set(loadingSet))
+
         // Check if all buckets are loaded
         if (loadedSet.size >= buckets.length) {
           setHasMoreContent(false)
@@ -356,6 +364,8 @@ export function Timeline() {
         for (const index of indicesToLoad) {
           loadingSet.delete(index)
         }
+        // Update loading state UI
+        setLoadingBucketIndices(new Set(loadingSet))
         console.error('Error loading bucket range:', err)
         // Clear abort controller on error too
         if (loadAbortControllerRef.current === abortController) {
@@ -479,9 +489,6 @@ export function Timeline() {
         scrubLoadTimerRef.current = null
       }
 
-      // Clear scrubbing state immediately so manual scrolling works right away
-      isScrubbing.current = false
-
       // Scroll to the bucket position
       if (scrollToBucketRef.current) {
         scrollToBucketRef.current(bucketIndex)
@@ -495,8 +502,13 @@ export function Timeline() {
       const startIndex = Math.max(0, bucketIndex - bufferBuckets)
 
       loadBucketRange(allBuckets, startIndex, bufferBuckets * 2 + 1).then(() => {
-        // Only re-scroll if still at the same target (user hasn't scrolled away)
-        // Check by comparing with scrubTargetBucketRef which would be updated if user scrubs again
+        // Clear scrubbing state after loading completes
+        // This prevents handleVisibleDateChange from clearing scrubTargetBucketRef
+        // during the programmatic scroll before buckets are loaded
+        isScrubbing.current = false
+
+        // Re-scroll to the target bucket now that content is loaded
+        // Only if user hasn't scrubbed again (scrubTargetBucketRef would be different)
         if (scrubTargetBucketRef.current === targetBucketAtEnd && scrollToBucketRef.current) {
           scrollToBucketRef.current(targetBucketAtEnd)
         }
@@ -782,6 +794,7 @@ export function Timeline() {
               assets={assets}
               allBuckets={allBuckets}
               loadedBucketIndices={loadedBucketIndices}
+              loadingBucketIndices={loadingBucketIndices}
               hasMoreContent={hasMoreContent}
               isLoadingMore={isLoadingMore}
               onAssetOpenRequest={handleAssetClick}

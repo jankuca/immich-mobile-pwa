@@ -86,6 +86,8 @@ interface TimelinePlaceholderRowProps {
   height: number
   columnCount: number
   thumbnailSize: number
+  /** Whether this bucket is currently being loaded */
+  isLoading?: boolean
 }
 
 /**
@@ -96,6 +98,7 @@ export function TimelinePlaceholderRow({
   height,
   columnCount,
   thumbnailSize,
+  isLoading = false,
 }: TimelinePlaceholderRowProps) {
   return (
     <div
@@ -110,11 +113,12 @@ export function TimelinePlaceholderRow({
       {Array.from({ length: columnCount }).map((_, j) => (
         <div
           key={`placeholder-${j}`}
+          class={isLoading ? 'placeholder-loading' : ''}
           style={{
             width: `${thumbnailSize}px`,
             height: `${thumbnailSize}px`,
             backgroundColor: 'var(--color-gray-light, #e0e0e0)',
-            opacity: 0.3,
+            opacity: isLoading ? 0.5 : 0.3,
           }}
         />
       ))}
