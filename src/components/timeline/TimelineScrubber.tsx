@@ -237,6 +237,31 @@ export function TimelineScrubber({
     return yearGroups.findIndex((g) => g.year === currentPosition.year)
   }, [yearGroups, currentPosition.year])
 
+  // Calculate the current bucket index from visible date for positioning
+  const currentBucketIndex = useMemo(() => {
+    if (isDragging) {
+      return dragBucketIndex
+    }
+    if (!visibleDate || buckets.length === 0) {
+      return 0
+    }
+    // Find the bucket that matches the visible date (buckets are sorted descending by date)
+    const visibleDateStr = visibleDate.split('T')[0] ?? ''
+    const index = buckets.findIndex((bucket) => {
+      const bucketDateStr = bucket.timeBucket.split('T')[0] ?? ''
+      return bucketDateStr <= visibleDateStr
+    })
+    return index === -1 ? buckets.length - 1 : index
+  }, [buckets, visibleDate, isDragging, dragBucketIndex])
+
+  // Calculate the relative position (0-1) for the collapsed indicator
+  const relativePosition = useMemo(() => {
+    if (buckets.length <= 1) {
+      return 0
+    }
+    return currentBucketIndex / (buckets.length - 1)
+  }, [currentBucketIndex, buckets.length])
+
   // Convert Y position to bucket index
   const yPositionToBucketIndex = useCallback(
     (y: number, containerHeight: number): number => {
@@ -341,16 +366,21 @@ export function TimelineScrubber({
         overflow: 'hidden',
       }}
     >
-      {/* Collapsed state: show only current period */}
+      {/* Collapsed state: show only current period, positioned based on timeline position */}
       {!isExpanded && (
         <div
           class="scrubber-collapsed"
           style={{
+            position: 'absolute',
+            top: `${relativePosition * 100}%`,
+            right: 0,
+            transform: 'translateY(-50%)',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'flex-end',
             gap: '1px',
             padding: '4px 8px',
+            paddingRight: 'var(--spacing-sm)',
             borderRadius: '12px',
             background: 'rgba(var(--color-text-rgb), 0.08)',
           }}
