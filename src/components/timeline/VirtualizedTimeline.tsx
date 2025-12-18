@@ -160,38 +160,6 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
     loaded: boolean
   }
 
-  // Pre-calculate actual heights for loaded buckets based on their sections
-  const actualBucketHeights = useMemo(() => {
-    const heights = new Map<string, number>()
-    if (sections.length === 0 || columnCount === 0 || rowHeight === 0) {
-      return heights
-    }
-
-    // Group sections by month
-    const sectionsByMonth = new Map<string, TimelineSection<A>[]>()
-    for (const section of sections) {
-      const sectionDate = new Date(section.date)
-      const monthKey = `${sectionDate.getUTCFullYear()}-${String(sectionDate.getUTCMonth() + 1).padStart(2, '0')}-01`
-      const existing = sectionsByMonth.get(monthKey) ?? []
-      existing.push(section)
-      sectionsByMonth.set(monthKey, existing)
-    }
-
-    // Calculate actual height for each loaded bucket
-    for (const [monthKey, monthSections] of sectionsByMonth) {
-      let height = 0
-      for (const section of monthSections) {
-        if (showDateHeaders) {
-          height += HEADER_HEIGHT
-        }
-        height += Math.ceil(section.assets.length / columnCount) * rowHeight
-      }
-      heights.set(monthKey, height)
-    }
-
-    return heights
-  }, [sections, columnCount, rowHeight, showDateHeaders])
-
   const bucketPositions: BucketPosition[] = useMemo(() => {
     if (!allBuckets || allBuckets.length === 0 || rowHeight === 0) {
       return []
@@ -208,20 +176,12 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
 
       const isLoaded = loadedBucketIndices?.has(i) ?? false
 
-      // For loaded buckets, use actual height from sections
-      // For unloaded buckets, estimate based on asset count
-      const bucketDate = new Date(bucket.timeBucket)
-      const monthKey = `${bucketDate.getUTCFullYear()}-${String(bucketDate.getUTCMonth() + 1).padStart(2, '0')}-01`
-      const actualHeight = actualBucketHeights.get(monthKey)
-
-      let bucketHeight: number
-      if (isLoaded && actualHeight !== undefined) {
-        bucketHeight = actualHeight
-      } else {
-        // Estimate: assume 1 header per bucket + rows for assets
-        const bucketRowCount = Math.ceil(bucket.count / columnCount)
-        bucketHeight = (showDateHeaders ? HEADER_HEIGHT : 0) + bucketRowCount * rowHeight
-      }
+      // Each bucket is one DAY (size: 'DAY' from API), so we can calculate exact height:
+      // - 1 header per bucket (if showing headers)
+      // - Exact row count based on bucket.count from API
+      const bucketRowCount = Math.ceil(bucket.count / columnCount)
+      const headerHeight = showDateHeaders ? HEADER_HEIGHT : 0
+      const bucketHeight = headerHeight + bucketRowCount * rowHeight
 
       positions.push({
         bucketIndex: i,
@@ -235,14 +195,7 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
     }
 
     return positions
-  }, [
-    allBuckets,
-    loadedBucketIndices,
-    actualBucketHeights,
-    columnCount,
-    rowHeight,
-    showDateHeaders,
-  ])
+  }, [allBuckets, loadedBucketIndices, columnCount, rowHeight, showDateHeaders])
 
   // Total height from bucket skeleton (if available) or sections
   const skeletonTotalHeight = useMemo(() => {
@@ -288,14 +241,12 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
       const layoutVisibleTop = Math.max(0, currentScrollTop - layoutBuffer)
       const layoutVisibleBottom = currentScrollTop + viewportHeight + layoutBuffer
 
-      // Group sections by month to match with buckets
-      const sectionsByMonth = new Map<string, TimelineSection<A>[]>()
+      // Group sections by day to match with DAY buckets
+      // Section dates are in YYYY-MM-DD format (from toISOString().split('T')[0])
+      const sectionsByDay = new Map<string, TimelineSection<A>>()
       for (const section of sections) {
-        const sectionDate = new Date(section.date)
-        const monthKey = `${sectionDate.getUTCFullYear()}-${String(sectionDate.getUTCMonth() + 1).padStart(2, '0')}`
-        const existing = sectionsByMonth.get(monthKey) ?? []
-        existing.push(section)
-        sectionsByMonth.set(monthKey, existing)
+        // section.date is already YYYY-MM-DD format
+        sectionsByDay.set(section.date, section)
       }
 
       // Iterate through bucket positions and build layout
@@ -303,43 +254,41 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
         const bucketBottom = bucketPos.top + bucketPos.height
         const isNearVisible = bucketBottom > layoutVisibleTop && bucketPos.top < layoutVisibleBottom
 
-        const bucketDate = new Date(bucketPos.timeBucket)
-        const monthKey = `${bucketDate.getUTCFullYear()}-${String(bucketDate.getUTCMonth() + 1).padStart(2, '0')}`
-        const monthSections = sectionsByMonth.get(monthKey) ?? []
+        // Extract day key from bucket timeBucket (format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS...)
+        const dayKey = bucketPos.timeBucket.split('T')[0] ?? bucketPos.timeBucket
+        const daySection = sectionsByDay.get(dayKey)
 
-        if (monthSections.length > 0) {
-          // Bucket is loaded - render actual sections within the bucket's reserved space
+        if (daySection) {
+          // Bucket is loaded - render the day's section within the bucket's reserved space
           let offsetWithinBucket = 0
 
-          for (const section of monthSections) {
-            // Add header if showing date headers
-            if (showDateHeaders) {
-              items.push({
-                type: 'header',
-                key: `header-${section.date}`,
-                top: bucketPos.top + offsetWithinBucket,
-                height: HEADER_HEIGHT,
-                date: section.date,
-              })
-              offsetWithinBucket += HEADER_HEIGHT
-            }
+          // Add header if showing date headers
+          if (showDateHeaders) {
+            items.push({
+              type: 'header',
+              key: `header-${daySection.date}`,
+              top: bucketPos.top + offsetWithinBucket,
+              height: HEADER_HEIGHT,
+              date: daySection.date,
+            })
+            offsetWithinBucket += HEADER_HEIGHT
+          }
 
-            // Add rows for this section
-            const sectionRowCount = Math.ceil(section.assets.length / columnCount)
-            for (let rowIndex = 0; rowIndex < sectionRowCount; rowIndex++) {
-              const startAsset = rowIndex * columnCount
-              const endAsset = Math.min(startAsset + columnCount, section.assets.length)
-              items.push({
-                type: 'row',
-                key: `row-${section.date}-${rowIndex}`,
-                top: bucketPos.top + offsetWithinBucket,
-                height: rowHeight,
-                date: section.date,
-                assets: section.assets.slice(startAsset, endAsset),
-                rowIndex,
-              })
-              offsetWithinBucket += rowHeight
-            }
+          // Add rows for this day's assets
+          const sectionRowCount = Math.ceil(daySection.assets.length / columnCount)
+          for (let rowIndex = 0; rowIndex < sectionRowCount; rowIndex++) {
+            const startAsset = rowIndex * columnCount
+            const endAsset = Math.min(startAsset + columnCount, daySection.assets.length)
+            items.push({
+              type: 'row',
+              key: `row-${daySection.date}-${rowIndex}`,
+              top: bucketPos.top + offsetWithinBucket,
+              height: rowHeight,
+              date: daySection.date,
+              assets: daySection.assets.slice(startAsset, endAsset),
+              rowIndex,
+            })
+            offsetWithinBucket += rowHeight
           }
         } else if (isNearVisible) {
           // Bucket is not loaded but near visible range - render placeholder header and rows
@@ -521,8 +470,12 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
         continue // Skip assets without date, don't abort the whole grouping
       }
 
-      // Format date as YYYY-MM-DD
-      const date = String(new Date(asset.fileCreatedAt).toISOString().split('T')[0])
+      // Use the timeBucket if available (set by API based on localDateTime),
+      // otherwise fall back to deriving from fileCreatedAt (UTC)
+      const date = asset.timeBucket ?? new Date(asset.fileCreatedAt).toISOString().split('T')[0]
+      if (!date) {
+        continue
+      }
 
       if (!groupedByDate[date]) {
         groupedByDate[date] = []
@@ -691,17 +644,44 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
         firstVisibleAssetIdRef.current = visibleItem.assets[0]?.id ?? null
       }
 
-      // If no loaded item visible but we have bucket positions, find visible bucket and request loading
-      if (!visibleDate && bucketPositions.length > 0) {
-        const visibleBucket = bucketPositions.find(
-          (bp) => bp.top + bp.height > newScrollTop && bp.top < newScrollTop + clientHeight,
-        )
-        if (visibleBucket) {
-          // Use bucket date as visible date
-          visibleDate = visibleBucket.timeBucket
-          // Request bucket loading if not loaded
-          if (!visibleBucket.loaded && onBucketLoadRequest) {
-            onBucketLoadRequest(visibleBucket.bucketIndex)
+      // Always check for unloaded buckets in the visible viewport and request loading
+      // This is needed even when some loaded content is visible, because the user may be
+      // scrolling into an unloaded area while still seeing loaded content from another bucket
+      if (bucketPositions.length > 0 && onBucketLoadRequest) {
+        // Binary search to find first bucket that might be visible
+        let lo = 0
+        let hi = bucketPositions.length - 1
+        while (lo < hi) {
+          const mid = Math.floor((lo + hi) / 2)
+          const bp = bucketPositions[mid]
+          if (bp && bp.top + bp.height <= newScrollTop) {
+            lo = mid + 1
+          } else {
+            hi = mid
+          }
+        }
+
+        // Check buckets starting from the first potentially visible one
+        for (let i = lo; i < bucketPositions.length; i++) {
+          const bp = bucketPositions[i]
+          if (!bp) {
+            continue
+          }
+
+          // Early exit if we've passed the viewport
+          if (bp.top >= newScrollTop + clientHeight) {
+            break
+          }
+
+          // Check if bucket is in viewport
+          if (bp.top + bp.height > newScrollTop) {
+            if (!bp.loaded) {
+              onBucketLoadRequest(bp.bucketIndex)
+            }
+            // Use first visible bucket's date if we don't have a visible loaded item
+            if (!visibleDate) {
+              visibleDate = bp.timeBucket
+            }
           }
         }
       }
@@ -777,11 +757,22 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
     }
   }, [handleScroll, hasMoreContent, isLoadingMore, onLoadMoreRequest, sections, viewportHeight])
 
+  // Parse a YYYY-MM-DD date string as local time (not UTC)
+  // This prevents timezone shifts when displaying dates
+  const parseDateAsLocal = (dateStr: string): Date => {
+    // Extract date portion (handle both "YYYY-MM-DD" and "YYYY-MM-DDTHH:MM:SS..." formats)
+    const datePart = dateStr.split('T')[0] ?? dateStr
+    const [year, month, day] = datePart.split('-').map(Number)
+    // Create date at noon local time to avoid any DST edge cases
+    return new Date(year ?? 0, (month ?? 1) - 1, day ?? 1, 12, 0, 0)
+  }
+
   // Render a virtualized item (header or row) - uses normal flow, not absolute positioning
   const renderItem = (item: LayoutItem<A>) => {
     if (item.type === 'header') {
       // For placeholder headers, show month/year format; for loaded headers, show full date
-      const headerDate = new Date(item.date)
+      // Parse as local time to prevent timezone-related date shifts
+      const headerDate = parseDateAsLocal(item.date)
       const formattedDate = item.isPlaceholder
         ? headerDate.toLocaleDateString(undefined, { year: 'numeric', month: 'long' })
         : headerDate.toLocaleDateString(undefined, {
@@ -931,7 +922,7 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
             >
               <SectionPill sticky={true}>
                 {(() => {
-                  const headerDate = new Date(stickyHeader.date)
+                  const headerDate = parseDateAsLocal(stickyHeader.date)
                   return stickyHeader.isPlaceholder
                     ? headerDate.toLocaleDateString(undefined, { year: 'numeric', month: 'long' })
                     : headerDate.toLocaleDateString(undefined, {

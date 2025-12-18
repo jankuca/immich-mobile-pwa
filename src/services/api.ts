@@ -45,6 +45,8 @@ export interface AssetTimelineItem {
   ownerId: string
   type: 'IMAGE' | 'VIDEO' | 'AUDIO' | 'OTHER'
   fileCreatedAt: string
+  /** The timeBucket this asset belongs to (used for grouping, based on localDateTime) */
+  timeBucket?: string
   thumbhash: string | null
   isFavorite: boolean
   isTrashed: boolean
@@ -316,11 +318,16 @@ class ApiService {
         ) as TimeBucketAsset,
     )
 
+    // Include the timeBucket with each asset for proper grouping
+    // (since fileCreatedAt is UTC but bucket grouping uses localDateTime)
+    const bucketDate = params.timeBucket.split('T')[0] ?? params.timeBucket
+
     return items.map((item) => ({
       id: item.id,
       ownerId: item.ownerId,
       type: item.isImage ? 'IMAGE' : 'VIDEO',
       fileCreatedAt: item.fileCreatedAt,
+      timeBucket: bucketDate,
       thumbhash: item.thumbhash,
       isFavorite: item.isFavorite,
       isTrashed: item.isTrashed,

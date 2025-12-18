@@ -126,9 +126,82 @@ export function Timeline() {
   }, [])
 
   // Maximum number of buckets to keep loaded at once (sliding window)
-  const MAX_LOADED_BUCKETS = 24
+  const MAX_LOADED_BUCKETS = 50
 
-  // Function to load a specific range of buckets with sliding window memory management
+  // Get the current visible bucket index based on visibleDate
+  const getVisibleBucketIndex = useCallback(() => {
+    if (!visibleDate || allBuckets.length === 0) {
+      return 0
+    }
+    const visibleDay = visibleDate.split('T')[0] ?? ''
+    const index = allBuckets.findIndex((bucket) => {
+      const bucketDay = bucket.timeBucket.split('T')[0] ?? ''
+      return bucketDay <= visibleDay
+    })
+    return index === -1 ? allBuckets.length - 1 : index
+  }, [visibleDate, allBuckets])
+
+  // Cleanup function to unload buckets far from visible position
+  const cleanupDistantBuckets = useCallback(
+    (buckets: TimeBucket[]) => {
+      const loadedSet = loadedBucketsRef.current
+
+      // Only cleanup if we have too many loaded
+      if (loadedSet.size <= MAX_LOADED_BUCKETS) {
+        return
+      }
+
+      // Get the current visible bucket index
+      const visibleIndex = getVisibleBucketIndex()
+
+      // Calculate window centered on visible position
+      const windowStart = Math.max(0, visibleIndex - Math.floor(MAX_LOADED_BUCKETS / 2))
+      const windowEnd = Math.min(buckets.length, windowStart + MAX_LOADED_BUCKETS)
+
+      // Find bucket dates (days) to keep
+      const bucketsToKeep = new Set<string>()
+      for (let i = windowStart; i < windowEnd; i++) {
+        const bucket = buckets[i]
+        if (bucket) {
+          bucketsToKeep.add(bucket.timeBucket.split('T')[0] ?? bucket.timeBucket)
+        }
+      }
+
+      // Unload buckets outside the window
+      const indicesToUnload: number[] = []
+      for (const loadedIndex of loadedSet) {
+        if (loadedIndex < windowStart || loadedIndex >= windowEnd) {
+          indicesToUnload.push(loadedIndex)
+        }
+      }
+
+      if (indicesToUnload.length === 0) {
+        return
+      }
+
+      // Remove unloaded indices from the loaded set
+      for (const index of indicesToUnload) {
+        loadedSet.delete(index)
+      }
+
+      // Update assets - filter out assets from unloaded buckets
+      setAssets((prevAssets) => {
+        const filteredAssets = prevAssets.filter((asset) => {
+          // Use timeBucket if available, otherwise fall back to deriving from fileCreatedAt
+          const assetDay =
+            asset.timeBucket ?? new Date(asset.fileCreatedAt).toISOString().split('T')[0]
+          return assetDay && bucketsToKeep.has(assetDay)
+        })
+        return filteredAssets
+      })
+
+      // Update the state version of loaded indices
+      setLoadedBucketIndices(new Set(loadedSet))
+    },
+    [getVisibleBucketIndex],
+  )
+
+  // Function to load a specific range of buckets (loading only, no unloading)
   const loadBucketRange = useCallback(
     async (buckets: TimeBucket[], startIndex: number, count: number) => {
       const endIndex = Math.min(startIndex + count, buckets.length)
@@ -200,60 +273,37 @@ export function Timeline() {
           }
         }
 
-        // Determine which buckets to unload if we exceed the max
-        // Keep buckets in a window around the current target
-        const centerIndex = Math.floor((startIndex + endIndex) / 2)
-        const windowStart = Math.max(0, centerIndex - Math.floor(MAX_LOADED_BUCKETS / 2))
-        const windowEnd = Math.min(buckets.length, windowStart + MAX_LOADED_BUCKETS)
-
-        // Find bucket dates to keep
-        const bucketsToKeep = new Set<string>()
-        for (let i = windowStart; i < windowEnd; i++) {
-          const bucket = buckets[i]
-          if (bucket) {
-            // Extract month from bucket date for matching with assets
-            bucketsToKeep.add(bucket.timeBucket.slice(0, 7)) // YYYY-MM
-          }
-        }
-
-        // Unload buckets outside the window
-        const indicesToUnload: number[] = []
-        for (const loadedIndex of loadedSet) {
-          if (loadedIndex < windowStart || loadedIndex >= windowEnd) {
-            indicesToUnload.push(loadedIndex)
-          }
-        }
-
-        // Remove unloaded indices from the loaded set
-        for (const index of indicesToUnload) {
-          loadedSet.delete(index)
-        }
-
-        // Update assets - filter out assets from unloaded buckets, add new ones
+        // Update assets - just add the new ones (no filtering here)
         setAssets((prevAssets) => {
-          // Filter out assets from unloaded buckets
-          const filteredAssets = prevAssets.filter((asset) => {
-            const assetMonth = new Date(asset.fileCreatedAt).toISOString().slice(0, 7)
-            return bucketsToKeep.has(assetMonth)
-          })
-
           // Add new assets and sort
-          const combined = [...filteredAssets, ...newAssets]
-          combined.sort((a, b) => {
+          const combined = [...prevAssets, ...newAssets]
+          // Deduplicate by asset ID in case of overlapping loads
+          const seen = new Set<string>()
+          const deduplicated = combined.filter((asset) => {
+            if (seen.has(asset.id)) {
+              return false
+            }
+            seen.add(asset.id)
+            return true
+          })
+          deduplicated.sort((a, b) => {
             const dateA = new Date(a.fileCreatedAt).getTime()
             const dateB = new Date(b.fileCreatedAt).getTime()
             return dateB - dateA // Descending order
           })
-          return combined
+          return deduplicated
         })
 
         // Update the state version of loaded indices for VirtualizedTimeline
         setLoadedBucketIndices(new Set(loadedSet))
 
-        // Check if all buckets are loaded (not really possible with sliding window)
+        // Check if all buckets are loaded
         if (loadedSet.size >= buckets.length) {
           setHasMoreContent(false)
         }
+
+        // Cleanup distant buckets if we have too many loaded
+        cleanupDistantBuckets(buckets)
       } catch (err) {
         console.error('Error loading bucket range:', err)
       } finally {
@@ -262,7 +312,7 @@ export function Timeline() {
         setIsLoadingMore(false)
       }
     },
-    [],
+    [cleanupDistantBuckets],
   )
 
   // Handle loading more content (sequential loading from current position)
