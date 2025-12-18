@@ -346,7 +346,7 @@ export function AlbumDetail({ id, albumId }: AlbumDetailProps) {
         ) : assets.length > 0 ? (
           <VirtualizedTimeline
             assets={assets}
-            showDateHeaders={false}
+            showDateHeaders={allBuckets.length > 1}
             hasMoreContent={hasMoreContent}
             isLoadingMore={isLoadingMore}
             {...(album?.order && { order: album.order })}
