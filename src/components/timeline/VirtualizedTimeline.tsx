@@ -158,6 +158,38 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
     loaded: boolean
   }
 
+  // Pre-calculate actual heights for loaded buckets based on their sections
+  const actualBucketHeights = useMemo(() => {
+    const heights = new Map<string, number>()
+    if (sections.length === 0 || columnCount === 0 || rowHeight === 0) {
+      return heights
+    }
+
+    // Group sections by month
+    const sectionsByMonth = new Map<string, TimelineSection<A>[]>()
+    for (const section of sections) {
+      const sectionDate = new Date(section.date)
+      const monthKey = `${sectionDate.getUTCFullYear()}-${String(sectionDate.getUTCMonth() + 1).padStart(2, '0')}-01`
+      const existing = sectionsByMonth.get(monthKey) ?? []
+      existing.push(section)
+      sectionsByMonth.set(monthKey, existing)
+    }
+
+    // Calculate actual height for each loaded bucket
+    for (const [monthKey, monthSections] of sectionsByMonth) {
+      let height = 0
+      for (const section of monthSections) {
+        if (showDateHeaders) {
+          height += HEADER_HEIGHT
+        }
+        height += Math.ceil(section.assets.length / columnCount) * rowHeight
+      }
+      heights.set(monthKey, height)
+    }
+
+    return heights
+  }, [sections, columnCount, rowHeight, showDateHeaders])
+
   const bucketPositions: BucketPosition[] = useMemo(() => {
     if (!allBuckets || allBuckets.length === 0 || rowHeight === 0) {
       return []
@@ -172,24 +204,43 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
         continue
       }
 
-      // Calculate height for this bucket based on its asset count
-      // Each bucket gets: header height + rows for its assets
-      const bucketRowCount = Math.ceil(bucket.count / columnCount)
-      const bucketHeight = (showDateHeaders ? HEADER_HEIGHT : 0) + bucketRowCount * rowHeight
+      const isLoaded = loadedBucketIndices?.has(i) ?? false
+
+      // For loaded buckets, use actual height from sections
+      // For unloaded buckets, estimate based on asset count
+      const bucketDate = new Date(bucket.timeBucket)
+      const monthKey = `${bucketDate.getUTCFullYear()}-${String(bucketDate.getUTCMonth() + 1).padStart(2, '0')}-01`
+      const actualHeight = actualBucketHeights.get(monthKey)
+
+      let bucketHeight: number
+      if (isLoaded && actualHeight !== undefined) {
+        bucketHeight = actualHeight
+      } else {
+        // Estimate: assume 1 header per bucket + rows for assets
+        const bucketRowCount = Math.ceil(bucket.count / columnCount)
+        bucketHeight = (showDateHeaders ? HEADER_HEIGHT : 0) + bucketRowCount * rowHeight
+      }
 
       positions.push({
         bucketIndex: i,
         timeBucket: bucket.timeBucket,
         top: currentTop,
         height: bucketHeight,
-        loaded: loadedBucketIndices?.has(i) ?? false,
+        loaded: isLoaded,
       })
 
       currentTop += bucketHeight
     }
 
     return positions
-  }, [allBuckets, loadedBucketIndices, columnCount, rowHeight, showDateHeaders])
+  }, [
+    allBuckets,
+    loadedBucketIndices,
+    actualBucketHeights,
+    columnCount,
+    rowHeight,
+    showDateHeaders,
+  ])
 
   // Total height from bucket skeleton (if available) or sections
   const skeletonTotalHeight = useMemo(() => {
