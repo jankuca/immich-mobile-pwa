@@ -250,7 +250,7 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
     const groupedByDate: { [key: string]: A[] } = {}
     for (const asset of assets) {
       if (!asset.fileCreatedAt) {
-        return
+        continue // Skip assets without date, don't abort the whole grouping
       }
 
       // Format date as YYYY-MM-DD
