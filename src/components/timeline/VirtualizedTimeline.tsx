@@ -182,6 +182,38 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
     })
   })()
 
+  // Find the current sticky header and calculate push-up offset
+  const { stickyHeader, stickyOffset } = (() => {
+    if (!showDateHeaders || layout.length === 0) {
+      return { stickyHeader: null, stickyOffset: 0 }
+    }
+
+    let currentHeader: LayoutItem<A> | null = null
+    let nextHeader: LayoutItem<A> | null = null
+
+    for (const item of layout) {
+      if (item.type === 'header') {
+        if (item.top <= scrollTop) {
+          currentHeader = item
+        } else {
+          nextHeader = item
+          break
+        }
+      }
+    }
+
+    // Calculate how much to push up the sticky header when next header approaches
+    let offset = 0
+    if (currentHeader && nextHeader) {
+      const distanceToNext = nextHeader.top - scrollTop
+      if (distanceToNext < HEADER_HEIGHT) {
+        offset = HEADER_HEIGHT - distanceToNext
+      }
+    }
+
+    return { stickyHeader: currentHeader, stickyOffset: offset }
+  })()
+
   // Group assets by date
   useEffect(() => {
     if (assets?.length === 0) {
@@ -409,6 +441,11 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
     if (scrollContainer) {
       scrollContainer.addEventListener('scroll', handleScroll)
 
+      // Initialize viewport height for virtualization
+      if (scrollContainer.clientHeight > 0 && viewportHeight === 0) {
+        setViewportHeight(scrollContainer.clientHeight)
+      }
+
       // Check if we need to load more content initially (if container isn't filled)
       if (
         scrollContainer.scrollHeight <= scrollContainer.clientHeight &&
@@ -425,7 +462,7 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
         scrollContainer.removeEventListener('scroll', handleScroll)
       }
     }
-  }, [handleScroll, hasMoreContent, isLoadingMore, onLoadMoreRequest, sections])
+  }, [handleScroll, hasMoreContent, isLoadingMore, onLoadMoreRequest, sections, viewportHeight])
 
   // Render a virtualized item (header or row)
   const renderItem = (item: LayoutItem<A>) => {
@@ -516,6 +553,28 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
             paddingBottom: 'var(--timeline-bottom-offset, var(--tabbar-height))',
           }}
         >
+          {/* Sticky header overlay */}
+          {stickyHeader && (
+            <div
+              style={{
+                position: 'sticky',
+                top: 0,
+                zIndex: 10,
+                marginBottom: `-${HEADER_HEIGHT}px`, // Compensate for the space it takes
+                transform: stickyOffset > 0 ? `translateY(-${stickyOffset}px)` : undefined,
+              }}
+            >
+              <SectionPill sticky={true}>
+                {new Date(stickyHeader.date).toLocaleDateString(undefined, {
+                  weekday: 'long',
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric',
+                })}
+              </SectionPill>
+            </div>
+          )}
+
           {/* Virtualized content container with total height */}
           <div
             class="virtualized-content"
