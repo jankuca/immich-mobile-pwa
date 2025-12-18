@@ -1,5 +1,5 @@
 import pluralize from 'pluralize'
-import { useCallback, useEffect, useRef, useState } from 'preact/hooks'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import type { ThumbnailPosition } from '../../hooks/useZoomTransition'
 import type { AssetOrder, AssetTimelineItem } from '../../services/api'
 import { SectionPill } from '../common/SectionPill'
@@ -16,8 +16,18 @@ const BUFFER_ROWS = 5
 
 export type GetThumbnailPosition = (assetId: string) => ThumbnailPosition | null
 
+/** Bucket metadata for timeline skeleton */
+export interface TimelineBucket {
+  timeBucket: string
+  count: number
+}
+
 interface VirtualizedTimelineProps<A extends AssetTimelineItem> {
   assets: A[]
+  /** All buckets defining the full timeline structure (for reserving space) */
+  allBuckets?: TimelineBucket[]
+  /** Set of bucket indices that have been loaded */
+  loadedBucketIndices?: Set<number>
   showDateHeaders?: boolean
   hasMoreContent?: boolean
   isLoadingMore?: boolean
@@ -34,6 +44,10 @@ interface VirtualizedTimelineProps<A extends AssetTimelineItem> {
   onVisibleDateChange?: (date: string) => void
   /** Ref to the scroll container for external control */
   scrollContainerRef?: { current: HTMLDivElement | null }
+  /** Callback to request loading a specific bucket by index */
+  onBucketLoadRequest?: (bucketIndex: number) => void
+  /** Callback to provide the scroll-to-bucket function to parent */
+  onScrollToBucketReady?: (scrollToBucket: (bucketIndex: number) => void) => void
 }
 
 interface TimelineSection<A extends AssetTimelineItem> {
@@ -55,6 +69,8 @@ interface LayoutItem<A extends AssetTimelineItem> {
 
 export function VirtualizedTimeline<A extends AssetTimelineItem>({
   assets,
+  allBuckets,
+  loadedBucketIndices,
   showDateHeaders = true,
   hasMoreContent = false,
   isLoadingMore = false,
@@ -66,6 +82,8 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
   anchorAssetId,
   onVisibleDateChange,
   scrollContainerRef: externalScrollContainerRef,
+  onBucketLoadRequest,
+  onScrollToBucketReady,
 }: VirtualizedTimelineProps<A>) {
   const [sections, setSections] = useState<TimelineSection<A>[]>([])
   const [containerWidth, setContainerWidth] = useState<number>(0)
@@ -128,8 +146,146 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
   const thumbnailSize = containerWidth ? Math.floor(containerWidth / columnCount) - 1 : 0 // 2px for gap
   const rowHeight = thumbnailSize + ROW_GAP
 
+  // Calculate bucket positions based on bucket metadata (for skeleton/placeholder layout)
+  // This gives us the absolute position for each bucket, enabling accurate scroll-to-bucket
+  interface BucketPosition {
+    bucketIndex: number
+    timeBucket: string
+    top: number
+    height: number
+    loaded: boolean
+  }
+
+  const bucketPositions: BucketPosition[] = useMemo(() => {
+    if (!allBuckets || allBuckets.length === 0 || rowHeight === 0) {
+      return []
+    }
+
+    const positions: BucketPosition[] = []
+    let currentTop = 0
+
+    for (let i = 0; i < allBuckets.length; i++) {
+      const bucket = allBuckets[i]
+      if (!bucket) {
+        continue
+      }
+
+      // Calculate height for this bucket based on its asset count
+      // Each bucket gets: header height + rows for its assets
+      const bucketRowCount = Math.ceil(bucket.count / columnCount)
+      const bucketHeight = (showDateHeaders ? HEADER_HEIGHT : 0) + bucketRowCount * rowHeight
+
+      positions.push({
+        bucketIndex: i,
+        timeBucket: bucket.timeBucket,
+        top: currentTop,
+        height: bucketHeight,
+        loaded: loadedBucketIndices?.has(i) ?? false,
+      })
+
+      currentTop += bucketHeight
+    }
+
+    return positions
+  }, [allBuckets, loadedBucketIndices, columnCount, rowHeight, showDateHeaders])
+
+  // Total height from bucket skeleton (if available) or sections
+  const skeletonTotalHeight = useMemo(() => {
+    if (bucketPositions.length === 0) {
+      return 0
+    }
+    const lastBucket = bucketPositions.at(-1)
+    return lastBucket ? lastBucket.top + lastBucket.height : 0
+  }, [bucketPositions])
+
+  // Scroll to a specific bucket index
+  const scrollToBucket = useCallback(
+    (bucketIndex: number) => {
+      const scrollContainer = scrollContainerRef.current
+      if (!scrollContainer) {
+        return
+      }
+
+      const bucketPos = bucketPositions[bucketIndex]
+      if (bucketPos) {
+        scrollContainer.scrollTop = bucketPos.top
+      }
+    },
+    [bucketPositions, scrollContainerRef],
+  )
+
+  // Provide scroll-to-bucket function to parent
+  useEffect(() => {
+    if (onScrollToBucketReady && bucketPositions.length > 0) {
+      onScrollToBucketReady(scrollToBucket)
+    }
+  }, [scrollToBucket, onScrollToBucketReady, bucketPositions.length])
+
   // Calculate the layout of all items (headers and rows) with their positions
   const { layout, totalHeight } = (() => {
+    // If we have bucket positions, use skeleton-based layout
+    if (bucketPositions.length > 0 && thumbnailSize > 0) {
+      const items: LayoutItem<A>[] = []
+
+      // Group sections by month to match with buckets
+      const sectionsByMonth = new Map<string, TimelineSection<A>[]>()
+      for (const section of sections) {
+        const sectionDate = new Date(section.date)
+        const monthKey = `${sectionDate.getUTCFullYear()}-${String(sectionDate.getUTCMonth() + 1).padStart(2, '0')}`
+        const existing = sectionsByMonth.get(monthKey) ?? []
+        existing.push(section)
+        sectionsByMonth.set(monthKey, existing)
+      }
+
+      // Iterate through bucket positions and build layout
+      for (const bucketPos of bucketPositions) {
+        const bucketDate = new Date(bucketPos.timeBucket)
+        const monthKey = `${bucketDate.getUTCFullYear()}-${String(bucketDate.getUTCMonth() + 1).padStart(2, '0')}`
+        const monthSections = sectionsByMonth.get(monthKey) ?? []
+
+        if (monthSections.length > 0) {
+          // Bucket is loaded - render actual sections within the bucket's reserved space
+          let offsetWithinBucket = 0
+
+          for (const section of monthSections) {
+            // Add header if showing date headers
+            if (showDateHeaders) {
+              items.push({
+                type: 'header',
+                key: `header-${section.date}`,
+                top: bucketPos.top + offsetWithinBucket,
+                height: HEADER_HEIGHT,
+                date: section.date,
+              })
+              offsetWithinBucket += HEADER_HEIGHT
+            }
+
+            // Add rows for this section
+            const sectionRowCount = Math.ceil(section.assets.length / columnCount)
+            for (let rowIndex = 0; rowIndex < sectionRowCount; rowIndex++) {
+              const startAsset = rowIndex * columnCount
+              const endAsset = Math.min(startAsset + columnCount, section.assets.length)
+              items.push({
+                type: 'row',
+                key: `row-${section.date}-${rowIndex}`,
+                top: bucketPos.top + offsetWithinBucket,
+                height: rowHeight,
+                date: section.date,
+                assets: section.assets.slice(startAsset, endAsset),
+                rowIndex,
+              })
+              offsetWithinBucket += rowHeight
+            }
+          }
+        }
+        // Unloaded buckets just reserve space - no items added
+        // The placeholder/loading indicator will be rendered separately if needed
+      }
+
+      return { layout: items, totalHeight: skeletonTotalHeight }
+    }
+
+    // Fallback: no bucket metadata - use original section-based layout
     if (thumbnailSize === 0 || sections.length === 0) {
       return { layout: [] as LayoutItem<A>[], totalHeight: 0 }
     }
@@ -412,15 +568,30 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
         setViewportHeight(clientHeight)
       }
 
-      // Find visible date from layout
+      // Find visible date from layout (loaded assets)
       const visibleItem = layout.find(
         (item) => item.top + item.height > newScrollTop && item.type === 'row',
       )
-      const visibleDate = visibleItem?.date ?? null
+      let visibleDate = visibleItem?.date ?? null
 
       // Track first visible asset for anchoring
       if (visibleItem?.type === 'row' && visibleItem.assets && !anchorAssetId) {
         firstVisibleAssetIdRef.current = visibleItem.assets[0]?.id ?? null
+      }
+
+      // If no loaded item visible but we have bucket positions, find visible bucket and request loading
+      if (!visibleDate && bucketPositions.length > 0) {
+        const visibleBucket = bucketPositions.find(
+          (bp) => bp.top + bp.height > newScrollTop && bp.top < newScrollTop + clientHeight,
+        )
+        if (visibleBucket) {
+          // Use bucket date as visible date
+          visibleDate = visibleBucket.timeBucket
+          // Request bucket loading if not loaded
+          if (!visibleBucket.loaded && onBucketLoadRequest) {
+            onBucketLoadRequest(visibleBucket.bucketIndex)
+          }
+        }
       }
 
       // Report visible date if changed
@@ -441,9 +612,11 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
     })
   }, [
     anchorAssetId,
+    bucketPositions,
     hasMoreContent,
     isLoadingMore,
     layout,
+    onBucketLoadRequest,
     onLoadMoreRequest,
     onVisibleDateChange,
     viewportHeight,

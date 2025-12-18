@@ -25,7 +25,11 @@ export function Timeline() {
   const [allBuckets, setAllBuckets] = useState<TimeBucket[]>([])
   // Track which buckets have been loaded (by index) - use ref for synchronous checks
   const loadedBucketsRef = useRef<Set<number>>(new Set())
+  // Also keep a state version for passing to VirtualizedTimeline
+  const [loadedBucketIndices, setLoadedBucketIndices] = useState<Set<number>>(new Set())
   const [hasMoreContent, setHasMoreContent] = useState<boolean>(true)
+  // Ref to hold the scroll-to-bucket function from VirtualizedTimeline
+  const scrollToBucketRef = useRef<((bucketIndex: number) => void) | null>(null)
   // Synchronous loading flag to prevent race conditions
   const isLoadingRef = useRef<boolean>(false)
   // Current visible date for scrubber (from VirtualizedTimeline)
@@ -197,6 +201,9 @@ export function Timeline() {
           return combined
         })
 
+        // Update the state version of loaded indices for VirtualizedTimeline
+        setLoadedBucketIndices(new Set(loadedSet))
+
         // Check if all buckets are loaded
         if (loadedSet.size >= buckets.length) {
           setHasMoreContent(false)
@@ -254,52 +261,20 @@ export function Timeline() {
   // Debounce timer ref for bucket loading during scrub
   const scrubLoadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Find the scroll position for a target bucket date within loaded assets
-  const scrollToBucketDate = useCallback(
-    (targetDate: string) => {
-      const scrollContainer = scrollContainerRef.current
-      if (!scrollContainer || assets.length === 0) {
-        return
-      }
+  // Handle receiving the scroll-to-bucket function from VirtualizedTimeline
+  const handleScrollToBucketReady = useCallback((scrollToBucket: (bucketIndex: number) => void) => {
+    scrollToBucketRef.current = scrollToBucket
+  }, [])
 
-      // Calculate layout constants (must match VirtualizedTimeline)
-      const HEADER_HEIGHT = 48
-      const ROW_GAP = 2
-      const containerWidth = scrollContainer.clientWidth
-      const columnCount = Math.max(3, Math.floor(containerWidth / 120))
-      const thumbnailSize = Math.floor(containerWidth / columnCount) - 1
-      const rowHeight = thumbnailSize + ROW_GAP
-
-      // Group assets by date (same logic as VirtualizedTimeline)
-      const dateGroups = new Map<string, number>()
-      for (const asset of assets) {
-        const dateStr = new Date(asset.fileCreatedAt ?? 0).toISOString().split('T')[0] ?? ''
-        dateGroups.set(dateStr, (dateGroups.get(dateStr) ?? 0) + 1)
-      }
-
-      // Sort dates descending
-      const sortedDates = Array.from(dateGroups.keys()).sort(
-        (a, b) => new Date(b).getTime() - new Date(a).getTime(),
-      )
-
-      // Find scroll position for target date
-      let scrollPosition = 0
-      for (const date of sortedDates) {
-        if (date <= targetDate) {
-          // Found the target date (or first date before it)
-          break
-        }
-        // Add header height for this section
-        scrollPosition += HEADER_HEIGHT
-        // Add rows for this section
-        const assetCount = dateGroups.get(date) ?? 0
-        const rowCount = Math.ceil(assetCount / columnCount)
-        scrollPosition += rowCount * rowHeight
-      }
-
-      scrollContainer.scrollTop = scrollPosition
+  // Handle bucket load request from VirtualizedTimeline (when scrolling into unloaded area)
+  const handleBucketLoadRequest = useCallback(
+    (bucketIndex: number) => {
+      // Load the requested bucket and a few around it
+      const bufferBuckets = 2
+      const startIndex = Math.max(0, bucketIndex - bufferBuckets)
+      loadBucketRange(allBuckets, startIndex, bufferBuckets * 2 + 1)
     },
-    [assets],
+    [allBuckets, loadBucketRange],
   )
 
   // Handle scrubber drag - load buckets for the target bucket index
@@ -307,11 +282,9 @@ export function Timeline() {
     (bucketIndex: number) => {
       isScrubbing.current = true
 
-      // Get the target bucket's date and scroll to it
-      const targetBucket = allBuckets[bucketIndex]
-      if (targetBucket) {
-        const targetDate = targetBucket.timeBucket.split('T')[0] ?? ''
-        scrollToBucketDate(targetDate)
+      // Scroll to the bucket position using the virtualized timeline's scroll function
+      if (scrollToBucketRef.current) {
+        scrollToBucketRef.current(bucketIndex)
       }
 
       // Debounced bucket loading during drag
@@ -326,32 +299,33 @@ export function Timeline() {
         loadBucketRange(allBuckets, startIndex, bufferBuckets * 2 + 1)
       }, 150) // 150ms debounce
     },
-    [allBuckets, loadBucketRange, scrollToBucketDate],
+    [allBuckets, loadBucketRange],
   )
 
   // Handle scrubber drag end - trigger immediate bucket loading for the final position
   const handleScrubEnd = useCallback(
     (bucketIndex: number) => {
-      isScrubbing.current = false
-
       // Clear any pending debounced load
       if (scrubLoadTimerRef.current) {
         clearTimeout(scrubLoadTimerRef.current)
         scrubLoadTimerRef.current = null
       }
 
-      // Load buckets around the target position, then scroll to the correct position
+      // Scroll to the bucket position using the virtualized timeline's scroll function
+      if (scrollToBucketRef.current) {
+        scrollToBucketRef.current(bucketIndex)
+      }
+
+      // Load buckets around the target position
       const bufferBuckets = 5
       const startIndex = Math.max(0, bucketIndex - bufferBuckets)
-      const targetBucket = allBuckets[bucketIndex]
-      const targetDate = targetBucket?.timeBucket.split('T')[0] ?? ''
 
       loadBucketRange(allBuckets, startIndex, bufferBuckets * 2 + 1).then(() => {
-        // After loading, scroll to the actual position of the target date
-        scrollToBucketDate(targetDate)
+        // Clear scrubbing flag only after loading is complete
+        isScrubbing.current = false
       })
     },
-    [allBuckets, loadBucketRange, scrollToBucketDate],
+    [allBuckets, loadBucketRange],
   )
 
   // Handle visible date change from VirtualizedTimeline
@@ -624,6 +598,8 @@ export function Timeline() {
           <>
             <VirtualizedTimeline
               assets={assets}
+              allBuckets={allBuckets}
+              loadedBucketIndices={loadedBucketIndices}
               hasMoreContent={hasMoreContent}
               isLoadingMore={isLoadingMore}
               onAssetOpenRequest={handleAssetClick}
@@ -632,6 +608,8 @@ export function Timeline() {
               anchorAssetId={selectedAsset?.id}
               onVisibleDateChange={handleVisibleDateChange}
               scrollContainerRef={scrollContainerRef}
+              onBucketLoadRequest={handleBucketLoadRequest}
+              onScrollToBucketReady={handleScrollToBucketReady}
             />
             <TimelineScrubber
               buckets={allBuckets}
