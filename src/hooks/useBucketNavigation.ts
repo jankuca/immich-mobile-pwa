@@ -1,7 +1,6 @@
 import { useCallback, useMemo, useRef } from 'preact/hooks'
 
 const HEADER_HEIGHT = 48
-const ROW_GAP = 2
 
 /** Bucket metadata for timeline skeleton */
 export interface TimelineBucket {
@@ -138,15 +137,57 @@ export function useBucketNavigation<A>({
     return lastBucket ? lastBucket.top + lastBucket.height : 0
   }, [bucketPositions])
 
-  // Update current bucket based on scroll position (relative movement)
+  // Find bucket index at a given scroll position using binary search
+  const findBucketAtPosition = useCallback(
+    (scrollTop: number): number => {
+      if (bucketPositions.length === 0) {
+        return 0
+      }
+
+      // Binary search for the bucket containing scrollTop
+      let low = 0
+      let high = bucketPositions.length - 1
+
+      while (low < high) {
+        const mid = Math.floor((low + high + 1) / 2)
+        const bucket = bucketPositions[mid]
+        if (bucket && bucket.top <= scrollTop) {
+          low = mid
+        } else {
+          high = mid - 1
+        }
+      }
+
+      return low
+    },
+    [bucketPositions],
+  )
+
+  // Update current bucket based on scroll position
   const updateCurrentBucket = useCallback(
     (scrollTop: number) => {
       if (bucketPositions.length === 0) {
         return
       }
 
+      const prevIdx = currentBucketIndexRef.current
       const currentBucket = bucketPositions[currentBucketIndexRef.current]
       if (!currentBucket) {
+        // Current bucket index is invalid, do a full lookup
+        const newIndex = findBucketAtPosition(scrollTop)
+        currentBucketIndexRef.current = newIndex
+        const newBucket = bucketPositions[newIndex]
+        if (newBucket) {
+          offsetWithinBucketRef.current = scrollTop - newBucket.top
+        }
+        console.log(
+          '[updateCurrentBucket] invalid bucket, lookup:',
+          prevIdx,
+          '->',
+          newIndex,
+          'scrollTop:',
+          scrollTop,
+        )
         return
       }
 
@@ -154,28 +195,75 @@ export function useBucketNavigation<A>({
       const newOffset = scrollTop - currentBucketTop
 
       // Check if scrolled into different bucket
-      if (newOffset < 0 && currentBucketIndexRef.current > 0) {
-        // Scrolled up into previous bucket
-        currentBucketIndexRef.current--
-        const prevBucket = bucketPositions[currentBucketIndexRef.current]
-        if (prevBucket) {
-          offsetWithinBucketRef.current = scrollTop - prevBucket.top
+      if (newOffset < 0) {
+        if (currentBucketIndexRef.current > 0) {
+          // Check if we're in the immediately previous bucket or further
+          const prevBucket = bucketPositions[currentBucketIndexRef.current - 1]
+          if (prevBucket && scrollTop >= prevBucket.top) {
+            // Simple case: moved into previous bucket
+            currentBucketIndexRef.current--
+            offsetWithinBucketRef.current = scrollTop - prevBucket.top
+            console.log(
+              '[updateCurrentBucket] prev bucket:',
+              prevIdx,
+              '->',
+              currentBucketIndexRef.current,
+            )
+          } else {
+            // Large jump: do a full lookup
+            const newIndex = findBucketAtPosition(scrollTop)
+            currentBucketIndexRef.current = newIndex
+            const newBucket = bucketPositions[newIndex]
+            if (newBucket) {
+              offsetWithinBucketRef.current = scrollTop - newBucket.top
+            }
+            console.log(
+              '[updateCurrentBucket] large jump up:',
+              prevIdx,
+              '->',
+              newIndex,
+              'scrollTop:',
+              scrollTop,
+            )
+          }
         }
-      } else if (
-        newOffset >= currentBucket.height &&
-        currentBucketIndexRef.current < bucketPositions.length - 1
-      ) {
-        // Scrolled down into next bucket
-        currentBucketIndexRef.current++
-        const nextBucket = bucketPositions[currentBucketIndexRef.current]
-        if (nextBucket) {
-          offsetWithinBucketRef.current = scrollTop - nextBucket.top
+      } else if (newOffset >= currentBucket.height) {
+        if (currentBucketIndexRef.current < bucketPositions.length - 1) {
+          // Check if we're in the immediately next bucket or further
+          const nextBucket = bucketPositions[currentBucketIndexRef.current + 1]
+          if (nextBucket && scrollTop < nextBucket.top + nextBucket.height) {
+            // Simple case: moved into next bucket
+            currentBucketIndexRef.current++
+            offsetWithinBucketRef.current = scrollTop - nextBucket.top
+            console.log(
+              '[updateCurrentBucket] next bucket:',
+              prevIdx,
+              '->',
+              currentBucketIndexRef.current,
+            )
+          } else {
+            // Large jump: do a full lookup
+            const newIndex = findBucketAtPosition(scrollTop)
+            currentBucketIndexRef.current = newIndex
+            const newBucket = bucketPositions[newIndex]
+            if (newBucket) {
+              offsetWithinBucketRef.current = scrollTop - newBucket.top
+            }
+            console.log(
+              '[updateCurrentBucket] large jump down:',
+              prevIdx,
+              '->',
+              newIndex,
+              'scrollTop:',
+              scrollTop,
+            )
+          }
         }
       } else {
         offsetWithinBucketRef.current = newOffset
       }
     },
-    [bucketPositions],
+    [bucketPositions, findBucketAtPosition],
   )
 
   // Scroll to a specific bucket
@@ -216,6 +304,15 @@ export function useBucketNavigation<A>({
         if (bp && !bp.loaded) {
           bucketsToLoad.push(bp.bucketIndex)
         }
+      }
+
+      if (bucketsToLoad.length > 0) {
+        console.log(
+          '[getBucketsToLoad] currentIdx:',
+          currentIdx,
+          'loading:',
+          bucketsToLoad.map((i) => bucketPositions[i]?.timeBucket),
+        )
       }
 
       return bucketsToLoad

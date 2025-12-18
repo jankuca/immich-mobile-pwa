@@ -139,7 +139,9 @@ export function useTimelineScroll<A extends { id: string }>({
       }
 
       // Check if we're near the end and need to load more
-      if (onLoadMoreRequest) {
+      // Only use legacy load-more when NOT in bucket-based mode
+      // (bucket-based mode uses onBucketLoadRequest instead)
+      if (onLoadMoreRequest && bucketPositions.length === 0) {
         const scrollPosition = newScrollTop / (scrollHeight - clientHeight)
         const isNearEnd = scrollPosition > 0.8
 
@@ -193,7 +195,9 @@ export function useTimelineScroll<A extends { id: string }>({
       }
 
       // Check if we need to load more content initially (if container isn't filled)
+      // Only use legacy load-more when NOT in bucket-based mode
       if (
+        bucketPositions.length === 0 &&
         scrollContainer.scrollHeight <= scrollContainer.clientHeight &&
         hasMoreContent &&
         !isLoadingMore &&
