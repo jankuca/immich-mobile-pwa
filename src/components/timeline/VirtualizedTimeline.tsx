@@ -5,6 +5,7 @@ import { useScrollAnchor } from '../../hooks/useScrollAnchor'
 import { useSections } from '../../hooks/useSections'
 import { useThumbnailRegistry } from '../../hooks/useThumbnailRegistry'
 import { type LayoutItem, useTimelineLayout } from '../../hooks/useTimelineLayout'
+import { useTimelineScroll } from '../../hooks/useTimelineScroll'
 import { useVirtualization } from '../../hooks/useVirtualization'
 import type { ThumbnailPosition } from '../../hooks/useZoomTransition'
 import type { AssetOrder, AssetTimelineItem } from '../../services/api'
@@ -88,15 +89,6 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
     registerThumbnail: handleThumbnailRegister,
     unregisterThumbnail: handleThumbnailUnregister,
   } = useThumbnailRegistry()
-
-  // Throttle scroll state updates
-  const scrollRafRef = useRef<number | null>(null)
-
-  // Throttle visible date updates to avoid excessive re-renders
-  const lastVisibleDateRef = useRef<string | null>(null)
-
-  // Flag to prevent scroll handler from re-processing during programmatic scrolls
-  const isAdjustingScrollRef = useRef<boolean>(false)
 
   // Get actual scroll position from DOM (fallback to state for SSR/initial render)
   const getScrollTop = useCallback(() => {
@@ -186,138 +178,24 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
   })
 
   // Handle scroll events - update scroll position for virtualization
-  const handleScroll = useCallback(() => {
-    const scrollContainer = scrollContainerRef.current
-    if (!scrollContainer) {
-      return
-    }
-
-    // Skip if this is a programmatic scroll adjustment (to prevent loops)
-    if (isAdjustingScrollRef.current) {
-      isAdjustingScrollRef.current = false
-      return
-    }
-
-    // Use RAF to batch scroll updates
-    if (scrollRafRef.current) {
-      cancelAnimationFrame(scrollRafRef.current)
-    }
-
-    scrollRafRef.current = requestAnimationFrame(() => {
-      const { scrollTop: newScrollTop, scrollHeight, clientHeight } = scrollContainer
-
-      // Update scroll position for virtualization
-      setScrollTop(newScrollTop)
-      if (clientHeight !== viewportHeight) {
-        setViewportHeight(clientHeight)
-      }
-
-      // Find visible date from layout (loaded assets)
-      const visibleItem = layout.find(
-        (item) => item.top + item.height > newScrollTop && item.type === 'row',
-      )
-      let visibleDate = visibleItem?.date ?? null
-
-      // Track first visible asset for anchoring
-      if (visibleItem?.type === 'row' && visibleItem.assets && !anchorAssetId) {
-        setFirstVisibleAssetId(visibleItem.assets[0]?.id ?? null)
-      }
-
-      // Update current bucket tracking based on scroll position
-      // This tracks which bucket the user is viewing to prevent wrong bucket loading
-      updateCurrentBucket(newScrollTop)
-
-      // Request loading of buckets around the TRACKED current bucket, not scroll position
-      // This prevents loading wrong buckets when bucket heights change
-      if (bucketPositions.length > 0 && onBucketLoadRequest) {
-        const bucketsToLoad = getBucketsToLoad(2)
-        for (const bucketIndex of bucketsToLoad) {
-          onBucketLoadRequest(bucketIndex)
-        }
-
-        // Use tracked bucket's date for visible date if we don't have loaded content
-        if (!visibleDate) {
-          const currentBp = bucketPositions[currentBucketIndex]
-          if (currentBp) {
-            visibleDate = currentBp.timeBucket
-          }
-        }
-      }
-
-      // Report visible date if changed
-      if (onVisibleDateChange && visibleDate && visibleDate !== lastVisibleDateRef.current) {
-        lastVisibleDateRef.current = visibleDate
-        onVisibleDateChange(visibleDate)
-      }
-
-      // Check if we're near the end and need to load more
-      if (onLoadMoreRequest) {
-        const scrollPosition = newScrollTop / (scrollHeight - clientHeight)
-        const isNearEnd = scrollPosition > 0.8
-
-        if (isNearEnd && hasMoreContent && !isLoadingMore) {
-          onLoadMoreRequest()
-        }
-      }
-    })
-  }, [
-    anchorAssetId,
+  const { isAdjustingScrollRef } = useTimelineScroll({
+    layout,
     bucketPositions,
     currentBucketIndex,
-    getBucketsToLoad,
+    scrollContainerRef,
+    viewportHeight,
     hasMoreContent,
     isLoadingMore,
-    layout,
-    onBucketLoadRequest,
-    onLoadMoreRequest,
-    onVisibleDateChange,
-    setFirstVisibleAssetId,
+    anchorAssetId,
+    setScrollTop,
+    setViewportHeight,
     updateCurrentBucket,
-    viewportHeight,
-  ])
-
-  // Sync scroll position when sections change (to maintain position after content loads)
-  useEffect(() => {
-    const scrollContainer = scrollContainerRef.current
-    if (scrollContainer && sections.length > 0) {
-      // Read current scroll position and update state if different
-      const currentScroll = scrollContainer.scrollTop
-      setScrollTop(currentScroll)
-      if (scrollContainer.clientHeight > 0) {
-        setViewportHeight(scrollContainer.clientHeight)
-      }
-    }
-  }, [sections])
-
-  // Add scroll event listener
-  // biome-ignore lint/correctness/useExhaustiveDependencies: we need to check if we want to request more after adding sections
-  useEffect(() => {
-    const scrollContainer = scrollContainerRef.current
-    if (scrollContainer) {
-      scrollContainer.addEventListener('scroll', handleScroll)
-
-      // Initialize viewport height for virtualization
-      if (scrollContainer.clientHeight > 0 && viewportHeight === 0) {
-        setViewportHeight(scrollContainer.clientHeight)
-      }
-
-      // Check if we need to load more content initially (if container isn't filled)
-      if (
-        scrollContainer.scrollHeight <= scrollContainer.clientHeight &&
-        hasMoreContent &&
-        !isLoadingMore &&
-        onLoadMoreRequest
-      ) {
-        onLoadMoreRequest()
-      }
-    }
-
-    return () => {
-      if (scrollContainer) {
-        scrollContainer.removeEventListener('scroll', handleScroll)
-      }
-    }
-  }, [handleScroll, hasMoreContent, isLoadingMore, onLoadMoreRequest, sections, viewportHeight])
+    getBucketsToLoad,
+    onBucketLoadRequest,
+    onVisibleDateChange,
+    onLoadMoreRequest,
+    setFirstVisibleAssetId,
+  })
 
   // Parse a YYYY-MM-DD date string as local time (not UTC)
   // This prevents timezone shifts when displaying dates
