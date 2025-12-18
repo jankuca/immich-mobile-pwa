@@ -350,15 +350,16 @@ export function TimelineScrubber({
       style={{
         position: 'fixed',
         right: 0,
-        top: 'calc(var(--header-height) + env(safe-area-inset-top, 0px))',
-        bottom: 'calc(var(--tabbar-height) + env(safe-area-inset-bottom, 0px))',
+        // Start below the page header + first section header (48px)
+        top: 'calc(var(--header-height) + 48px + env(safe-area-inset-top, 0px))',
+        // End above search input + spacing
+        bottom:
+          'calc(var(--tabbar-height) + var(--search-input-height) + var(--spacing-md) * 2 + env(safe-area-inset-bottom, 0px))',
         width: '60px',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'flex-end',
         justifyContent: 'flex-start',
-        paddingRight: 'var(--spacing-sm)',
-        paddingTop: 'var(--spacing-sm)',
         zIndex: 10,
         touchAction: 'none',
         userSelect: 'none',
