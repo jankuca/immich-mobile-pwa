@@ -4,6 +4,7 @@ import { useBucketNavigation } from '../../hooks/useBucketNavigation'
 import { useSections } from '../../hooks/useSections'
 import { useThumbnailRegistry } from '../../hooks/useThumbnailRegistry'
 import { type LayoutItem, useTimelineLayout } from '../../hooks/useTimelineLayout'
+import { useVirtualization } from '../../hooks/useVirtualization'
 import type { ThumbnailPosition } from '../../hooks/useZoomTransition'
 import type { AssetOrder, AssetTimelineItem } from '../../services/api'
 import { SectionPill } from '../common/SectionPill'
@@ -14,8 +15,6 @@ const TARGET_THUMBNAIL_SIZE = 130
 const MIN_COLUMNS = 3
 const HEADER_HEIGHT = 48
 const ROW_GAP = 2
-// Buffer rows above and below viewport for smooth scrolling
-const BUFFER_ROWS = 5
 
 export type GetThumbnailPosition = (assetId: string) => ThumbnailPosition | null
 
@@ -170,60 +169,13 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
   })
 
   // Calculate visible range and spacer heights for flow-based virtualization
-  // This approach renders items in normal document flow (not absolute) so sticky headers work
-  const { visibleItems, topSpacerHeight, bottomSpacerHeight, stickyHeader } = (() => {
-    if (layout.length === 0 || viewportHeight === 0) {
-      return {
-        visibleItems: [] as LayoutItem<A>[],
-        topSpacerHeight: 0,
-        bottomSpacerHeight: 0,
-        stickyHeader: null as LayoutItem<A> | null,
-      }
-    }
-
-    const currentScrollTop = getScrollTop()
-    const bufferPx = BUFFER_ROWS * rowHeight
-    const visibleTop = Math.max(0, currentScrollTop - bufferPx)
-    const visibleBottom = currentScrollTop + viewportHeight + bufferPx
-
-    // Find the "current" sticky header - the last header with top <= scrollTop
-    // This is rendered separately at the top, not as part of the flow
-    let currentStickyHeader: LayoutItem<A> | null = null
-    for (const item of layout) {
-      if (item.type === 'header' && item.top <= currentScrollTop) {
-        currentStickyHeader = item
-      } else if (item.type === 'header' && item.top > currentScrollTop) {
-        break // Headers are sorted, no need to continue
-      }
-    }
-
-    // Filter items that are in the visible range (don't include sticky header here)
-    const filtered: LayoutItem<A>[] = []
-    for (const item of layout) {
-      const itemBottom = item.top + item.height
-      const isInVisibleRange = itemBottom > visibleTop && item.top < visibleBottom
-
-      if (isInVisibleRange) {
-        filtered.push(item)
-      } else if (filtered.length > 0 && item.top >= visibleBottom) {
-        // Past visible range, stop iterating
-        break
-      }
-    }
-
-    // Calculate spacer heights based on actually visible items (not sticky header)
-    const firstVisible = filtered[0]
-    const lastVisible = filtered.at(-1)
-    const topHeight = firstVisible ? firstVisible.top : 0
-    const bottomHeight = lastVisible ? totalHeight - (lastVisible.top + lastVisible.height) : 0
-
-    return {
-      visibleItems: filtered,
-      topSpacerHeight: topHeight,
-      bottomSpacerHeight: Math.max(0, bottomHeight),
-      stickyHeader: currentStickyHeader,
-    }
-  })()
+  const { visibleItems, topSpacerHeight, bottomSpacerHeight, stickyHeader } = useVirtualization({
+    layout,
+    totalHeight,
+    scrollTop: getScrollTop(),
+    viewportHeight,
+    rowHeight,
+  })
 
   // Helper function to get the asset index in the flat list
   const getAssetIndex = useCallback(
