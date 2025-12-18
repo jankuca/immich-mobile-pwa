@@ -45,19 +45,17 @@ export function TimelineHeaderItem({
       })
 
   // Bucket placeholders span the entire bucket height (header + content area)
+  // No sticky positioning since they're inside a transformed container
   if (isBucketPlaceholder) {
     const contentHeight = height - HEADER_HEIGHT
     return (
       <div key={itemKey} style={{ height: `${height}px` }}>
         <div
           style={{
-            position: 'sticky',
-            top: 0,
-            zIndex: 10,
             height: `${HEADER_HEIGHT}px`,
           }}
         >
-          <SectionPill sticky={true}>{formattedDate}</SectionPill>
+          <SectionPill sticky={false}>{formattedDate}</SectionPill>
         </div>
         {/* Spacer for the content area - takes up remaining bucket height */}
         <div style={{ height: `${contentHeight}px` }} />
@@ -65,18 +63,16 @@ export function TimelineHeaderItem({
     )
   }
 
-  // Regular headers use position: sticky for native browser-controlled stickiness
+  // Regular headers - no sticky positioning since they're inside a transformed container
+  // The TimelineStickyHeader component handles the sticky date display separately
   return (
     <div
       key={itemKey}
       style={{
-        position: 'sticky',
-        top: 0,
-        zIndex: 10,
         height: `${height}px`,
       }}
     >
-      <SectionPill sticky={true}>{formattedDate}</SectionPill>
+      <SectionPill sticky={false}>{formattedDate}</SectionPill>
     </div>
   )
 }
