@@ -1,6 +1,8 @@
+// Must be the first import to enable Preact DevTools
+import 'preact/debug'
+
 import { type ComponentChildren, render } from 'preact'
 import { useEffect, useState } from 'preact/hooks'
-import 'preact/debug' // Enable Preact DevTools
 
 import { TabBar } from './components/common/TabBar'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
