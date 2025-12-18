@@ -27,8 +27,8 @@ interface VirtualizedTimelineProps<A extends AssetTimelineItem> {
   onThumbnailPositionGetterReady?: (getter: GetThumbnailPosition) => void
   /** ID of the asset to anchor/keep visible after orientation changes (e.g., the currently viewed photo) */
   anchorAssetId?: string | null | undefined
-  /** Callback when scroll progress changes (0-1) */
-  onScrollProgress?: (progress: number) => void
+  /** Callback when the visible date changes (throttled) */
+  onVisibleDateChange?: (date: string) => void
   /** Ref to the scroll container for external control */
   scrollContainerRef?: { current: HTMLDivElement | null }
 }
@@ -49,7 +49,7 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
   onLoadMoreRequest,
   onThumbnailPositionGetterReady,
   anchorAssetId,
-  onScrollProgress,
+  onVisibleDateChange,
   scrollContainerRef: externalScrollContainerRef,
 }: VirtualizedTimelineProps<A>) {
   const [sections, setSections] = useState<TimelineSection<A>[]>([])
@@ -64,6 +64,10 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
 
   // Track the first visible asset for anchoring when no photo is open
   const firstVisibleAssetIdRef = useRef<string | null>(null)
+
+  // Throttle visible date updates to avoid excessive re-renders
+  const lastVisibleDateRef = useRef<string | null>(null)
+  const visibleDateThrottleRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Function to get thumbnail position by asset ID
   const getThumbnailPosition = useCallback((assetId: string): ThumbnailPosition | null => {
@@ -270,44 +274,54 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
 
     const { scrollTop, scrollHeight, clientHeight } = scrollContainer
 
-    // Track the first visible asset for anchoring (only when no explicit anchor is set)
-    if (!anchorAssetId && thumbnailSize > 0) {
-      // Find the first visible asset based on scroll position
-      const headerHeight = showDateHeaders ? 48 : 0
-      let currentPosition = 0
-      let foundFirstVisible = false
+    // Find the first visible section based on scroll position
+    let visibleDate: string | null = null
+    const headerHeight = showDateHeaders ? 48 : 0
+    let currentPosition = 0
 
-      for (const section of sections) {
-        if (showDateHeaders) {
-          currentPosition += headerHeight
-        }
+    for (const section of sections) {
+      if (showDateHeaders) {
+        currentPosition += headerHeight
+      }
 
-        const assetsInSection = section.assets.length
-        const rowsInSection = Math.ceil(assetsInSection / columnCount)
-        const sectionHeight = rowsInSection * (thumbnailSize + 2)
+      const assetsInSection = section.assets.length
+      const rowsInSection = Math.ceil(assetsInSection / columnCount)
+      const sectionHeight = rowsInSection * (thumbnailSize + 2)
 
-        if (!foundFirstVisible && currentPosition + sectionHeight > scrollTop) {
-          // The first visible asset is in this section
+      if (currentPosition + sectionHeight > scrollTop) {
+        visibleDate = section.date
+
+        // Track the first visible asset for anchoring (only when no explicit anchor is set)
+        if (!anchorAssetId && thumbnailSize > 0) {
           const offsetInSection = Math.max(0, scrollTop - currentPosition)
           const rowIndex = Math.floor(offsetInSection / (thumbnailSize + 2))
           const assetIndex = rowIndex * columnCount
 
           if (assetIndex < assetsInSection) {
             firstVisibleAssetIdRef.current = section.assets[assetIndex]?.id ?? null
-            foundFirstVisible = true
-            break
           }
         }
-
-        currentPosition += sectionHeight
+        break
       }
+
+      currentPosition += sectionHeight
     }
 
-    // Calculate and report scroll progress
-    const maxScroll = scrollHeight - clientHeight
-    if (maxScroll > 0 && onScrollProgress) {
-      const progress = Math.max(0, Math.min(1, scrollTop / maxScroll))
-      onScrollProgress(progress)
+    // Report visible date if changed (throttled)
+    if (onVisibleDateChange && visibleDate && visibleDate !== lastVisibleDateRef.current) {
+      lastVisibleDateRef.current = visibleDate
+
+      // Clear existing throttle timer
+      if (visibleDateThrottleRef.current) {
+        clearTimeout(visibleDateThrottleRef.current)
+      }
+
+      // Throttle updates to 100ms
+      visibleDateThrottleRef.current = setTimeout(() => {
+        if (lastVisibleDateRef.current) {
+          onVisibleDateChange(lastVisibleDateRef.current)
+        }
+      }, 100)
     }
 
     // Check if we're near the end and need to load more
@@ -325,7 +339,7 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
     hasMoreContent,
     isLoadingMore,
     onLoadMoreRequest,
-    onScrollProgress,
+    onVisibleDateChange,
     sections,
     showDateHeaders,
     thumbnailSize,

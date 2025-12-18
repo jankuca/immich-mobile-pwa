@@ -26,12 +26,12 @@ export function Timeline() {
   // Track which buckets have been loaded (by index)
   const [loadedBuckets, setLoadedBuckets] = useState<Set<number>>(new Set())
   const [hasMoreContent, setHasMoreContent] = useState<boolean>(true)
-  // Scroll progress for scrubber
-  const [scrollProgress, setScrollProgress] = useState(0)
+  // Current visible date for scrubber (from VirtualizedTimeline)
+  const [visibleDate, setVisibleDate] = useState<string | null>(null)
   // Ref to the scroll container for programmatic scrolling
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   // Track if we're currently scrubbing to avoid scroll event conflicts
-  const [isScrubbing, setIsScrubbing] = useState(false)
+  const isScrubbing = useRef(false)
   const { logout } = useAuth()
 
   // Search state
@@ -201,17 +201,10 @@ export function Timeline() {
   // Debounce timer ref for bucket loading during scrub
   const scrubLoadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Handle scrubber drag - scroll to the target position and trigger debounced loading
+  // Handle scrubber drag - load buckets for the target bucket index
   const handleScrub = useCallback(
-    (progress: number) => {
-      const scrollContainer = scrollContainerRef.current
-      if (!scrollContainer) {
-        return
-      }
-
-      const { scrollHeight, clientHeight } = scrollContainer
-      const targetScroll = progress * (scrollHeight - clientHeight)
-      scrollContainer.scrollTop = targetScroll
+    (bucketIndex: number) => {
+      isScrubbing.current = true
 
       // Debounced bucket loading during drag
       if (scrubLoadTimerRef.current) {
@@ -219,9 +212,6 @@ export function Timeline() {
       }
 
       scrubLoadTimerRef.current = setTimeout(() => {
-        // Calculate which bucket index corresponds to the current progress
-        const bucketIndex = Math.floor(progress * allBuckets.length)
-
         // Load buckets around the target position
         const bufferBuckets = 3
         const startIndex = Math.max(0, bucketIndex - bufferBuckets)
@@ -231,40 +221,32 @@ export function Timeline() {
     [allBuckets, loadBucketRange],
   )
 
-  // Handle scrubber drag start
-  const handleScrubStart = useCallback(() => {
-    setIsScrubbing(true)
-  }, [])
-
   // Handle scrubber drag end - trigger immediate bucket loading for the final position
-  const handleScrubEnd = useCallback(() => {
-    setIsScrubbing(false)
+  const handleScrubEnd = useCallback(
+    (bucketIndex: number) => {
+      isScrubbing.current = false
 
-    // Clear any pending debounced load
-    if (scrubLoadTimerRef.current) {
-      clearTimeout(scrubLoadTimerRef.current)
-      scrubLoadTimerRef.current = null
-    }
-
-    // Calculate which bucket index corresponds to the current scroll progress
-    const bucketIndex = Math.floor(scrollProgress * allBuckets.length)
-
-    // Load buckets around the target position
-    const bufferBuckets = 5
-    const startIndex = Math.max(0, bucketIndex - bufferBuckets)
-    loadBucketRange(allBuckets, startIndex, bufferBuckets * 2 + 1)
-  }, [scrollProgress, allBuckets, loadBucketRange])
-
-  // Handle scroll progress from VirtualizedTimeline
-  const handleScrollProgress = useCallback(
-    (progress: number) => {
-      // Only update scroll progress if not currently scrubbing
-      if (!isScrubbing) {
-        setScrollProgress(progress)
+      // Clear any pending debounced load
+      if (scrubLoadTimerRef.current) {
+        clearTimeout(scrubLoadTimerRef.current)
+        scrubLoadTimerRef.current = null
       }
+
+      // Load buckets around the target position
+      const bufferBuckets = 5
+      const startIndex = Math.max(0, bucketIndex - bufferBuckets)
+      loadBucketRange(allBuckets, startIndex, bufferBuckets * 2 + 1)
     },
-    [isScrubbing],
+    [allBuckets, loadBucketRange],
   )
+
+  // Handle visible date change from VirtualizedTimeline
+  const handleVisibleDateChange = useCallback((date: string) => {
+    // Only update if not currently scrubbing
+    if (!isScrubbing.current) {
+      setVisibleDate(date)
+    }
+  }, [])
 
   // Handle asset selection
   const handleAssetClick = (
@@ -529,14 +511,13 @@ export function Timeline() {
               onLoadMoreRequest={handleLoadMore}
               onThumbnailPositionGetterReady={setGetThumbnailPosition}
               anchorAssetId={selectedAsset?.id}
-              onScrollProgress={handleScrollProgress}
+              onVisibleDateChange={handleVisibleDateChange}
               scrollContainerRef={scrollContainerRef}
             />
             <TimelineScrubber
               buckets={allBuckets}
-              scrollProgress={scrollProgress}
+              visibleDate={visibleDate}
               onScrub={handleScrub}
-              onScrubStart={handleScrubStart}
               onScrubEnd={handleScrubEnd}
             />
           </>

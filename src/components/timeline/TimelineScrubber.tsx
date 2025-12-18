@@ -9,58 +9,54 @@ interface YearMonth {
   year: number
   month: number
   label: string
-  bucketIndex: number // Index into the original buckets array
+  bucketIndex: number // First bucket index for this month
 }
 
 interface YearGroup {
   year: number
   months: YearMonth[]
-  totalCount: number
 }
 
 interface TimelineScrubberProps {
   buckets: TimeBucket[]
-  /** Current scroll progress from 0 to 1 */
-  scrollProgress: number
-  /** Called when user drags to a new position (0-1 progress) */
-  onScrub: (progress: number) => void
-  /** Called when user starts dragging */
-  onScrubStart?: () => void
-  /** Called when user stops dragging */
-  onScrubEnd?: () => void
+  /** Current visible date string from the timeline viewport */
+  visibleDate: string | null
+  /** Called when user drags to a bucket position */
+  onScrub: (bucketIndex: number) => void
+  /** Called when user stops dragging with final bucket index */
+  onScrubEnd: (bucketIndex: number) => void
 }
 
 export function TimelineScrubber({
   buckets,
-  scrollProgress,
+  visibleDate,
   onScrub,
-  onScrubStart,
   onScrubEnd,
 }: TimelineScrubberProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [isDragging, setIsDragging] = useState(false)
-  const [dragProgress, setDragProgress] = useState(0)
+  const [dragBucketIndex, setDragBucketIndex] = useState(0)
 
-  // Group buckets by year and month
+  // Group buckets by year and month (memoized, only recalculates when buckets change)
   const yearGroups = useMemo(() => {
     const groups: Map<number, YearGroup> = new Map()
 
-    buckets.forEach((bucket, index) => {
+    for (let index = 0; index < buckets.length; index++) {
+      const bucket = buckets[index]
+      if (!bucket) {
+        continue
+      }
       const date = new Date(bucket.timeBucket)
       const year = date.getFullYear()
       const month = date.getMonth()
 
       if (!groups.has(year)) {
-        groups.set(year, { year, months: [], totalCount: 0 })
+        groups.set(year, { year, months: [] })
       }
 
       const group = groups.get(year)
       if (group) {
-        group.totalCount += bucket.count
-      }
-
-      // Only add month if not already present
-      if (group) {
+        // Only add month if not already present
         const monthExists = group.months.some((m) => m.month === month)
         if (!monthExists) {
           const monthLabel = date.toLocaleDateString('en-US', { month: 'short' })
@@ -72,7 +68,7 @@ export function TimelineScrubber({
           })
         }
       }
-    })
+    }
 
     // Sort years descending, months within years descending
     const sortedGroups = Array.from(groups.values()).sort((a, b) => b.year - a.year)
@@ -83,34 +79,50 @@ export function TimelineScrubber({
     return sortedGroups
   }, [buckets])
 
-  // Calculate current position based on progress
+  // Calculate current position from visible date or drag position
   const currentPosition = useMemo(() => {
-    const progress = isDragging ? dragProgress : scrollProgress
-    if (buckets.length === 0) {
-      return { year: new Date().getFullYear(), month: 0 }
+    if (isDragging) {
+      const bucket = buckets[dragBucketIndex]
+      if (bucket) {
+        const date = new Date(bucket.timeBucket)
+        return { year: date.getFullYear(), month: date.getMonth() }
+      }
     }
 
-    const bucketIndex = Math.floor(progress * (buckets.length - 1))
-    const bucket = buckets[Math.min(bucketIndex, buckets.length - 1)]
-    if (!bucket) {
-      return { year: new Date().getFullYear(), month: 0 }
+    if (visibleDate) {
+      const date = new Date(visibleDate)
+      return { year: date.getFullYear(), month: date.getMonth() }
     }
 
-    const date = new Date(bucket.timeBucket)
-    return { year: date.getFullYear(), month: date.getMonth() }
-  }, [buckets, scrollProgress, isDragging, dragProgress])
+    // Fallback to first bucket
+    const firstBucket = buckets[0]
+    if (firstBucket) {
+      const date = new Date(firstBucket.timeBucket)
+      return { year: date.getFullYear(), month: date.getMonth() }
+    }
+
+    return { year: new Date().getFullYear(), month: 0 }
+  }, [buckets, visibleDate, isDragging, dragBucketIndex])
 
   // Find active year index
   const activeYearIndex = useMemo(() => {
     return yearGroups.findIndex((g) => g.year === currentPosition.year)
   }, [yearGroups, currentPosition.year])
 
+  // Convert Y position to bucket index
+  const yPositionToBucketIndex = useCallback(
+    (y: number, containerHeight: number): number => {
+      const progress = Math.max(0, Math.min(1, y / containerHeight))
+      return Math.floor(progress * (buckets.length - 1))
+    },
+    [buckets.length],
+  )
+
   // Handle drag
   const handlePointerDown = useCallback(
     (e: PointerEvent) => {
       e.preventDefault()
       setIsDragging(true)
-      onScrubStart?.()
 
       const container = containerRef.current
       if (!container) {
@@ -119,11 +131,11 @@ export function TimelineScrubber({
 
       const rect = container.getBoundingClientRect()
       const y = e.clientY - rect.top
-      const progress = Math.max(0, Math.min(1, y / rect.height))
-      setDragProgress(progress)
-      onScrub(progress)
+      const bucketIndex = yPositionToBucketIndex(y, rect.height)
+      setDragBucketIndex(bucketIndex)
+      onScrub(bucketIndex)
     },
-    [onScrub, onScrubStart],
+    [onScrub, yPositionToBucketIndex],
   )
 
   const handlePointerMove = useCallback(
@@ -139,19 +151,19 @@ export function TimelineScrubber({
 
       const rect = container.getBoundingClientRect()
       const y = e.clientY - rect.top
-      const progress = Math.max(0, Math.min(1, y / rect.height))
-      setDragProgress(progress)
-      onScrub(progress)
+      const bucketIndex = yPositionToBucketIndex(y, rect.height)
+      setDragBucketIndex(bucketIndex)
+      onScrub(bucketIndex)
     },
-    [isDragging, onScrub],
+    [isDragging, onScrub, yPositionToBucketIndex],
   )
 
   const handlePointerUp = useCallback(() => {
     if (isDragging) {
       setIsDragging(false)
-      onScrubEnd?.()
+      onScrubEnd(dragBucketIndex)
     }
-  }, [isDragging, onScrubEnd])
+  }, [isDragging, onScrubEnd, dragBucketIndex])
 
   useEffect(() => {
     if (isDragging) {
@@ -167,9 +179,6 @@ export function TimelineScrubber({
   if (buckets.length === 0) {
     return null
   }
-
-  // Calculate the offset to position the list so current position is at the drag point
-  const progress = isDragging ? dragProgress : scrollProgress
 
   return (
     <div
@@ -187,6 +196,7 @@ export function TimelineScrubber({
         alignItems: 'flex-end',
         justifyContent: 'flex-start',
         paddingRight: 'var(--spacing-sm)',
+        paddingTop: 'var(--spacing-sm)',
         zIndex: 10,
         touchAction: 'none',
         userSelect: 'none',
@@ -194,7 +204,7 @@ export function TimelineScrubber({
         overflow: 'hidden',
       }}
     >
-      {/* Year/Month list - positioned based on scroll progress */}
+      {/* Year/Month list */}
       <div
         class="scrubber-list"
         style={{
@@ -204,8 +214,6 @@ export function TimelineScrubber({
           gap: '2px',
           fontSize: 'var(--font-size-xs)',
           color: 'var(--color-gray)',
-          transform: `translateY(calc(${progress * 100}% - ${activeYearIndex * 20}px))`,
-          transition: isDragging ? 'none' : 'transform 0.1s ease-out',
         }}
       >
         {yearGroups.map((group, groupIndex) => {
