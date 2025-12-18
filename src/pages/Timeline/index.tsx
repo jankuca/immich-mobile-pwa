@@ -236,14 +236,13 @@ export function Timeline() {
         return
       }
 
-      // Cancel any previous load operation
-      if (loadAbortControllerRef.current) {
-        loadAbortControllerRef.current.abort()
+      // Reuse existing AbortController if we have one - don't cancel ongoing loads
+      // This allows multiple scroll events to request loads without aborting each other
+      let abortController = loadAbortControllerRef.current
+      if (!abortController) {
+        abortController = new AbortController()
+        loadAbortControllerRef.current = abortController
       }
-
-      // Create new AbortController for this batch
-      const abortController = new AbortController()
-      loadAbortControllerRef.current = abortController
 
       // Set loading flag synchronously
       isLoadingRef.current = true
@@ -347,12 +346,21 @@ export function Timeline() {
 
         // Cleanup distant buckets if we have too many loaded
         cleanupDistantBuckets(buckets)
+
+        // Clear abort controller after successful load so next load can create a new one if needed
+        if (loadAbortControllerRef.current === abortController) {
+          loadAbortControllerRef.current = null
+        }
       } catch (err) {
         // Clean up loading state for all indices on error
         for (const index of indicesToLoad) {
           loadingSet.delete(index)
         }
         console.error('Error loading bucket range:', err)
+        // Clear abort controller on error too
+        if (loadAbortControllerRef.current === abortController) {
+          loadAbortControllerRef.current = null
+        }
       } finally {
         isLoadingRef.current = false
         setIsLoading(false)
