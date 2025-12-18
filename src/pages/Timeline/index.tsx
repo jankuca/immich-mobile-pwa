@@ -201,10 +201,42 @@ export function Timeline() {
   // Debounce timer ref for bucket loading during scrub
   const scrubLoadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Calculate the proportional position (0-1) for a bucket based on cumulative photo counts
+  const getBucketProgress = useCallback(
+    (bucketIndex: number): number => {
+      if (allBuckets.length === 0) {
+        return 0
+      }
+
+      // Calculate cumulative counts up to bucketIndex
+      let cumulativeCount = 0
+      let totalCount = 0
+
+      for (let i = 0; i < allBuckets.length; i++) {
+        const count = allBuckets[i]?.count ?? 0
+        if (i < bucketIndex) {
+          cumulativeCount += count
+        }
+        totalCount += count
+      }
+
+      return totalCount > 0 ? cumulativeCount / totalCount : 0
+    },
+    [allBuckets],
+  )
+
   // Handle scrubber drag - load buckets for the target bucket index
   const handleScrub = useCallback(
     (bucketIndex: number) => {
       isScrubbing.current = true
+
+      // Scroll to the target position based on proportional photo counts
+      const scrollContainer = scrollContainerRef.current
+      if (scrollContainer) {
+        const progress = getBucketProgress(bucketIndex)
+        const maxScroll = scrollContainer.scrollHeight - scrollContainer.clientHeight
+        scrollContainer.scrollTop = progress * maxScroll
+      }
 
       // Debounced bucket loading during drag
       if (scrubLoadTimerRef.current) {
@@ -218,7 +250,7 @@ export function Timeline() {
         loadBucketRange(allBuckets, startIndex, bufferBuckets * 2 + 1)
       }, 150) // 150ms debounce
     },
-    [allBuckets, loadBucketRange],
+    [allBuckets, getBucketProgress, loadBucketRange],
   )
 
   // Handle scrubber drag end - trigger immediate bucket loading for the final position
@@ -235,9 +267,17 @@ export function Timeline() {
       // Load buckets around the target position
       const bufferBuckets = 5
       const startIndex = Math.max(0, bucketIndex - bufferBuckets)
-      loadBucketRange(allBuckets, startIndex, bufferBuckets * 2 + 1)
+      loadBucketRange(allBuckets, startIndex, bufferBuckets * 2 + 1).then(() => {
+        // After loading, scroll to the position for this bucket
+        const scrollContainer = scrollContainerRef.current
+        if (scrollContainer) {
+          const progress = getBucketProgress(bucketIndex)
+          const maxScroll = scrollContainer.scrollHeight - scrollContainer.clientHeight
+          scrollContainer.scrollTop = progress * maxScroll
+        }
+      })
     },
-    [allBuckets, loadBucketRange],
+    [allBuckets, getBucketProgress, loadBucketRange],
   )
 
   // Handle visible date change from VirtualizedTimeline
