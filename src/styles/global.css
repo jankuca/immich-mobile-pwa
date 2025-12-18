@@ -181,17 +181,6 @@ html, body {
   --timeline-bottom-offset: calc(var(--tabbar-height) + var(--search-input-height) + var(--spacing-sm) * 2);
 }
 
-.ios-content::after {
-  display: block;
-  height: calc(var(--tabbar-height) + calc(var(--spacing-sm) + env(safe-area-inset-bottom, 0px)));
-  content: '';
-}
-
-/* When page has search input, add extra bottom padding to ios-content */
-.ios-page.has-search-input .ios-content::after {
-  height: calc(var(--tabbar-height) + var(--search-input-height) + var(--spacing-sm) * 2 + calc(var(--spacing-sm) + env(safe-area-inset-bottom, 0px)));
-}
-
 .ios-tabbar-area {
   position: fixed;
   bottom: 0;
