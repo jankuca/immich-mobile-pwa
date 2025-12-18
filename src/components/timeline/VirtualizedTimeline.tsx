@@ -21,6 +21,10 @@ const TARGET_THUMBNAIL_SIZE = 130
 const MIN_COLUMNS = 3
 const ROW_GAP = 2
 
+// Bottom offset to account for tab bar + safe area + footer
+// This ensures the last content is visible above the tab bar
+const TIMELINE_BOTTOM_OFFSET = 120
+
 // Re-export types for consumers
 export type { TimelineBucket }
 export type { TimelineController, TimelineControllerRef } from './TimelineController'
@@ -121,7 +125,8 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
     scrollToAnchor,
   } = useAnchoredScroll({
     bucketPositions,
-    totalContentHeight: skeletonTotalHeight,
+    // Include bottom offset so the last content is visible above the tab bar and footer
+    totalContentHeight: skeletonTotalHeight + TIMELINE_BOTTOM_OFFSET,
     scrollContainerRef,
     onAnchorChange: (bucketIndex: number) => {
       // Update current bucket tracking when anchor changes
