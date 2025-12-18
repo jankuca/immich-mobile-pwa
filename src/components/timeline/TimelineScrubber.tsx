@@ -36,6 +36,28 @@ export function TimelineScrubber({
   const containerRef = useRef<HTMLDivElement>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [dragBucketIndex, setDragBucketIndex] = useState(0)
+  const [isExpanded, setIsExpanded] = useState(false)
+
+  // Delay collapsing the scrubber after drag ends for better UX
+  const collapseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const expandScrubber = useCallback(() => {
+    if (collapseTimeoutRef.current) {
+      clearTimeout(collapseTimeoutRef.current)
+      collapseTimeoutRef.current = null
+    }
+    setIsExpanded(true)
+  }, [])
+
+  const collapseScrubberDelayed = useCallback(() => {
+    if (collapseTimeoutRef.current) {
+      clearTimeout(collapseTimeoutRef.current)
+    }
+    collapseTimeoutRef.current = setTimeout(() => {
+      setIsExpanded(false)
+      collapseTimeoutRef.current = null
+    }, 600) // Collapse after 600ms
+  }, [])
 
   // Group buckets by year and month (memoized, only recalculates when buckets change)
   const yearGroups = useMemo(() => {
@@ -123,6 +145,7 @@ export function TimelineScrubber({
     (e: PointerEvent) => {
       e.preventDefault()
       setIsDragging(true)
+      expandScrubber()
 
       const container = containerRef.current
       if (!container) {
@@ -135,7 +158,7 @@ export function TimelineScrubber({
       setDragBucketIndex(bucketIndex)
       onScrub(bucketIndex)
     },
-    [onScrub, yPositionToBucketIndex],
+    [expandScrubber, onScrub, yPositionToBucketIndex],
   )
 
   const handlePointerMove = useCallback(
@@ -162,8 +185,9 @@ export function TimelineScrubber({
     if (isDragging) {
       setIsDragging(false)
       onScrubEnd(dragBucketIndex)
+      collapseScrubberDelayed()
     }
-  }, [isDragging, onScrubEnd, dragBucketIndex])
+  }, [isDragging, onScrubEnd, dragBucketIndex, collapseScrubberDelayed])
 
   useEffect(() => {
     if (isDragging) {
@@ -179,6 +203,11 @@ export function TimelineScrubber({
   if (buckets.length === 0) {
     return null
   }
+
+  // Get the current month label for the collapsed state
+  const activeGroup = yearGroups[activeYearIndex]
+  const activeMonthData = activeGroup?.months.find((m) => m.month === currentPosition.month)
+  const currentMonthLabel = activeMonthData?.label ?? ''
 
   return (
     <div
@@ -204,66 +233,103 @@ export function TimelineScrubber({
         overflow: 'hidden',
       }}
     >
-      {/* Year/Month list */}
-      <div
-        class="scrubber-list"
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'flex-end',
-          gap: '2px',
-          fontSize: 'var(--font-size-xs)',
-          color: 'var(--color-gray)',
-        }}
-      >
-        {yearGroups.map((group, groupIndex) => {
-          const isActive = groupIndex === activeYearIndex
-          return (
-            <div
-              key={group.year}
-              style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}
-            >
+      {/* Collapsed state: show only current period */}
+      {!isExpanded && (
+        <div
+          class="scrubber-collapsed"
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'flex-end',
+            gap: '1px',
+            padding: '4px 8px',
+            borderRadius: '12px',
+            background: 'rgba(var(--color-text-rgb), 0.08)',
+          }}
+        >
+          <div
+            style={{
+              fontSize: '11px',
+              fontWeight: 'var(--font-weight-semibold)',
+              color: 'var(--color-text)',
+            }}
+          >
+            {currentPosition.year}
+          </div>
+          <div
+            style={{
+              fontSize: '10px',
+              fontWeight: 'var(--font-weight-medium)',
+              color: 'var(--color-gray)',
+            }}
+          >
+            {currentMonthLabel}
+          </div>
+        </div>
+      )}
+
+      {/* Expanded state: show full year/month list */}
+      {isExpanded && (
+        <div
+          class="scrubber-list"
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'flex-end',
+            gap: '2px',
+            fontSize: 'var(--font-size-xs)',
+            color: 'var(--color-gray)',
+          }}
+        >
+          {yearGroups.map((group, groupIndex) => {
+            const isActive = groupIndex === activeYearIndex
+            return (
               <div
-                style={{
-                  padding: '2px 8px',
-                  borderRadius: '10px',
-                  fontWeight: isActive
-                    ? 'var(--font-weight-semibold)'
-                    : 'var(--font-weight-regular)',
-                  fontSize: '11px',
-                  color: isActive ? 'var(--color-text)' : 'var(--color-gray)',
-                  background: isActive ? 'rgba(var(--color-text-rgb), 0.08)' : 'transparent',
-                }}
+                key={group.year}
+                style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}
               >
-                {group.year}
+                <div
+                  style={{
+                    padding: '2px 8px',
+                    borderRadius: '10px',
+                    fontWeight: isActive
+                      ? 'var(--font-weight-semibold)'
+                      : 'var(--font-weight-regular)',
+                    fontSize: '11px',
+                    color: isActive ? 'var(--color-text)' : 'var(--color-gray)',
+                    background: isActive ? 'rgba(var(--color-text-rgb), 0.08)' : 'transparent',
+                  }}
+                >
+                  {group.year}
+                </div>
+                {isActive &&
+                  group.months.map((month) => {
+                    const isActiveMonth = month.month === currentPosition.month
+                    return (
+                      <div
+                        key={month.month}
+                        style={{
+                          padding: '1px 8px',
+                          borderRadius: '8px',
+                          fontSize: '10px',
+                          color: isActiveMonth ? 'var(--color-text)' : 'var(--color-gray)',
+                          fontWeight: isActiveMonth
+                            ? 'var(--font-weight-medium)'
+                            : 'var(--font-weight-regular)',
+                          background: isActiveMonth
+                            ? 'rgba(var(--color-primary-rgb), 0.15)'
+                            : 'transparent',
+                        }}
+                      >
+                        {month.label}
+                      </div>
+                    )
+                  })}
               </div>
-              {isActive &&
-                group.months.map((month) => {
-                  const isActiveMonth = month.month === currentPosition.month
-                  return (
-                    <div
-                      key={month.month}
-                      style={{
-                        padding: '1px 8px',
-                        borderRadius: '8px',
-                        fontSize: '10px',
-                        color: isActiveMonth ? 'var(--color-text)' : 'var(--color-gray)',
-                        fontWeight: isActiveMonth
-                          ? 'var(--font-weight-medium)'
-                          : 'var(--font-weight-regular)',
-                        background: isActiveMonth
-                          ? 'rgba(var(--color-primary-rgb), 0.15)'
-                          : 'transparent',
-                      }}
-                    >
-                      {month.label}
-                    </div>
-                  )
-                })}
-            </div>
-          )
-        })}
-      </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
