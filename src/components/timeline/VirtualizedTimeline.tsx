@@ -1,6 +1,7 @@
 import pluralize from 'pluralize'
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks'
 import { useBucketNavigation } from '../../hooks/useBucketNavigation'
+import { useScrollAnchor } from '../../hooks/useScrollAnchor'
 import { useSections } from '../../hooks/useSections'
 import { useThumbnailRegistry } from '../../hooks/useThumbnailRegistry'
 import { type LayoutItem, useTimelineLayout } from '../../hooks/useTimelineLayout'
@@ -88,9 +89,6 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
     unregisterThumbnail: handleThumbnailUnregister,
   } = useThumbnailRegistry()
 
-  // Track the first visible asset for anchoring when no photo is open
-  const firstVisibleAssetIdRef = useRef<string | null>(null)
-
   // Throttle scroll state updates
   const scrollRafRef = useRef<number | null>(null)
 
@@ -177,122 +175,15 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
     rowHeight,
   })
 
-  // Helper function to get the asset index in the flat list
-  const getAssetIndex = useCallback(
-    (assetId: string): number => {
-      let index = 0
-      for (const section of sections) {
-        for (const asset of section.assets) {
-          if (asset.id === assetId) {
-            return index
-          }
-          index++
-        }
-      }
-      return -1
-    },
-    [sections],
-  )
-
-  // Helper function to calculate scroll position for an asset given a specific column count
-  const calculateScrollPositionForAsset = useCallback(
-    (assetId: string, width: number): number | null => {
-      const assetIndex = getAssetIndex(assetId)
-      if (assetIndex === -1) {
-        return null
-      }
-
-      // Calculate column count for the given width
-      const cols = width
-        ? Math.max(MIN_COLUMNS, Math.floor(width / TARGET_THUMBNAIL_SIZE))
-        : MIN_COLUMNS
-      const thumbSize = width ? Math.floor(width / cols) - 1 : 0
-
-      // Calculate which row the asset is in
-      // Need to account for date headers if shown
-      let currentAssetIndex = 0
-      let scrollPosition = 0
-      const headerHeight = showDateHeaders ? 48 : 0 // Approximate header height
-
-      for (const section of sections) {
-        if (showDateHeaders) {
-          // Add header height
-          scrollPosition += headerHeight
-        }
-
-        const assetsInSection = section.assets.length
-        const rowsInSection = Math.ceil(assetsInSection / cols)
-        const assetRowOffset = Math.floor((assetIndex - currentAssetIndex) / cols)
-
-        if (assetIndex >= currentAssetIndex && assetIndex < currentAssetIndex + assetsInSection) {
-          // Asset is in this section
-          scrollPosition += assetRowOffset * (thumbSize + 2) // +2 for gap
-          return scrollPosition
-        }
-
-        // Add all rows in this section
-        scrollPosition += rowsInSection * (thumbSize + 2)
-        currentAssetIndex += assetsInSection
-      }
-
-      return null
-    },
-    [getAssetIndex, sections, showDateHeaders],
-  )
-
-  // Track previous container width for resize detection
-  const prevContainerWidthRef = useRef<number>(0)
-
-  // Update container width on resize using ResizeObserver for reliable orientation change detection
-  useEffect(() => {
-    const container = containerRef.current
-    const scrollContainer = scrollContainerRef.current
-    if (!container) {
-      return
-    }
-
-    const resizeObserver = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        // Use contentBoxSize for more accurate measurement
-        const newWidth = entry.contentBoxSize?.[0]?.inlineSize ?? entry.contentRect.width
-        const oldWidth = prevContainerWidthRef.current
-
-        // Only do anchoring logic if width actually changed (not just re-trigger)
-        if (oldWidth > 0 && Math.abs(newWidth - oldWidth) > 1) {
-          // Determine which asset to anchor to
-          const assetIdToAnchor = anchorAssetId ?? firstVisibleAssetIdRef.current
-          if (assetIdToAnchor && scrollContainer) {
-            // Calculate the scroll position for the anchor asset before and after resize
-            const oldScrollPos = calculateScrollPositionForAsset(assetIdToAnchor, oldWidth)
-            const newScrollPos = calculateScrollPositionForAsset(assetIdToAnchor, newWidth)
-
-            if (oldScrollPos !== null && newScrollPos !== null) {
-              // Calculate the offset from the asset's position to the current scroll position
-              const currentScroll = scrollContainer.scrollTop
-              const offsetFromAnchor = currentScroll - oldScrollPos
-
-              // Apply the same offset to the new position
-              // Use requestAnimationFrame to wait for the DOM to update
-              requestAnimationFrame(() => {
-                if (scrollContainer) {
-                  scrollContainer.scrollTop = newScrollPos + offsetFromAnchor
-                }
-              })
-            }
-          }
-        }
-
-        prevContainerWidthRef.current = newWidth
-        setContainerWidth(newWidth)
-      }
-    })
-
-    resizeObserver.observe(container)
-
-    return () => {
-      resizeObserver.disconnect()
-    }
-  }, [anchorAssetId, calculateScrollPositionForAsset])
+  // Handle scroll anchoring on resize/orientation change
+  const { setFirstVisibleAssetId } = useScrollAnchor({
+    sections,
+    showDateHeaders,
+    scrollContainerRef,
+    containerRef,
+    anchorAssetId,
+    onWidthChange: setContainerWidth,
+  })
 
   // Handle scroll events - update scroll position for virtualization
   const handleScroll = useCallback(() => {
@@ -329,7 +220,7 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
 
       // Track first visible asset for anchoring
       if (visibleItem?.type === 'row' && visibleItem.assets && !anchorAssetId) {
-        firstVisibleAssetIdRef.current = visibleItem.assets[0]?.id ?? null
+        setFirstVisibleAssetId(visibleItem.assets[0]?.id ?? null)
       }
 
       // Update current bucket tracking based on scroll position
@@ -380,6 +271,7 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
     onBucketLoadRequest,
     onLoadMoreRequest,
     onVisibleDateChange,
+    setFirstVisibleAssetId,
     updateCurrentBucket,
     viewportHeight,
   ])

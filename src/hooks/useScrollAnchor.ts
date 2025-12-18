@@ -14,7 +14,7 @@ interface UseScrollAnchorOptions<A> {
   /** Ref to the container element (for resize observation) */
   containerRef: { current: HTMLDivElement | null }
   /** ID of the asset to anchor to (e.g., currently viewed photo) */
-  anchorAssetId?: string | null
+  anchorAssetId?: string | null | undefined
   /** Callback when container width changes */
   onWidthChange: (width: number) => void
 }
@@ -26,7 +26,7 @@ interface UseScrollAnchorResult {
 
 /**
  * Handles scroll position anchoring during resize/orientation changes.
- * 
+ *
  * When the container width changes, this hook calculates the new scroll position
  * needed to keep the anchor asset in the same relative position.
  */
@@ -40,7 +40,7 @@ export function useScrollAnchor<A extends { id: string }>({
 }: UseScrollAnchorOptions<A>): UseScrollAnchorResult {
   // Track the first visible asset for anchoring when no photo is open
   const firstVisibleAssetIdRef = useRef<string | null>(null)
-  
+
   // Track previous container width for resize detection
   const prevContainerWidthRef = useRef<number>(0)
 
@@ -155,8 +155,13 @@ export function useScrollAnchor<A extends { id: string }>({
     return () => {
       resizeObserver.disconnect()
     }
-  }, [anchorAssetId, calculateScrollPositionForAsset, containerRef, onWidthChange, scrollContainerRef])
+  }, [
+    anchorAssetId,
+    calculateScrollPositionForAsset,
+    containerRef,
+    onWidthChange,
+    scrollContainerRef,
+  ])
 
   return { setFirstVisibleAssetId }
 }
-
