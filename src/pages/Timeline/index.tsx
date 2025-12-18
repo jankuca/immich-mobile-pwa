@@ -125,7 +125,10 @@ export function Timeline() {
     fetchInitialTimeline()
   }, [])
 
-  // Function to load a specific range of buckets
+  // Maximum number of buckets to keep loaded at once (sliding window)
+  const MAX_LOADED_BUCKETS = 24
+
+  // Function to load a specific range of buckets with sliding window memory management
   const loadBucketRange = useCallback(
     async (buckets: TimeBucket[], startIndex: number, count: number) => {
       const endIndex = Math.min(startIndex + count, buckets.length)
@@ -158,7 +161,6 @@ export function Timeline() {
         }
 
         const newAssets: AssetTimelineItem[] = []
-        const newLoadedIndices: number[] = []
 
         // Load assets for each bucket
         for (const index of indicesToLoad) {
@@ -175,7 +177,6 @@ export function Timeline() {
 
             if (Array.isArray(bucketAssets)) {
               newAssets.push(...bucketAssets)
-              newLoadedIndices.push(index)
             } else {
               console.warn(
                 `Unexpected response format for bucket ${bucket.timeBucket}:`,
@@ -189,10 +190,45 @@ export function Timeline() {
           }
         }
 
-        // Update assets - need to insert in correct position based on bucket order
+        // Determine which buckets to unload if we exceed the max
+        // Keep buckets in a window around the current target
+        const centerIndex = Math.floor((startIndex + endIndex) / 2)
+        const windowStart = Math.max(0, centerIndex - Math.floor(MAX_LOADED_BUCKETS / 2))
+        const windowEnd = Math.min(buckets.length, windowStart + MAX_LOADED_BUCKETS)
+
+        // Find bucket dates to keep
+        const bucketsToKeep = new Set<string>()
+        for (let i = windowStart; i < windowEnd; i++) {
+          const bucket = buckets[i]
+          if (bucket) {
+            // Extract month from bucket date for matching with assets
+            bucketsToKeep.add(bucket.timeBucket.slice(0, 7)) // YYYY-MM
+          }
+        }
+
+        // Unload buckets outside the window
+        const indicesToUnload: number[] = []
+        for (const loadedIndex of loadedSet) {
+          if (loadedIndex < windowStart || loadedIndex >= windowEnd) {
+            indicesToUnload.push(loadedIndex)
+          }
+        }
+
+        // Remove unloaded indices from the loaded set
+        for (const index of indicesToUnload) {
+          loadedSet.delete(index)
+        }
+
+        // Update assets - filter out assets from unloaded buckets, add new ones
         setAssets((prevAssets) => {
-          // For now, append and re-sort by date (descending for timeline)
-          const combined = [...prevAssets, ...newAssets]
+          // Filter out assets from unloaded buckets
+          const filteredAssets = prevAssets.filter((asset) => {
+            const assetMonth = new Date(asset.fileCreatedAt).toISOString().slice(0, 7)
+            return bucketsToKeep.has(assetMonth)
+          })
+
+          // Add new assets and sort
+          const combined = [...filteredAssets, ...newAssets]
           combined.sort((a, b) => {
             const dateA = new Date(a.fileCreatedAt).getTime()
             const dateB = new Date(b.fileCreatedAt).getTime()
@@ -204,7 +240,7 @@ export function Timeline() {
         // Update the state version of loaded indices for VirtualizedTimeline
         setLoadedBucketIndices(new Set(loadedSet))
 
-        // Check if all buckets are loaded
+        // Check if all buckets are loaded (not really possible with sliding window)
         if (loadedSet.size >= buckets.length) {
           setHasMoreContent(false)
         }
