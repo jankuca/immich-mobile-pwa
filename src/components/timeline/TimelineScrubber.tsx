@@ -176,6 +176,8 @@ export function TimelineScrubber({
   const [dragBucketIndex, setDragBucketIndex] = useState(0)
   const [isExpanded, setIsExpanded] = useState(false)
   const [dragY, setDragY] = useState(0) // Track Y position of finger for positioning the list
+  // Keep the scrubbed position until visibleDate catches up
+  const [pendingBucketIndex, setPendingBucketIndex] = useState<number | null>(null)
 
   // Delay collapsing the scrubber after drag ends for better UX
   const collapseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -240,10 +242,20 @@ export function TimelineScrubber({
     return sortedGroups
   }, [buckets])
 
-  // Calculate current position from visible date or drag position
+  // Calculate current position from visible date or drag/pending position
   const currentPosition = useMemo(() => {
+    // Use drag position while actively dragging
     if (isDragging) {
       const bucket = buckets[dragBucketIndex]
+      if (bucket) {
+        const date = new Date(bucket.timeBucket)
+        return { year: date.getFullYear(), month: date.getMonth() }
+      }
+    }
+
+    // Use pending position until timeline catches up after scrubbing
+    if (pendingBucketIndex !== null) {
+      const bucket = buckets[pendingBucketIndex]
       if (bucket) {
         const date = new Date(bucket.timeBucket)
         return { year: date.getFullYear(), month: date.getMonth() }
@@ -263,7 +275,7 @@ export function TimelineScrubber({
     }
 
     return { year: new Date().getFullYear(), month: 0 }
-  }, [buckets, visibleDate, isDragging, dragBucketIndex])
+  }, [buckets, visibleDate, isDragging, dragBucketIndex, pendingBucketIndex])
 
   // Find active year index
   const activeYearIndex = useMemo(() => {
@@ -275,6 +287,10 @@ export function TimelineScrubber({
     if (isDragging) {
       return dragBucketIndex
     }
+    // Use pending position until timeline catches up
+    if (pendingBucketIndex !== null) {
+      return pendingBucketIndex
+    }
     if (!visibleDate || buckets.length === 0) {
       return 0
     }
@@ -285,7 +301,7 @@ export function TimelineScrubber({
       return bucketDateStr <= visibleDateStr
     })
     return index === -1 ? buckets.length - 1 : index
-  }, [buckets, visibleDate, isDragging, dragBucketIndex])
+  }, [buckets, visibleDate, isDragging, dragBucketIndex, pendingBucketIndex])
 
   // Calculate the relative position (0-1) for the collapsed indicator
   const relativePosition = useMemo(() => {
@@ -350,6 +366,8 @@ export function TimelineScrubber({
   const handlePointerUp = useCallback(() => {
     if (isDragging) {
       setIsDragging(false)
+      // Keep the scrubbed position until timeline catches up
+      setPendingBucketIndex(dragBucketIndex)
       onScrubEnd(dragBucketIndex)
       collapseScrubberDelayed()
     }
@@ -365,6 +383,16 @@ export function TimelineScrubber({
       }
     }
   }, [isDragging, handlePointerMove, handlePointerUp])
+
+  // Track previous visibleDate to detect changes
+  const prevVisibleDateRef = useRef(visibleDate)
+
+  // Clear pending bucket index when visibleDate changes after scrubbing
+  // This lets the timeline take back control once it starts updating
+  if (pendingBucketIndex !== null && !isDragging && visibleDate !== prevVisibleDateRef.current) {
+    setPendingBucketIndex(null)
+  }
+  prevVisibleDateRef.current = visibleDate
 
   if (buckets.length === 0) {
     return null
