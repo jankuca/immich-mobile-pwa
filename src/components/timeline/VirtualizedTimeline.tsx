@@ -1,6 +1,5 @@
 import pluralize from 'pluralize'
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks'
-import type { JSX } from 'preact/jsx-runtime'
 import type { ThumbnailPosition } from '../../hooks/useZoomTransition'
 import type { AssetOrder, AssetTimelineItem } from '../../services/api'
 import { SectionPill } from '../common/SectionPill'
@@ -10,6 +9,10 @@ import { TimelineThumbnail } from './TimelineThumbnail'
 // Target thumbnail size in pixels - columns are calculated to fit this size
 const TARGET_THUMBNAIL_SIZE = 130
 const MIN_COLUMNS = 3
+const HEADER_HEIGHT = 48
+const ROW_GAP = 2
+// Buffer rows above and below viewport for smooth scrolling
+const BUFFER_ROWS = 5
 
 export type GetThumbnailPosition = (assetId: string) => ThumbnailPosition | null
 
@@ -38,6 +41,18 @@ interface TimelineSection<A extends AssetTimelineItem> {
   assets: A[]
 }
 
+// Layout item represents either a header or a row of assets
+interface LayoutItem<A extends AssetTimelineItem> {
+  type: 'header' | 'row'
+  key: string
+  top: number
+  height: number
+  date: string
+  // For rows
+  assets?: A[]
+  rowIndex?: number
+}
+
 export function VirtualizedTimeline<A extends AssetTimelineItem>({
   assets,
   showDateHeaders = true,
@@ -54,6 +69,8 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
 }: VirtualizedTimelineProps<A>) {
   const [sections, setSections] = useState<TimelineSection<A>[]>([])
   const [containerWidth, setContainerWidth] = useState<number>(0)
+  const [scrollTop, setScrollTop] = useState(0)
+  const [viewportHeight, setViewportHeight] = useState(0)
   const containerRef = useRef<HTMLDivElement>(null)
   const internalScrollContainerRef = useRef<HTMLDivElement>(null)
   // Use external ref if provided, otherwise use internal
@@ -65,9 +82,11 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
   // Track the first visible asset for anchoring when no photo is open
   const firstVisibleAssetIdRef = useRef<string | null>(null)
 
+  // Throttle scroll state updates
+  const scrollRafRef = useRef<number | null>(null)
+
   // Throttle visible date updates to avoid excessive re-renders
   const lastVisibleDateRef = useRef<string | null>(null)
-  const visibleDateThrottleRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Function to get thumbnail position by asset ID
   const getThumbnailPosition = useCallback((assetId: string): ThumbnailPosition | null => {
@@ -102,6 +121,66 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
 
   // Calculate thumbnail size based on container width and column count
   const thumbnailSize = containerWidth ? Math.floor(containerWidth / columnCount) - 1 : 0 // 2px for gap
+  const rowHeight = thumbnailSize + ROW_GAP
+
+  // Calculate the layout of all items (headers and rows) with their positions
+  const { layout, totalHeight } = (() => {
+    if (thumbnailSize === 0 || sections.length === 0) {
+      return { layout: [] as LayoutItem<A>[], totalHeight: 0 }
+    }
+
+    const items: LayoutItem<A>[] = []
+    let currentTop = 0
+
+    for (const section of sections) {
+      // Add header if showing date headers
+      if (showDateHeaders) {
+        items.push({
+          type: 'header',
+          key: `header-${section.date}`,
+          top: currentTop,
+          height: HEADER_HEIGHT,
+          date: section.date,
+        })
+        currentTop += HEADER_HEIGHT
+      }
+
+      // Add rows for this section
+      const rowCount = Math.ceil(section.assets.length / columnCount)
+      for (let rowIndex = 0; rowIndex < rowCount; rowIndex++) {
+        const startAsset = rowIndex * columnCount
+        const endAsset = Math.min(startAsset + columnCount, section.assets.length)
+        items.push({
+          type: 'row',
+          key: `row-${section.date}-${rowIndex}`,
+          top: currentTop,
+          height: rowHeight,
+          date: section.date,
+          assets: section.assets.slice(startAsset, endAsset),
+          rowIndex,
+        })
+        currentTop += rowHeight
+      }
+    }
+
+    return { layout: items, totalHeight: currentTop }
+  })()
+
+  // Calculate visible range based on scroll position
+  const visibleItems = (() => {
+    if (layout.length === 0 || viewportHeight === 0) {
+      return []
+    }
+
+    const bufferPx = BUFFER_ROWS * rowHeight
+    const visibleTop = Math.max(0, scrollTop - bufferPx)
+    const visibleBottom = scrollTop + viewportHeight + bufferPx
+
+    return layout.filter((item) => {
+      const itemBottom = item.top + item.height
+      return itemBottom > visibleTop && item.top < visibleBottom
+    })
+  })()
 
   // Group assets by date
   useEffect(() => {
@@ -265,84 +344,62 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
     }
   }, [anchorAssetId, calculateScrollPositionForAsset, containerWidth])
 
-  // Handle scroll events to detect when user is near the bottom and track first visible asset
+  // Handle scroll events - update scroll position for virtualization
   const handleScroll = useCallback(() => {
     const scrollContainer = scrollContainerRef.current
     if (!scrollContainer) {
       return
     }
 
-    const { scrollTop, scrollHeight, clientHeight } = scrollContainer
+    // Use RAF to batch scroll updates
+    if (scrollRafRef.current) {
+      cancelAnimationFrame(scrollRafRef.current)
+    }
 
-    // Find the first visible section based on scroll position
-    let visibleDate: string | null = null
-    const headerHeight = showDateHeaders ? 48 : 0
-    let currentPosition = 0
+    scrollRafRef.current = requestAnimationFrame(() => {
+      const { scrollTop: newScrollTop, scrollHeight, clientHeight } = scrollContainer
 
-    for (const section of sections) {
-      if (showDateHeaders) {
-        currentPosition += headerHeight
+      // Update scroll position for virtualization
+      setScrollTop(newScrollTop)
+      if (clientHeight !== viewportHeight) {
+        setViewportHeight(clientHeight)
       }
 
-      const assetsInSection = section.assets.length
-      const rowsInSection = Math.ceil(assetsInSection / columnCount)
-      const sectionHeight = rowsInSection * (thumbnailSize + 2)
+      // Find visible date from layout
+      const visibleItem = layout.find(
+        (item) => item.top + item.height > newScrollTop && item.type === 'row',
+      )
+      const visibleDate = visibleItem?.date ?? null
 
-      if (currentPosition + sectionHeight > scrollTop) {
-        visibleDate = section.date
+      // Track first visible asset for anchoring
+      if (visibleItem?.type === 'row' && visibleItem.assets && !anchorAssetId) {
+        firstVisibleAssetIdRef.current = visibleItem.assets[0]?.id ?? null
+      }
 
-        // Track the first visible asset for anchoring (only when no explicit anchor is set)
-        if (!anchorAssetId && thumbnailSize > 0) {
-          const offsetInSection = Math.max(0, scrollTop - currentPosition)
-          const rowIndex = Math.floor(offsetInSection / (thumbnailSize + 2))
-          const assetIndex = rowIndex * columnCount
+      // Report visible date if changed
+      if (onVisibleDateChange && visibleDate && visibleDate !== lastVisibleDateRef.current) {
+        lastVisibleDateRef.current = visibleDate
+        onVisibleDateChange(visibleDate)
+      }
 
-          if (assetIndex < assetsInSection) {
-            firstVisibleAssetIdRef.current = section.assets[assetIndex]?.id ?? null
-          }
+      // Check if we're near the end and need to load more
+      if (onLoadMoreRequest) {
+        const scrollPosition = newScrollTop / (scrollHeight - clientHeight)
+        const isNearEnd = scrollPosition > 0.8
+
+        if (isNearEnd && hasMoreContent && !isLoadingMore) {
+          onLoadMoreRequest()
         }
-        break
       }
-
-      currentPosition += sectionHeight
-    }
-
-    // Report visible date if changed (throttled)
-    if (onVisibleDateChange && visibleDate && visibleDate !== lastVisibleDateRef.current) {
-      lastVisibleDateRef.current = visibleDate
-
-      // Clear existing throttle timer
-      if (visibleDateThrottleRef.current) {
-        clearTimeout(visibleDateThrottleRef.current)
-      }
-
-      // Throttle updates to 100ms
-      visibleDateThrottleRef.current = setTimeout(() => {
-        if (lastVisibleDateRef.current) {
-          onVisibleDateChange(lastVisibleDateRef.current)
-        }
-      }, 100)
-    }
-
-    // Check if we're near the end and need to load more
-    if (onLoadMoreRequest) {
-      const scrollPosition = scrollTop / (scrollHeight - clientHeight)
-      const isNearEnd = scrollPosition > 0.8
-
-      if (isNearEnd && hasMoreContent && !isLoadingMore) {
-        onLoadMoreRequest()
-      }
-    }
+    })
   }, [
     anchorAssetId,
-    columnCount,
     hasMoreContent,
     isLoadingMore,
+    layout,
     onLoadMoreRequest,
     onVisibleDateChange,
-    sections,
-    showDateHeaders,
-    thumbnailSize,
+    viewportHeight,
   ])
 
   // Add scroll event listener
@@ -370,55 +427,61 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
     }
   }, [handleScroll, hasMoreContent, isLoadingMore, onLoadMoreRequest, sections])
 
-  // Render a row in the virtual list
-  const renderRow = (section: TimelineSection<A>, _index: number) => {
-    const formattedDate = new Date(section.date).toLocaleDateString(undefined, {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    })
-
-    // Calculate rows needed for this section
-    const rowCount = Math.ceil(section.assets.length / columnCount)
-    const rows: Array<JSX.Element> = []
-
-    // Add date header if showDateHeaders is true
-    if (showDateHeaders) {
-      rows.push(
-        <SectionPill key={`header-${section.date}`} sticky={true}>
-          {formattedDate}
-        </SectionPill>,
+  // Render a virtualized item (header or row)
+  const renderItem = (item: LayoutItem<A>) => {
+    if (item.type === 'header') {
+      const formattedDate = new Date(item.date).toLocaleDateString(undefined, {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      })
+      return (
+        <div
+          key={item.key}
+          style={{
+            position: 'absolute',
+            top: `${item.top}px`,
+            left: 0,
+            right: 0,
+            height: `${item.height}px`,
+          }}
+        >
+          <SectionPill sticky={false}>{formattedDate}</SectionPill>
+        </div>
       )
     }
 
-    // Add asset rows
-    for (let i = 0; i < rowCount; i++) {
-      const rowAssets = section.assets.slice(i * columnCount, (i + 1) * columnCount)
+    // Row type
+    const rowAssets = item.assets ?? []
+    return (
+      <div
+        key={item.key}
+        class="timeline-row"
+        style={{
+          position: 'absolute',
+          top: `${item.top}px`,
+          left: 0,
+          right: 0,
+          height: `${item.height}px`,
+          display: 'flex',
+          gap: '1px',
+        }}
+      >
+        {rowAssets.map((asset) => (
+          <TimelineThumbnail
+            key={asset.id}
+            asset={asset}
+            size={thumbnailSize}
+            onClick={(info) => onAssetOpenRequest(asset, info)}
+            onRegister={handleThumbnailRegister}
+            onUnregister={handleThumbnailUnregister}
+          />
+        ))}
 
-      rows.push(
-        <div
-          key={`row-${section.date}-${i}`}
-          class="timeline-row"
-          style={{
-            display: 'flex',
-            gap: '1px',
-            marginBottom: '2px',
-          }}
-        >
-          {rowAssets.map((asset) => (
-            <TimelineThumbnail
-              key={asset.id}
-              asset={asset}
-              size={thumbnailSize}
-              onClick={(info) => onAssetOpenRequest(asset, info)}
-              onRegister={handleThumbnailRegister}
-              onUnregister={handleThumbnailUnregister}
-            />
-          ))}
-
-          {/* Add empty placeholders to fill the row */}
-          {new Array(columnCount - rowAssets.length).fill(0).map((_, j) => (
+        {/* Add empty placeholders to fill the row */}
+        {columnCount - rowAssets.length > 0 &&
+          Array.from({ length: columnCount - rowAssets.length }).map((_, j) => (
             <div
               key={`placeholder-${j}`}
               style={{
@@ -427,13 +490,6 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
               }}
             />
           ))}
-        </div>,
-      )
-    }
-
-    return (
-      <div key={`section-${section.date}`} class="timeline-section">
-        {rows}
       </div>
     )
   }
@@ -460,45 +516,63 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
             paddingBottom: 'var(--timeline-bottom-offset, var(--tabbar-height))',
           }}
         >
-          {sections.map((section, index) => renderRow(section, index))}
+          {/* Virtualized content container with total height */}
+          <div
+            class="virtualized-content"
+            style={{
+              position: 'relative',
+              height: `${totalHeight + 60}px`, // Extra space for loading/end message
+              minHeight: '100%',
+            }}
+          >
+            {visibleItems.map((item) => renderItem(item))}
 
-          {/* Loading indicator */}
-          {isLoadingMore && (
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'center',
-                padding: 'var(--spacing-md)',
-                color: 'var(--color-gray)',
-              }}
-            >
+            {/* Loading indicator - positioned after content */}
+            {isLoadingMore && (
               <div
-                class="loading-spinner"
                 style={{
-                  width: '24px',
-                  height: '24px',
-                  border: '3px solid var(--color-gray-light)',
-                  borderTopColor: 'var(--color-primary)',
-                  borderRadius: '50%',
-                  animation: 'spin 1s linear infinite',
+                  position: 'absolute',
+                  top: `${totalHeight}px`,
+                  left: 0,
+                  right: 0,
+                  display: 'flex',
+                  justifyContent: 'center',
+                  padding: 'var(--spacing-md)',
+                  color: 'var(--color-gray)',
                 }}
-              />
-            </div>
-          )}
+              >
+                <div
+                  class="loading-spinner"
+                  style={{
+                    width: '24px',
+                    height: '24px',
+                    border: '3px solid var(--color-gray-light)',
+                    borderTopColor: 'var(--color-primary)',
+                    borderRadius: '50%',
+                    animation: 'spin 1s linear infinite',
+                  }}
+                />
+              </div>
+            )}
 
-          {/* End of content message */}
-          {!hasMoreContent && sections.length > 0 && (
-            <div
-              style={{
-                textAlign: 'center',
-                padding: 'var(--spacing-md)',
-                color: 'var(--color-gray)',
-                fontSize: 'var(--font-size-sm)',
-              }}
-            >
-              {assets.length} {pluralize('photo', assets.length)}
-            </div>
-          )}
+            {/* End of content message */}
+            {!hasMoreContent && sections.length > 0 && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: `${totalHeight}px`,
+                  left: 0,
+                  right: 0,
+                  textAlign: 'center',
+                  padding: 'var(--spacing-md)',
+                  color: 'var(--color-gray)',
+                  fontSize: 'var(--font-size-sm)',
+                }}
+              >
+                {assets.length} {pluralize('photo', assets.length)}
+              </div>
+            )}
+          </div>
 
           <style>{`
             @keyframes spin {
