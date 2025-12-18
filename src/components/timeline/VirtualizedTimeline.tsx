@@ -27,6 +27,10 @@ interface VirtualizedTimelineProps<A extends AssetTimelineItem> {
   onThumbnailPositionGetterReady?: (getter: GetThumbnailPosition) => void
   /** ID of the asset to anchor/keep visible after orientation changes (e.g., the currently viewed photo) */
   anchorAssetId?: string | null | undefined
+  /** Callback when scroll progress changes (0-1) */
+  onScrollProgress?: (progress: number) => void
+  /** Ref to the scroll container for external control */
+  scrollContainerRef?: { current: HTMLDivElement | null }
 }
 
 interface TimelineSection<A extends AssetTimelineItem> {
@@ -45,11 +49,15 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
   onLoadMoreRequest,
   onThumbnailPositionGetterReady,
   anchorAssetId,
+  onScrollProgress,
+  scrollContainerRef: externalScrollContainerRef,
 }: VirtualizedTimelineProps<A>) {
   const [sections, setSections] = useState<TimelineSection<A>[]>([])
   const [containerWidth, setContainerWidth] = useState<number>(0)
   const containerRef = useRef<HTMLDivElement>(null)
-  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const internalScrollContainerRef = useRef<HTMLDivElement>(null)
+  // Use external ref if provided, otherwise use internal
+  const scrollContainerRef = externalScrollContainerRef ?? internalScrollContainerRef
 
   // Registry of thumbnail position getters by asset ID
   const thumbnailPositionGettersRef = useRef<Map<string, ThumbnailPositionGetter>>(new Map())
@@ -295,6 +303,13 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
       }
     }
 
+    // Calculate and report scroll progress
+    const maxScroll = scrollHeight - clientHeight
+    if (maxScroll > 0 && onScrollProgress) {
+      const progress = Math.max(0, Math.min(1, scrollTop / maxScroll))
+      onScrollProgress(progress)
+    }
+
     // Check if we're near the end and need to load more
     if (onLoadMoreRequest) {
       const scrollPosition = scrollTop / (scrollHeight - clientHeight)
@@ -310,6 +325,7 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
     hasMoreContent,
     isLoadingMore,
     onLoadMoreRequest,
+    onScrollProgress,
     sections,
     showDateHeaders,
     thumbnailSize,

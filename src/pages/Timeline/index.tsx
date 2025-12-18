@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from 'preact/hooks'
+import { useCallback, useEffect, useRef, useState } from 'preact/hooks'
 import { Header } from '../../components/common/Header'
 import { PhotoViewer } from '../../components/photoView/PhotoViewer'
 import { SearchInput } from '../../components/search/SearchInput'
 import { SearchInputWrapper } from '../../components/search/SearchInputWrapper'
+import { type TimeBucket, TimelineScrubber } from '../../components/timeline/TimelineScrubber'
 import {
   type GetThumbnailPosition,
   VirtualizedTimeline,
@@ -20,9 +21,17 @@ export function Timeline() {
   const [selectedAsset, setSelectedAsset] = useState<AssetTimelineItem | null>(null)
   const [selectedThumbnailPosition, setSelectedThumbnailPosition] =
     useState<ThumbnailPosition | null>(null)
-  const [allBuckets, setAllBuckets] = useState<string[]>([])
-  const [loadedBucketCount, setLoadedBucketCount] = useState<number>(0)
+  // Store full bucket info with counts
+  const [allBuckets, setAllBuckets] = useState<TimeBucket[]>([])
+  // Track which buckets have been loaded (by index)
+  const [loadedBuckets, setLoadedBuckets] = useState<Set<number>>(new Set())
   const [hasMoreContent, setHasMoreContent] = useState<boolean>(true)
+  // Scroll progress for scrubber
+  const [scrollProgress, setScrollProgress] = useState(0)
+  // Ref to the scroll container for programmatic scrolling
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  // Track if we're currently scrubbing to avoid scroll event conflicts
+  const [isScrubbing, setIsScrubbing] = useState(false)
   const { logout } = useAuth()
 
   // Search state
@@ -43,7 +52,18 @@ export function Timeline() {
   )
 
   // Number of buckets to load at once
-  const bucketsPerLoad = 1
+  const bucketsPerLoad = 3
+
+  // Find the next unloaded bucket index starting from the end of loaded range
+  const getNextUnloadedIndex = useCallback(() => {
+    // Find the first gap or continue from the end
+    for (let i = 0; i < allBuckets.length; i++) {
+      if (!loadedBuckets.has(i)) {
+        return i
+      }
+    }
+    return allBuckets.length
+  }, [allBuckets.length, loadedBuckets])
 
   // Fetch initial timeline data
   useEffect(() => {
@@ -52,25 +72,23 @@ export function Timeline() {
         setIsLoading(true)
         setError(null)
 
-        // Get time buckets (days)
+        // Get time buckets (days) - store full bucket info with counts
         const timeBucketsResponse = await apiService.getTimeBuckets({
           size: 'DAY',
           isTrashed: false,
         })
 
-        // Extract buckets from the response
-        const buckets = timeBucketsResponse.map((bucket) => bucket.timeBucket) || []
-        setAllBuckets(buckets)
+        setAllBuckets(timeBucketsResponse)
 
         // If no buckets, set hasMoreContent to false
-        if (buckets.length === 0) {
+        if (timeBucketsResponse.length === 0) {
           setHasMoreContent(false)
           setIsLoading(false)
           return
         }
 
         // Load the first batch of buckets
-        await loadMoreBuckets(buckets, 0)
+        await loadBucketRange(timeBucketsResponse, 0, bucketsPerLoad)
       } catch (err) {
         console.error('Error fetching timeline:', err)
         setError('Failed to load photos. Please try again.')
@@ -81,67 +99,145 @@ export function Timeline() {
     fetchInitialTimeline()
   }, [])
 
-  // Function to load more buckets
-  const loadMoreBuckets = useCallback(async (buckets: string[], startIndex: number) => {
-    if (startIndex >= buckets.length) {
-      setHasMoreContent(false)
-      setIsLoadingMore(false)
-      return
-    }
+  // Function to load a specific range of buckets
+  const loadBucketRange = useCallback(
+    async (buckets: TimeBucket[], startIndex: number, count: number) => {
+      const endIndex = Math.min(startIndex + count, buckets.length)
+      const indicesToLoad: number[] = []
 
-    try {
-      if (startIndex > 0) {
-        setIsLoadingMore(true)
-      }
-
-      // Get the next batch of buckets
-      const endIndex = Math.min(startIndex + bucketsPerLoad, buckets.length)
-      const bucketsToLoad = buckets.slice(startIndex, endIndex)
-
-      const newAssets: AssetTimelineItem[] = []
-
-      // Load assets for each bucket
-      for (const bucket of bucketsToLoad) {
-        try {
-          const bucketAssets = await apiService.getTimeBucket({
-            timeBucket: bucket,
-            size: 'DAY',
-            isTrashed: false,
-          })
-
-          if (Array.isArray(bucketAssets)) {
-            newAssets.push(...bucketAssets)
-          } else {
-            console.warn(`Unexpected response format for bucket ${bucket}:`, bucketAssets)
-          }
-        } catch (bucketError) {
-          console.error(`Error fetching assets for bucket ${bucket}:`, bucketError)
+      // Collect indices that haven't been loaded yet
+      for (let i = startIndex; i < endIndex; i++) {
+        if (!loadedBuckets.has(i)) {
+          indicesToLoad.push(i)
         }
       }
 
-      // Update state with new assets
-      setAssets((prevAssets) => [...prevAssets, ...newAssets])
-      setLoadedBucketCount(endIndex)
-
-      // Check if we've loaded all buckets
-      if (endIndex >= buckets.length) {
-        setHasMoreContent(false)
+      if (indicesToLoad.length === 0) {
+        setIsLoading(false)
+        setIsLoadingMore(false)
+        return
       }
-    } catch (err) {
-      console.error('Error loading more buckets:', err)
-    } finally {
-      setIsLoading(false)
-      setIsLoadingMore(false)
-    }
-  }, [])
 
-  // Handle loading more content
+      try {
+        if (startIndex > 0) {
+          setIsLoadingMore(true)
+        }
+
+        const newAssets: AssetTimelineItem[] = []
+        const newLoadedIndices: number[] = []
+
+        // Load assets for each bucket
+        for (const index of indicesToLoad) {
+          const bucket = buckets[index]
+          if (!bucket) {
+            continue
+          }
+          try {
+            const bucketAssets = await apiService.getTimeBucket({
+              timeBucket: bucket.timeBucket,
+              size: 'DAY',
+              isTrashed: false,
+            })
+
+            if (Array.isArray(bucketAssets)) {
+              newAssets.push(...bucketAssets)
+              newLoadedIndices.push(index)
+            } else {
+              console.warn(
+                `Unexpected response format for bucket ${bucket.timeBucket}:`,
+                bucketAssets,
+              )
+            }
+          } catch (bucketError) {
+            console.error(`Error fetching assets for bucket ${bucket.timeBucket}:`, bucketError)
+          }
+        }
+
+        // Update loaded buckets set
+        setLoadedBuckets((prev) => {
+          const next = new Set(prev)
+          for (const i of newLoadedIndices) {
+            next.add(i)
+          }
+          return next
+        })
+
+        // Update assets - need to insert in correct position based on bucket order
+        setAssets((prevAssets) => {
+          // For now, append and re-sort by date (descending for timeline)
+          const combined = [...prevAssets, ...newAssets]
+          combined.sort((a, b) => {
+            const dateA = new Date(a.fileCreatedAt).getTime()
+            const dateB = new Date(b.fileCreatedAt).getTime()
+            return dateB - dateA // Descending order
+          })
+          return combined
+        })
+
+        // Check if all buckets are loaded
+        const totalLoaded = loadedBuckets.size + newLoadedIndices.length
+        if (totalLoaded >= buckets.length) {
+          setHasMoreContent(false)
+        }
+      } catch (err) {
+        console.error('Error loading bucket range:', err)
+      } finally {
+        setIsLoading(false)
+        setIsLoadingMore(false)
+      }
+    },
+    [loadedBuckets],
+  )
+
+  // Handle loading more content (sequential loading from current position)
   const handleLoadMore = useCallback(() => {
     if (isLoadingMore || !hasMoreContent) {
       return
     }
-    loadMoreBuckets(allBuckets, loadedBucketCount)
-  }, [allBuckets, loadedBucketCount, isLoadingMore, hasMoreContent, loadMoreBuckets])
+    const nextIndex = getNextUnloadedIndex()
+    loadBucketRange(allBuckets, nextIndex, bucketsPerLoad)
+  }, [allBuckets, getNextUnloadedIndex, isLoadingMore, hasMoreContent, loadBucketRange])
+
+  // Handle scrubber drag - scroll to the target position
+  const handleScrub = useCallback((progress: number) => {
+    const scrollContainer = scrollContainerRef.current
+    if (!scrollContainer) {
+      return
+    }
+
+    const { scrollHeight, clientHeight } = scrollContainer
+    const targetScroll = progress * (scrollHeight - clientHeight)
+    scrollContainer.scrollTop = targetScroll
+  }, [])
+
+  // Handle scrubber drag start
+  const handleScrubStart = useCallback(() => {
+    setIsScrubbing(true)
+  }, [])
+
+  // Handle scrubber drag end - trigger bucket loading for the target position
+  const handleScrubEnd = useCallback(() => {
+    setIsScrubbing(false)
+
+    // Calculate which bucket index corresponds to the current scroll progress
+    const bucketIndex = Math.floor(scrollProgress * allBuckets.length)
+
+    // Load buckets around the target position
+    const bufferBuckets = 5
+    const startIndex = Math.max(0, bucketIndex - bufferBuckets)
+    loadBucketRange(allBuckets, startIndex, bufferBuckets * 2 + 1)
+  }, [scrollProgress, allBuckets, loadBucketRange])
+
+  // Handle scroll progress from VirtualizedTimeline
+  const handleScrollProgress = useCallback(
+    (progress: number) => {
+      // Only update scroll progress if not currently scrubbing
+      if (!isScrubbing) {
+        setScrollProgress(progress)
+      }
+    },
+    [isScrubbing],
+  )
 
   // Handle asset selection
   const handleAssetClick = (
@@ -397,15 +493,26 @@ export function Timeline() {
         )}
 
         {!isSearchMode && !isLoading && !displayError && (
-          <VirtualizedTimeline
-            assets={assets}
-            hasMoreContent={hasMoreContent}
-            isLoadingMore={isLoadingMore}
-            onAssetOpenRequest={handleAssetClick}
-            onLoadMoreRequest={handleLoadMore}
-            onThumbnailPositionGetterReady={setGetThumbnailPosition}
-            anchorAssetId={selectedAsset?.id}
-          />
+          <>
+            <VirtualizedTimeline
+              assets={assets}
+              hasMoreContent={hasMoreContent}
+              isLoadingMore={isLoadingMore}
+              onAssetOpenRequest={handleAssetClick}
+              onLoadMoreRequest={handleLoadMore}
+              onThumbnailPositionGetterReady={setGetThumbnailPosition}
+              anchorAssetId={selectedAsset?.id}
+              onScrollProgress={handleScrollProgress}
+              scrollContainerRef={scrollContainerRef}
+            />
+            <TimelineScrubber
+              buckets={allBuckets}
+              scrollProgress={scrollProgress}
+              onScrub={handleScrub}
+              onScrubStart={handleScrubStart}
+              onScrubEnd={handleScrubEnd}
+            />
+          </>
         )}
       </div>
 
