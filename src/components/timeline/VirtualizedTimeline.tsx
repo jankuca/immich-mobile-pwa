@@ -1,5 +1,6 @@
 import pluralize from 'pluralize'
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks'
+import { useAnchoredScroll } from '../../hooks/useAnchoredScroll'
 import { useBucketNavigation } from '../../hooks/useBucketNavigation'
 import { useScrollAnchor } from '../../hooks/useScrollAnchor'
 import { useSections } from '../../hooks/useSections'
@@ -9,7 +10,6 @@ import { useTimelineScroll } from '../../hooks/useTimelineScroll'
 import { useVirtualization } from '../../hooks/useVirtualization'
 import type { ThumbnailPosition } from '../../hooks/useZoomTransition'
 import type { AssetOrder, AssetTimelineItem } from '../../services/api'
-import { ChunkedSpacer } from './ChunkedSpacer'
 import { TimelineEmptyState } from './TimelineEmptyState'
 import { TimelineHeaderItem, TimelinePlaceholderRow, TimelineRow } from './TimelineItem'
 import { TimelineLoadingIndicator } from './TimelineLoadingIndicator'
@@ -84,7 +84,6 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
   const { sections, sectionsByBucket } = useSections({ assets, showDateHeaders, order })
 
   const [containerWidth, setContainerWidth] = useState<number>(0)
-  const [scrollTop, setScrollTop] = useState(0)
   const [viewportHeight, setViewportHeight] = useState(0)
   const containerRef = useRef<HTMLDivElement>(null)
   const internalScrollContainerRef = useRef<HTMLDivElement>(null)
@@ -93,17 +92,20 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
   // Flag to mark programmatic scrolls (used to skip side effects in scroll handler)
   const isAdjustingScrollRef = useRef(false)
 
+  // State for virtual scroll position (used for layout calculations)
+  // Updated via useTimelineScroll which calls handleAnchoredScroll
+  const [virtualScrollTop, setVirtualScrollTop] = useState(0)
+
+  // Track physical scroll position for transform calculation
+  // This needs to be in sync with virtualScrollTop for correct positioning
+  const [physicalScrollTop, setPhysicalScrollTop] = useState(0)
+
   // Thumbnail position registry
   const {
     getThumbnailPosition,
     registerThumbnail: handleThumbnailRegister,
     unregisterThumbnail: handleThumbnailUnregister,
   } = useThumbnailRegistry()
-
-  // Get actual scroll position from DOM (fallback to state for SSR/initial render)
-  const getScrollTop = useCallback(() => {
-    return scrollContainerRef.current?.scrollTop ?? scrollTop
-  }, [scrollTop, scrollContainerRef])
 
   // Provide the getter to parent component
   useEffect(() => {
@@ -126,7 +128,6 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
     bucketPositions,
     totalHeight: skeletonTotalHeight,
     currentBucketIndex,
-    scrollToBucket: bucketScrollToBucket,
     updateCurrentBucket,
     getBucketsToLoad,
   } = useBucketNavigation({
@@ -138,19 +139,28 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
     scrollContainerRef,
   })
 
-  // Wrap scrollToBucket to also set the adjusting flag and force state update
+  // Use anchored scroll for virtual scrolling beyond browser limits
+  const {
+    getVirtualScrollTop,
+    scrollBufferHeight,
+    handleScroll: handleAnchoredScroll,
+    scrollToAnchor,
+  } = useAnchoredScroll({
+    bucketPositions,
+    scrollContainerRef,
+    onAnchorChange: (bucketIndex: number) => {
+      // Update current bucket tracking when anchor changes
+      updateCurrentBucket(bucketPositions[bucketIndex]?.top ?? 0)
+    },
+  })
+
+  // Scroll to a specific bucket (for scrubbing)
   const scrollToBucket = useCallback(
     (bucketIndex: number) => {
       isAdjustingScrollRef.current = true
-      bucketScrollToBucket(bucketIndex)
-      // Force immediate scrollTop state update to ensure layout recalculates
-      // This fixes the empty state issue after scrubbing
-      const newScrollTop = scrollContainerRef.current?.scrollTop
-      if (newScrollTop !== undefined) {
-        setScrollTop(newScrollTop)
-      }
+      scrollToAnchor(bucketIndex)
     },
-    [bucketScrollToBucket, scrollContainerRef, setScrollTop],
+    [scrollToAnchor],
   )
 
   // Provide scroll-to-bucket function to parent
@@ -160,14 +170,11 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
     }
   }, [scrollToBucket, onScrollToBucketReady, bucketPositions.length])
 
-  // Function to refresh scroll position state from DOM
-  // Call this after loading buckets to ensure layout recalculates
+  // Function to refresh scroll position state
+  // With anchored scrolling, this re-reads virtual position from the getter
   const refreshScroll = useCallback(() => {
-    const newScrollTop = scrollContainerRef.current?.scrollTop
-    if (newScrollTop !== undefined) {
-      setScrollTop(newScrollTop)
-    }
-  }, [scrollContainerRef, setScrollTop])
+    setVirtualScrollTop(getVirtualScrollTop())
+  }, [getVirtualScrollTop])
 
   // Provide refresh function to parent
   useEffect(() => {
@@ -186,15 +193,15 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
     rowHeight,
     thumbnailSize,
     showDateHeaders,
-    scrollTop: getScrollTop(),
+    scrollTop: virtualScrollTop,
     viewportHeight,
   })
 
   // Calculate visible range and spacer heights for flow-based virtualization
-  const { visibleItems, topSpacerHeight, bottomSpacerHeight, stickyHeader } = useVirtualization({
+  const { visibleItems, topSpacerHeight, stickyHeader } = useVirtualization({
     layout,
     totalHeight,
-    scrollTop: getScrollTop(),
+    scrollTop: virtualScrollTop,
     viewportHeight,
     rowHeight,
   })
@@ -219,7 +226,7 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
     hasMoreContent,
     isLoadingMore,
     anchorAssetId,
-    setScrollTop,
+    setScrollTop: setVirtualScrollTop,
     setViewportHeight,
     updateCurrentBucket,
     getBucketsToLoad,
@@ -228,6 +235,9 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
     onLoadMoreRequest,
     setFirstVisibleAssetId,
     isAdjustingScrollRef,
+    // Anchored scroll integration
+    handleAnchoredScroll,
+    setPhysicalScrollTop,
   })
 
   // Render a virtualized item (header or row) - uses normal flow, not absolute positioning
@@ -309,15 +319,27 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
             />
           )}
 
-          {/* Top spacer - reserves space for items above visible range */}
-          {/* Use chunked spacers to avoid browser height limits */}
-          <ChunkedSpacer height={topSpacerHeight} />
-
-          {/* Visible items rendered in normal document flow */}
-          {visibleItems.map((item) => renderItem(item))}
-
-          {/* Bottom spacer - reserves space for items below visible range */}
-          <ChunkedSpacer height={bottomSpacerHeight} />
+          {/* Scroll buffer - fixed height container for anchored scrolling */}
+          <div style={{ height: scrollBufferHeight, position: 'relative' }}>
+            {/* Content wrapper - positioned using transform based on virtual scroll position */}
+            <div
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                // Transform to position content at the correct virtual scroll position
+                // topSpacerHeight = virtual Y of first visible item
+                // virtualScrollTop = current virtual scroll position
+                // physicalScrollTop = current physical scroll position in the buffer
+                // We want: content at virtual topSpacerHeight to appear at physical physicalScrollTop
+                transform: `translateY(${topSpacerHeight - virtualScrollTop + physicalScrollTop}px)`,
+              }}
+            >
+              {/* Visible items rendered in normal document flow */}
+              {visibleItems.map((item) => renderItem(item))}
+            </div>
+          </div>
 
           {/* Loading indicator */}
           {isLoadingMore && <TimelineLoadingIndicator />}

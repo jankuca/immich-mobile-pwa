@@ -19,7 +19,7 @@ interface UseTimelineScrollOptions<A> {
   isLoadingMore: boolean
   /** ID of the asset to anchor to (skip first visible tracking when set) */
   anchorAssetId?: string | null | undefined
-  /** Callback to update scroll position state */
+  /** Callback to update scroll position state (virtual scroll position) */
   setScrollTop: (scrollTop: number) => void
   /** Callback to update viewport height state */
   setViewportHeight: (height: number) => void
@@ -37,6 +37,10 @@ interface UseTimelineScrollOptions<A> {
   setFirstVisibleAssetId: (assetId: string | null) => void
   /** Ref flag to mark programmatic scrolls (shared with parent) */
   isAdjustingScrollRef: { current: boolean }
+  /** Optional anchored scroll handler - when provided, scroll events are processed through it */
+  handleAnchoredScroll?: (() => { virtual: number; physical: number }) | undefined
+  /** Callback to update physical scroll position state */
+  setPhysicalScrollTop?: (scrollTop: number) => void
 }
 
 /**
@@ -63,12 +67,29 @@ export function useTimelineScroll<A extends { id: string }>({
   onLoadMoreRequest,
   setFirstVisibleAssetId,
   isAdjustingScrollRef,
+  handleAnchoredScroll,
+  setPhysicalScrollTop,
 }: UseTimelineScrollOptions<A>): void {
   // Throttle scroll state updates
   const scrollRafRef = useRef<number | null>(null)
 
   // Throttle visible date updates to avoid excessive re-renders
   const lastVisibleDateRef = useRef<string | null>(null)
+
+  // Helper to process anchored scroll and update both virtual and physical positions
+  const processAnchoredScroll = useCallback(
+    (scrollContainer: HTMLElement): number => {
+      if (handleAnchoredScroll) {
+        const result = handleAnchoredScroll()
+        if (setPhysicalScrollTop) {
+          setPhysicalScrollTop(result.physical)
+        }
+        return result.virtual
+      }
+      return scrollContainer.scrollTop
+    },
+    [handleAnchoredScroll, setPhysicalScrollTop],
+  )
 
   // Handle scroll events
   const handleScroll = useCallback(() => {
@@ -83,7 +104,8 @@ export function useTimelineScroll<A extends { id: string }>({
       isAdjustingScrollRef.current = false
       // For programmatic scrolls, update scrollTop immediately (no RAF)
       // This ensures layout recalculates correctly after scrubbing
-      const { scrollTop: newScrollTop, clientHeight } = scrollContainer
+      const newScrollTop = processAnchoredScroll(scrollContainer)
+      const { clientHeight } = scrollContainer
       setScrollTop(newScrollTop)
       if (clientHeight !== viewportHeight) {
         setViewportHeight(clientHeight)
@@ -97,7 +119,9 @@ export function useTimelineScroll<A extends { id: string }>({
     }
 
     scrollRafRef.current = requestAnimationFrame(() => {
-      const { scrollTop: newScrollTop, scrollHeight, clientHeight } = scrollContainer
+      // Use anchored scroll handler if available, otherwise use DOM scrollTop
+      const newScrollTop = processAnchoredScroll(scrollContainer)
+      const { scrollHeight, clientHeight } = scrollContainer
 
       // Update scroll position for virtualization
       setScrollTop(newScrollTop)
@@ -158,8 +182,10 @@ export function useTimelineScroll<A extends { id: string }>({
     bucketPositions,
     currentBucketIndex,
     getBucketsToLoad,
+    processAnchoredScroll,
     hasMoreContent,
     isLoadingMore,
+    isAdjustingScrollRef,
     layout,
     onBucketLoadRequest,
     onLoadMoreRequest,
@@ -177,7 +203,8 @@ export function useTimelineScroll<A extends { id: string }>({
   useEffect(() => {
     const scrollContainer = scrollContainerRef.current
     if (scrollContainer && layout.length > 0) {
-      const currentScroll = scrollContainer.scrollTop
+      // Use anchored scroll handler if available, otherwise use DOM scrollTop
+      const currentScroll = processAnchoredScroll(scrollContainer)
       setScrollTop(currentScroll)
       if (scrollContainer.clientHeight > 0) {
         setViewportHeight(scrollContainer.clientHeight)
