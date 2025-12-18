@@ -296,6 +296,8 @@ export function Timeline() {
 
   // Debounce timer ref for bucket loading during scrub
   const scrubLoadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Track the final target bucket index for scrubbing
+  const scrubTargetBucketRef = useRef<number | null>(null)
 
   // Handle receiving the scroll-to-bucket function from VirtualizedTimeline
   const handleScrollToBucketReady = useCallback((scrollToBucket: (bucketIndex: number) => void) => {
@@ -305,6 +307,10 @@ export function Timeline() {
   // Handle bucket load request from VirtualizedTimeline (when scrolling into unloaded area)
   const handleBucketLoadRequest = useCallback(
     (bucketIndex: number) => {
+      // Don't load buckets if we're scrubbing - let scrubber control loading
+      if (isScrubbing.current) {
+        return
+      }
       // Load the requested bucket and a few around it
       const bufferBuckets = 2
       const startIndex = Math.max(0, bucketIndex - bufferBuckets)
@@ -317,23 +323,31 @@ export function Timeline() {
   const handleScrub = useCallback(
     (bucketIndex: number) => {
       isScrubbing.current = true
+      scrubTargetBucketRef.current = bucketIndex
 
       // Scroll to the bucket position using the virtualized timeline's scroll function
       if (scrollToBucketRef.current) {
         scrollToBucketRef.current(bucketIndex)
       }
 
-      // Debounced bucket loading during drag
+      // Debounced bucket loading during drag (longer debounce to reduce load frequency)
       if (scrubLoadTimerRef.current) {
         clearTimeout(scrubLoadTimerRef.current)
       }
 
       scrubLoadTimerRef.current = setTimeout(() => {
-        // Load buckets around the target position
-        const bufferBuckets = 3
-        const startIndex = Math.max(0, bucketIndex - bufferBuckets)
-        loadBucketRange(allBuckets, startIndex, bufferBuckets * 2 + 1)
-      }, 150) // 150ms debounce
+        // Only load if this is still the target (user hasn't moved further)
+        if (scrubTargetBucketRef.current === bucketIndex) {
+          const bufferBuckets = 3
+          const startIndex = Math.max(0, bucketIndex - bufferBuckets)
+          loadBucketRange(allBuckets, startIndex, bufferBuckets * 2 + 1).then(() => {
+            // Re-scroll to target after load in case layout shifted
+            if (scrubTargetBucketRef.current !== null && scrollToBucketRef.current) {
+              scrollToBucketRef.current(scrubTargetBucketRef.current)
+            }
+          })
+        }
+      }, 400) // 400ms debounce - less frequent loading during drag
     },
     [allBuckets, loadBucketRange],
   )
@@ -341,13 +355,16 @@ export function Timeline() {
   // Handle scrubber drag end - trigger immediate bucket loading for the final position
   const handleScrubEnd = useCallback(
     (bucketIndex: number) => {
-      // Clear any pending debounced load
+      // Clear any pending debounced load from dragging
       if (scrubLoadTimerRef.current) {
         clearTimeout(scrubLoadTimerRef.current)
         scrubLoadTimerRef.current = null
       }
 
-      // Scroll to the bucket position using the virtualized timeline's scroll function
+      // Set the final target
+      scrubTargetBucketRef.current = bucketIndex
+
+      // Scroll to the bucket position
       if (scrollToBucketRef.current) {
         scrollToBucketRef.current(bucketIndex)
       }
@@ -357,7 +374,12 @@ export function Timeline() {
       const startIndex = Math.max(0, bucketIndex - bufferBuckets)
 
       loadBucketRange(allBuckets, startIndex, bufferBuckets * 2 + 1).then(() => {
-        // Clear scrubbing flag only after loading is complete
+        // Re-scroll to the final target after loading (in case layout shifted)
+        if (scrollToBucketRef.current && scrubTargetBucketRef.current !== null) {
+          scrollToBucketRef.current(scrubTargetBucketRef.current)
+        }
+        // Clear scrubbing state
+        scrubTargetBucketRef.current = null
         isScrubbing.current = false
       })
     },

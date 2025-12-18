@@ -65,6 +65,8 @@ interface LayoutItem<A extends AssetTimelineItem> {
   // For rows
   assets?: A[]
   rowIndex?: number
+  // For placeholder items (unloaded buckets)
+  isPlaceholder?: boolean
 }
 
 export function VirtualizedTimeline<A extends AssetTimelineItem>({
@@ -138,12 +140,12 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
   }, [getThumbnailPosition, onThumbnailPositionGetterReady])
 
   // Calculate column count based on container width to maintain square thumbnails
-  const columnCount = containerWidth
-    ? Math.max(MIN_COLUMNS, Math.floor(containerWidth / TARGET_THUMBNAIL_SIZE))
-    : MIN_COLUMNS
+  // Use a reasonable default width for initial calculations before ResizeObserver fires
+  const effectiveWidth = containerWidth || 390 // Approximate mobile width as fallback
+  const columnCount = Math.max(MIN_COLUMNS, Math.floor(effectiveWidth / TARGET_THUMBNAIL_SIZE))
 
   // Calculate thumbnail size based on container width and column count
-  const thumbnailSize = containerWidth ? Math.floor(containerWidth / columnCount) - 1 : 0 // 2px for gap
+  const thumbnailSize = Math.floor(effectiveWidth / columnCount) - 1 // 1px for gap
   const rowHeight = thumbnailSize + ROW_GAP
 
   // Calculate bucket positions based on bucket metadata (for skeleton/placeholder layout)
@@ -277,9 +279,39 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
               offsetWithinBucket += rowHeight
             }
           }
+        } else {
+          // Bucket is not loaded - render placeholder header and rows
+          let offsetWithinBucket = 0
+
+          // Add placeholder header
+          if (showDateHeaders) {
+            items.push({
+              type: 'header',
+              key: `header-placeholder-${bucketPos.timeBucket}`,
+              top: bucketPos.top + offsetWithinBucket,
+              height: HEADER_HEIGHT,
+              date: bucketPos.timeBucket,
+              isPlaceholder: true,
+            })
+            offsetWithinBucket += HEADER_HEIGHT
+          }
+
+          // Add placeholder rows based on bucket count
+          const estimatedRows =
+            Math.ceil(bucketPos.height - (showDateHeaders ? HEADER_HEIGHT : 0)) / rowHeight
+          for (let rowIndex = 0; rowIndex < estimatedRows; rowIndex++) {
+            items.push({
+              type: 'row',
+              key: `row-placeholder-${bucketPos.timeBucket}-${rowIndex}`,
+              top: bucketPos.top + offsetWithinBucket,
+              height: rowHeight,
+              date: bucketPos.timeBucket,
+              isPlaceholder: true,
+              rowIndex,
+            })
+            offsetWithinBucket += rowHeight
+          }
         }
-        // Unloaded buckets just reserve space - no items added
-        // The placeholder/loading indicator will be rendered separately if needed
       }
 
       return { layout: items, totalHeight: skeletonTotalHeight }
@@ -668,12 +700,16 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
   // Render a virtualized item (header or row)
   const renderItem = (item: LayoutItem<A>) => {
     if (item.type === 'header') {
-      const formattedDate = new Date(item.date).toLocaleDateString(undefined, {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      })
+      // For placeholder headers, show month/year format; for loaded headers, show full date
+      const headerDate = new Date(item.date)
+      const formattedDate = item.isPlaceholder
+        ? headerDate.toLocaleDateString(undefined, { year: 'numeric', month: 'long' })
+        : headerDate.toLocaleDateString(undefined, {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+          })
       return (
         <div
           key={item.key}
@@ -690,7 +726,39 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
       )
     }
 
-    // Row type
+    // Row type - placeholder or loaded
+    if (item.isPlaceholder) {
+      // Render placeholder thumbnails
+      return (
+        <div
+          key={item.key}
+          class="timeline-row timeline-row-placeholder"
+          style={{
+            position: 'absolute',
+            top: `${item.top}px`,
+            left: 0,
+            right: 0,
+            height: `${item.height}px`,
+            display: 'flex',
+            gap: '1px',
+          }}
+        >
+          {Array.from({ length: columnCount }).map((_, j) => (
+            <div
+              key={`placeholder-${j}`}
+              style={{
+                width: `${thumbnailSize}px`,
+                height: `${thumbnailSize}px`,
+                backgroundColor: 'var(--color-gray-light, #e0e0e0)',
+                opacity: 0.3,
+              }}
+            />
+          ))}
+        </div>
+      )
+    }
+
+    // Loaded row with actual assets
     const rowAssets = item.assets ?? []
     return (
       <div
@@ -742,7 +810,7 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
         backgroundColor: 'var(--color-background)',
       }}
     >
-      {containerWidth > 0 && sections.length > 0 ? (
+      {sections.length > 0 || bucketPositions.length > 0 ? (
         <div
           ref={scrollContainerRef}
           class="virtualized-timeline-scroll"
