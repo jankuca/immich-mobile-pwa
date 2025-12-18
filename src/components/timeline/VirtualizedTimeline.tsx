@@ -67,6 +67,8 @@ interface LayoutItem<A extends AssetTimelineItem> {
   rowIndex?: number
   // For placeholder items (unloaded buckets)
   isPlaceholder?: boolean
+  // For collapsed bucket placeholders (single item spanning entire unloaded bucket far from view)
+  isBucketPlaceholder?: boolean
 }
 
 export function VirtualizedTimeline<A extends AssetTimelineItem>({
@@ -280,6 +282,12 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
     if (bucketPositions.length > 0 && thumbnailSize > 0) {
       const items: LayoutItem<A>[] = []
 
+      // Determine visible range for layout generation (with generous buffer to avoid layout recalc)
+      const currentScrollTop = getScrollTop()
+      const layoutBuffer = viewportHeight * 3 // 3 screens worth of buffer
+      const layoutVisibleTop = Math.max(0, currentScrollTop - layoutBuffer)
+      const layoutVisibleBottom = currentScrollTop + viewportHeight + layoutBuffer
+
       // Group sections by month to match with buckets
       const sectionsByMonth = new Map<string, TimelineSection<A>[]>()
       for (const section of sections) {
@@ -292,6 +300,9 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
 
       // Iterate through bucket positions and build layout
       for (const bucketPos of bucketPositions) {
+        const bucketBottom = bucketPos.top + bucketPos.height
+        const isNearVisible = bucketBottom > layoutVisibleTop && bucketPos.top < layoutVisibleBottom
+
         const bucketDate = new Date(bucketPos.timeBucket)
         const monthKey = `${bucketDate.getUTCFullYear()}-${String(bucketDate.getUTCMonth() + 1).padStart(2, '0')}`
         const monthSections = sectionsByMonth.get(monthKey) ?? []
@@ -330,8 +341,8 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
               offsetWithinBucket += rowHeight
             }
           }
-        } else {
-          // Bucket is not loaded - render placeholder header and rows
+        } else if (isNearVisible) {
+          // Bucket is not loaded but near visible range - render placeholder header and rows
           let offsetWithinBucket = 0
 
           // Add placeholder header
@@ -348,8 +359,9 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
           }
 
           // Add placeholder rows based on bucket count
-          const estimatedRows =
-            Math.ceil(bucketPos.height - (showDateHeaders ? HEADER_HEIGHT : 0)) / rowHeight
+          const estimatedRows = Math.ceil(
+            (bucketPos.height - (showDateHeaders ? HEADER_HEIGHT : 0)) / rowHeight,
+          )
           for (let rowIndex = 0; rowIndex < estimatedRows; rowIndex++) {
             items.push({
               type: 'row',
@@ -362,6 +374,18 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
             })
             offsetWithinBucket += rowHeight
           }
+        } else {
+          // For buckets far from visible range and not loaded, generate a single
+          // bucket-sized placeholder so there's always an item to find when scrolling
+          items.push({
+            type: 'header',
+            key: `header-placeholder-${bucketPos.timeBucket}`,
+            top: bucketPos.top,
+            height: bucketPos.height,
+            date: bucketPos.timeBucket,
+            isPlaceholder: true,
+            isBucketPlaceholder: true, // Marks this as a collapsed bucket placeholder
+          })
         }
       }
 
@@ -410,11 +434,16 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
     return { layout: items, totalHeight: currentTop }
   })()
 
-  // Calculate visible range based on scroll position
-  // Use getScrollTop() to get actual DOM scroll position (more accurate than state after re-renders)
-  const visibleItems = (() => {
+  // Calculate visible range and spacer heights for flow-based virtualization
+  // This approach renders items in normal document flow (not absolute) so sticky headers work
+  const { visibleItems, topSpacerHeight, bottomSpacerHeight, stickyHeader } = (() => {
     if (layout.length === 0 || viewportHeight === 0) {
-      return []
+      return {
+        visibleItems: [] as LayoutItem<A>[],
+        topSpacerHeight: 0,
+        bottomSpacerHeight: 0,
+        stickyHeader: null as LayoutItem<A> | null,
+      }
     }
 
     const currentScrollTop = getScrollTop()
@@ -422,43 +451,43 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
     const visibleTop = Math.max(0, currentScrollTop - bufferPx)
     const visibleBottom = currentScrollTop + viewportHeight + bufferPx
 
-    return layout.filter((item) => {
-      const itemBottom = item.top + item.height
-      return itemBottom > visibleTop && item.top < visibleBottom
-    })
-  })()
-
-  // Find the current sticky header and calculate push-up offset
-  const { stickyHeader, stickyOffset } = (() => {
-    if (!showDateHeaders || layout.length === 0) {
-      return { stickyHeader: null, stickyOffset: 0 }
-    }
-
-    const currentScrollTop = getScrollTop()
-    let currentHeader: LayoutItem<A> | null = null
-    let nextHeader: LayoutItem<A> | null = null
-
+    // Find the "current" sticky header - the last header with top <= scrollTop
+    // This is rendered separately at the top, not as part of the flow
+    let currentStickyHeader: LayoutItem<A> | null = null
     for (const item of layout) {
-      if (item.type === 'header') {
-        if (item.top <= currentScrollTop) {
-          currentHeader = item
-        } else {
-          nextHeader = item
-          break
-        }
+      if (item.type === 'header' && item.top <= currentScrollTop) {
+        currentStickyHeader = item
+      } else if (item.type === 'header' && item.top > currentScrollTop) {
+        break // Headers are sorted, no need to continue
       }
     }
 
-    // Calculate how much to push up the sticky header when next header approaches
-    let offset = 0
-    if (currentHeader && nextHeader) {
-      const distanceToNext = nextHeader.top - currentScrollTop
-      if (distanceToNext < HEADER_HEIGHT) {
-        offset = HEADER_HEIGHT - distanceToNext
+    // Filter items that are in the visible range (don't include sticky header here)
+    const filtered: LayoutItem<A>[] = []
+    for (const item of layout) {
+      const itemBottom = item.top + item.height
+      const isInVisibleRange = itemBottom > visibleTop && item.top < visibleBottom
+
+      if (isInVisibleRange) {
+        filtered.push(item)
+      } else if (filtered.length > 0 && item.top >= visibleBottom) {
+        // Past visible range, stop iterating
+        break
       }
     }
 
-    return { stickyHeader: currentHeader, stickyOffset: offset }
+    // Calculate spacer heights based on actually visible items (not sticky header)
+    const firstVisible = filtered[0]
+    const lastVisible = filtered.at(-1)
+    const topHeight = firstVisible ? firstVisible.top : 0
+    const bottomHeight = lastVisible ? totalHeight - (lastVisible.top + lastVisible.height) : 0
+
+    return {
+      visibleItems: filtered,
+      topSpacerHeight: topHeight,
+      bottomSpacerHeight: Math.max(0, bottomHeight),
+      stickyHeader: currentStickyHeader,
+    }
   })()
 
   // Group assets by date
@@ -748,7 +777,7 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
     }
   }, [handleScroll, hasMoreContent, isLoadingMore, onLoadMoreRequest, sections, viewportHeight])
 
-  // Render a virtualized item (header or row)
+  // Render a virtualized item (header or row) - uses normal flow, not absolute positioning
   const renderItem = (item: LayoutItem<A>) => {
     if (item.type === 'header') {
       // For placeholder headers, show month/year format; for loaded headers, show full date
@@ -761,18 +790,41 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
             month: 'long',
             day: 'numeric',
           })
+
+      // Bucket placeholders span the entire bucket height (header + content area)
+      // We render a sticky header at normal height, plus a spacer for the content area
+      if (item.isBucketPlaceholder) {
+        const contentHeight = item.height - HEADER_HEIGHT
+        return (
+          <div key={item.key} style={{ height: `${item.height}px` }}>
+            <div
+              style={{
+                position: 'sticky',
+                top: 0,
+                zIndex: 10,
+                height: `${HEADER_HEIGHT}px`,
+              }}
+            >
+              <SectionPill sticky={true}>{formattedDate}</SectionPill>
+            </div>
+            {/* Spacer for the content area - takes up remaining bucket height */}
+            <div style={{ height: `${contentHeight}px` }} />
+          </div>
+        )
+      }
+
+      // Regular headers use position: sticky for native browser-controlled stickiness
       return (
         <div
           key={item.key}
           style={{
-            position: 'absolute',
-            top: `${item.top}px`,
-            left: 0,
-            right: 0,
+            position: 'sticky',
+            top: 0,
+            zIndex: 10,
             height: `${item.height}px`,
           }}
         >
-          <SectionPill sticky={false}>{formattedDate}</SectionPill>
+          <SectionPill sticky={true}>{formattedDate}</SectionPill>
         </div>
       )
     }
@@ -785,10 +837,6 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
           key={item.key}
           class="timeline-row timeline-row-placeholder"
           style={{
-            position: 'absolute',
-            top: `${item.top}px`,
-            left: 0,
-            right: 0,
             height: `${item.height}px`,
             display: 'flex',
             gap: '1px',
@@ -816,10 +864,6 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
         key={item.key}
         class="timeline-row"
         style={{
-          position: 'absolute',
-          top: `${item.top}px`,
-          left: 0,
-          right: 0,
           height: `${item.height}px`,
           display: 'flex',
           gap: '1px',
@@ -873,86 +917,80 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
             paddingBottom: 'var(--timeline-bottom-offset, var(--tabbar-height))',
           }}
         >
-          {/* Sticky header overlay */}
-          {stickyHeader && (
+          {/* Sticky header overlay - rendered separately from the flow to avoid spacer instability */}
+          {showDateHeaders && stickyHeader && (
             <div
               style={{
                 position: 'sticky',
                 top: 0,
-                zIndex: 10,
+                zIndex: 20,
                 height: `${HEADER_HEIGHT}px`,
-                marginBottom: `-${HEADER_HEIGHT}px`, // Compensate for the space it takes
-                transform: stickyOffset > 0 ? `translateY(-${stickyOffset}px)` : undefined,
+                marginBottom: `-${HEADER_HEIGHT}px`,
+                pointerEvents: 'none',
               }}
             >
               <SectionPill sticky={true}>
-                {new Date(stickyHeader.date).toLocaleDateString(undefined, {
-                  weekday: 'long',
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric',
-                })}
+                {(() => {
+                  const headerDate = new Date(stickyHeader.date)
+                  return stickyHeader.isPlaceholder
+                    ? headerDate.toLocaleDateString(undefined, { year: 'numeric', month: 'long' })
+                    : headerDate.toLocaleDateString(undefined, {
+                        weekday: 'long',
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric',
+                      })
+                })()}
               </SectionPill>
             </div>
           )}
 
-          {/* Virtualized content container with total height */}
-          <div
-            class="virtualized-content"
-            style={{
-              position: 'relative',
-              height: `${totalHeight + 60}px`, // Extra space for loading/end message
-              minHeight: '100%',
-            }}
-          >
-            {visibleItems.map((item) => renderItem(item))}
+          {/* Top spacer - reserves space for items above visible range */}
+          <div style={{ height: `${topSpacerHeight}px` }} />
 
-            {/* Loading indicator - positioned after content */}
-            {isLoadingMore && (
-              <div
-                style={{
-                  position: 'absolute',
-                  top: `${totalHeight}px`,
-                  left: 0,
-                  right: 0,
-                  display: 'flex',
-                  justifyContent: 'center',
-                  padding: 'var(--spacing-md)',
-                  color: 'var(--color-gray)',
-                }}
-              >
-                <div
-                  class="loading-spinner"
-                  style={{
-                    width: '24px',
-                    height: '24px',
-                    border: '3px solid var(--color-gray-light)',
-                    borderTopColor: 'var(--color-primary)',
-                    borderRadius: '50%',
-                    animation: 'spin 1s linear infinite',
-                  }}
-                />
-              </div>
-            )}
+          {/* Visible items rendered in normal document flow */}
+          {visibleItems.map((item) => renderItem(item))}
 
-            {/* End of content message */}
-            {!hasMoreContent && sections.length > 0 && (
+          {/* Bottom spacer - reserves space for items below visible range */}
+          <div style={{ height: `${bottomSpacerHeight}px` }} />
+
+          {/* Loading indicator */}
+          {isLoadingMore && (
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'center',
+                padding: 'var(--spacing-md)',
+                color: 'var(--color-gray)',
+              }}
+            >
               <div
+                class="loading-spinner"
                 style={{
-                  position: 'absolute',
-                  top: `${totalHeight}px`,
-                  left: 0,
-                  right: 0,
-                  textAlign: 'center',
-                  padding: 'var(--spacing-md)',
-                  color: 'var(--color-gray)',
-                  fontSize: 'var(--font-size-sm)',
+                  width: '24px',
+                  height: '24px',
+                  border: '3px solid var(--color-gray-light)',
+                  borderTopColor: 'var(--color-primary)',
+                  borderRadius: '50%',
+                  animation: 'spin 1s linear infinite',
                 }}
-              >
-                {assets.length} {pluralize('photo', assets.length)}
-              </div>
-            )}
-          </div>
+              />
+            </div>
+          )}
+
+          {/* End of content message */}
+          {!hasMoreContent && sections.length > 0 && (
+            <div
+              style={{
+                textAlign: 'center',
+                padding: 'var(--spacing-md)',
+                color: 'var(--color-gray)',
+                fontSize: 'var(--font-size-sm)',
+              }}
+            >
+              {assets.length} {pluralize('photo', assets.length)}
+            </div>
+          )}
 
           <style>{`
             @keyframes spin {

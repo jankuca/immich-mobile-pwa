@@ -1,5 +1,7 @@
+import type { ComponentChildren } from 'preact'
+
 interface SectionPillProps {
-  children: string
+  children: ComponentChildren
   sticky?: boolean
 }
 
