@@ -88,6 +88,11 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
   // Throttle visible date updates to avoid excessive re-renders
   const lastVisibleDateRef = useRef<string | null>(null)
 
+  // Get actual scroll position from DOM (fallback to state for SSR/initial render)
+  const getScrollTop = useCallback(() => {
+    return scrollContainerRef.current?.scrollTop ?? scrollTop
+  }, [scrollTop])
+
   // Function to get thumbnail position by asset ID
   const getThumbnailPosition = useCallback((assetId: string): ThumbnailPosition | null => {
     const getter = thumbnailPositionGettersRef.current.get(assetId)
@@ -167,14 +172,16 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
   })()
 
   // Calculate visible range based on scroll position
+  // Use getScrollTop() to get actual DOM scroll position (more accurate than state after re-renders)
   const visibleItems = (() => {
     if (layout.length === 0 || viewportHeight === 0) {
       return []
     }
 
+    const currentScrollTop = getScrollTop()
     const bufferPx = BUFFER_ROWS * rowHeight
-    const visibleTop = Math.max(0, scrollTop - bufferPx)
-    const visibleBottom = scrollTop + viewportHeight + bufferPx
+    const visibleTop = Math.max(0, currentScrollTop - bufferPx)
+    const visibleBottom = currentScrollTop + viewportHeight + bufferPx
 
     return layout.filter((item) => {
       const itemBottom = item.top + item.height
@@ -188,12 +195,13 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
       return { stickyHeader: null, stickyOffset: 0 }
     }
 
+    const currentScrollTop = getScrollTop()
     let currentHeader: LayoutItem<A> | null = null
     let nextHeader: LayoutItem<A> | null = null
 
     for (const item of layout) {
       if (item.type === 'header') {
-        if (item.top <= scrollTop) {
+        if (item.top <= currentScrollTop) {
           currentHeader = item
         } else {
           nextHeader = item
@@ -205,7 +213,7 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
     // Calculate how much to push up the sticky header when next header approaches
     let offset = 0
     if (currentHeader && nextHeader) {
-      const distanceToNext = nextHeader.top - scrollTop
+      const distanceToNext = nextHeader.top - currentScrollTop
       if (distanceToNext < HEADER_HEIGHT) {
         offset = HEADER_HEIGHT - distanceToNext
       }
@@ -329,6 +337,9 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
     [getAssetIndex, sections, showDateHeaders],
   )
 
+  // Track previous container width for resize detection
+  const prevContainerWidthRef = useRef<number>(0)
+
   // Update container width on resize using ResizeObserver for reliable orientation change detection
   useEffect(() => {
     const container = containerRef.current
@@ -341,30 +352,34 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
       for (const entry of entries) {
         // Use contentBoxSize for more accurate measurement
         const newWidth = entry.contentBoxSize?.[0]?.inlineSize ?? entry.contentRect.width
-        const oldWidth = containerWidth
+        const oldWidth = prevContainerWidthRef.current
 
-        // Determine which asset to anchor to
-        const assetIdToAnchor = anchorAssetId ?? firstVisibleAssetIdRef.current
-        if (assetIdToAnchor && oldWidth && newWidth !== oldWidth && scrollContainer) {
-          // Calculate the scroll position for the anchor asset before and after resize
-          const oldScrollPos = calculateScrollPositionForAsset(assetIdToAnchor, oldWidth)
-          const newScrollPos = calculateScrollPositionForAsset(assetIdToAnchor, newWidth)
+        // Only do anchoring logic if width actually changed (not just re-trigger)
+        if (oldWidth > 0 && Math.abs(newWidth - oldWidth) > 1) {
+          // Determine which asset to anchor to
+          const assetIdToAnchor = anchorAssetId ?? firstVisibleAssetIdRef.current
+          if (assetIdToAnchor && scrollContainer) {
+            // Calculate the scroll position for the anchor asset before and after resize
+            const oldScrollPos = calculateScrollPositionForAsset(assetIdToAnchor, oldWidth)
+            const newScrollPos = calculateScrollPositionForAsset(assetIdToAnchor, newWidth)
 
-          if (oldScrollPos !== null && newScrollPos !== null) {
-            // Calculate the offset from the asset's position to the current scroll position
-            const currentScroll = scrollContainer.scrollTop
-            const offsetFromAnchor = currentScroll - oldScrollPos
+            if (oldScrollPos !== null && newScrollPos !== null) {
+              // Calculate the offset from the asset's position to the current scroll position
+              const currentScroll = scrollContainer.scrollTop
+              const offsetFromAnchor = currentScroll - oldScrollPos
 
-            // Apply the same offset to the new position
-            // Use requestAnimationFrame to wait for the DOM to update
-            requestAnimationFrame(() => {
-              if (scrollContainer) {
-                scrollContainer.scrollTop = newScrollPos + offsetFromAnchor
-              }
-            })
+              // Apply the same offset to the new position
+              // Use requestAnimationFrame to wait for the DOM to update
+              requestAnimationFrame(() => {
+                if (scrollContainer) {
+                  scrollContainer.scrollTop = newScrollPos + offsetFromAnchor
+                }
+              })
+            }
           }
         }
 
+        prevContainerWidthRef.current = newWidth
         setContainerWidth(newWidth)
       }
     })
@@ -374,7 +389,7 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
     return () => {
       resizeObserver.disconnect()
     }
-  }, [anchorAssetId, calculateScrollPositionForAsset, containerWidth])
+  }, [anchorAssetId, calculateScrollPositionForAsset])
 
   // Handle scroll events - update scroll position for virtualization
   const handleScroll = useCallback(() => {
@@ -433,6 +448,19 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
     onVisibleDateChange,
     viewportHeight,
   ])
+
+  // Sync scroll position when sections change (to maintain position after content loads)
+  useEffect(() => {
+    const scrollContainer = scrollContainerRef.current
+    if (scrollContainer && sections.length > 0) {
+      // Read current scroll position and update state if different
+      const currentScroll = scrollContainer.scrollTop
+      setScrollTop(currentScroll)
+      if (scrollContainer.clientHeight > 0) {
+        setViewportHeight(scrollContainer.clientHeight)
+      }
+    }
+  }, [sections])
 
   // Add scroll event listener
   // biome-ignore lint/correctness/useExhaustiveDependencies: we need to check if we want to request more after adding sections

@@ -65,6 +65,20 @@ export function Timeline() {
     return allBuckets.length
   }, [allBuckets.length, loadedBuckets])
 
+  // Find the bucket index for a given date
+  const getBucketIndexForDate = useCallback(
+    (date: string): number => {
+      for (let i = 0; i < allBuckets.length; i++) {
+        const bucketDate = allBuckets[i]?.timeBucket.split('T')[0]
+        if (bucketDate === date) {
+          return i
+        }
+      }
+      return -1
+    },
+    [allBuckets],
+  )
+
   // Fetch initial timeline data
   useEffect(() => {
     const fetchInitialTimeline = async () => {
@@ -198,31 +212,83 @@ export function Timeline() {
     loadBucketRange(allBuckets, nextIndex, bucketsPerLoad)
   }, [allBuckets, getNextUnloadedIndex, isLoadingMore, hasMoreContent, loadBucketRange])
 
+  // Load buckets around a specific date if not already loaded
+  const loadBucketsAroundDate = useCallback(
+    (date: string) => {
+      const bucketIndex = getBucketIndexForDate(date)
+      if (bucketIndex === -1) {
+        return
+      }
+
+      // Check if buckets around this index need loading
+      const bufferBuckets = 3
+      const startIndex = Math.max(0, bucketIndex - bufferBuckets)
+      const endIndex = Math.min(allBuckets.length, bucketIndex + bufferBuckets + 1)
+
+      let needsLoading = false
+      for (let i = startIndex; i < endIndex; i++) {
+        if (!loadedBuckets.has(i)) {
+          needsLoading = true
+          break
+        }
+      }
+
+      if (needsLoading && !isLoadingMore) {
+        loadBucketRange(allBuckets, startIndex, endIndex - startIndex)
+      }
+    },
+    [allBuckets, getBucketIndexForDate, isLoadingMore, loadBucketRange, loadedBuckets],
+  )
+
   // Debounce timer ref for bucket loading during scrub
   const scrubLoadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Calculate the proportional position (0-1) for a bucket based on cumulative photo counts
-  const getBucketProgress = useCallback(
-    (bucketIndex: number): number => {
-      if (allBuckets.length === 0) {
-        return 0
+  // Find the scroll position for a target bucket date within loaded assets
+  const scrollToBucketDate = useCallback(
+    (targetDate: string) => {
+      const scrollContainer = scrollContainerRef.current
+      if (!scrollContainer || assets.length === 0) {
+        return
       }
 
-      // Calculate cumulative counts up to bucketIndex
-      let cumulativeCount = 0
-      let totalCount = 0
+      // Calculate layout constants (must match VirtualizedTimeline)
+      const HEADER_HEIGHT = 48
+      const ROW_GAP = 2
+      const containerWidth = scrollContainer.clientWidth
+      const columnCount = Math.max(3, Math.floor(containerWidth / 120))
+      const thumbnailSize = Math.floor(containerWidth / columnCount) - 1
+      const rowHeight = thumbnailSize + ROW_GAP
 
-      for (let i = 0; i < allBuckets.length; i++) {
-        const count = allBuckets[i]?.count ?? 0
-        if (i < bucketIndex) {
-          cumulativeCount += count
+      // Group assets by date (same logic as VirtualizedTimeline)
+      const dateGroups = new Map<string, number>()
+      for (const asset of assets) {
+        const dateStr = new Date(asset.fileCreatedAt ?? 0).toISOString().split('T')[0] ?? ''
+        dateGroups.set(dateStr, (dateGroups.get(dateStr) ?? 0) + 1)
+      }
+
+      // Sort dates descending
+      const sortedDates = Array.from(dateGroups.keys()).sort(
+        (a, b) => new Date(b).getTime() - new Date(a).getTime(),
+      )
+
+      // Find scroll position for target date
+      let scrollPosition = 0
+      for (const date of sortedDates) {
+        if (date <= targetDate) {
+          // Found the target date (or first date before it)
+          break
         }
-        totalCount += count
+        // Add header height for this section
+        scrollPosition += HEADER_HEIGHT
+        // Add rows for this section
+        const assetCount = dateGroups.get(date) ?? 0
+        const rowCount = Math.ceil(assetCount / columnCount)
+        scrollPosition += rowCount * rowHeight
       }
 
-      return totalCount > 0 ? cumulativeCount / totalCount : 0
+      scrollContainer.scrollTop = scrollPosition
     },
-    [allBuckets],
+    [assets],
   )
 
   // Handle scrubber drag - load buckets for the target bucket index
@@ -230,12 +296,11 @@ export function Timeline() {
     (bucketIndex: number) => {
       isScrubbing.current = true
 
-      // Scroll to the target position based on proportional photo counts
-      const scrollContainer = scrollContainerRef.current
-      if (scrollContainer) {
-        const progress = getBucketProgress(bucketIndex)
-        const maxScroll = scrollContainer.scrollHeight - scrollContainer.clientHeight
-        scrollContainer.scrollTop = progress * maxScroll
+      // Get the target bucket's date and scroll to it
+      const targetBucket = allBuckets[bucketIndex]
+      if (targetBucket) {
+        const targetDate = targetBucket.timeBucket.split('T')[0] ?? ''
+        scrollToBucketDate(targetDate)
       }
 
       // Debounced bucket loading during drag
@@ -250,7 +315,7 @@ export function Timeline() {
         loadBucketRange(allBuckets, startIndex, bufferBuckets * 2 + 1)
       }, 150) // 150ms debounce
     },
-    [allBuckets, getBucketProgress, loadBucketRange],
+    [allBuckets, loadBucketRange, scrollToBucketDate],
   )
 
   // Handle scrubber drag end - trigger immediate bucket loading for the final position
@@ -264,29 +329,32 @@ export function Timeline() {
         scrubLoadTimerRef.current = null
       }
 
-      // Load buckets around the target position
+      // Load buckets around the target position, then scroll to the correct position
       const bufferBuckets = 5
       const startIndex = Math.max(0, bucketIndex - bufferBuckets)
+      const targetBucket = allBuckets[bucketIndex]
+      const targetDate = targetBucket?.timeBucket.split('T')[0] ?? ''
+
       loadBucketRange(allBuckets, startIndex, bufferBuckets * 2 + 1).then(() => {
-        // After loading, scroll to the position for this bucket
-        const scrollContainer = scrollContainerRef.current
-        if (scrollContainer) {
-          const progress = getBucketProgress(bucketIndex)
-          const maxScroll = scrollContainer.scrollHeight - scrollContainer.clientHeight
-          scrollContainer.scrollTop = progress * maxScroll
-        }
+        // After loading, scroll to the actual position of the target date
+        scrollToBucketDate(targetDate)
       })
     },
-    [allBuckets, getBucketProgress, loadBucketRange],
+    [allBuckets, loadBucketRange, scrollToBucketDate],
   )
 
   // Handle visible date change from VirtualizedTimeline
-  const handleVisibleDateChange = useCallback((date: string) => {
-    // Only update if not currently scrubbing
-    if (!isScrubbing.current) {
-      setVisibleDate(date)
-    }
-  }, [])
+  const handleVisibleDateChange = useCallback(
+    (date: string) => {
+      // Only update if not currently scrubbing
+      if (!isScrubbing.current) {
+        setVisibleDate(date)
+        // Load buckets around the visible date to fill in any gaps
+        loadBucketsAroundDate(date)
+      }
+    },
+    [loadBucketsAroundDate],
+  )
 
   // Handle asset selection
   const handleAssetClick = (
