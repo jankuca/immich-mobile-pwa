@@ -30,6 +30,49 @@ interface TimelineScrubberProps {
 // Item heights for positioning calculations (including gap)
 const YEAR_ITEM_HEIGHT = 17 // year label: 11px font line-height ~15px + 4px padding-y + 2px gap ≈ 17px
 const MONTH_ITEM_HEIGHT = 14 // month label: 10px font line-height ~12px + 2px padding-y + 2px gap ≈ 14px
+// Active month item height (larger when active)
+const ACTIVE_MONTH_ITEM_HEIGHT = 32 // 14px font + 12px padding-y + 6px gap
+
+interface MonthItemProps {
+  label: string
+  isActive: boolean
+}
+
+function MonthItem({ label, isActive }: MonthItemProps) {
+  if (isActive) {
+    return (
+      <div
+        class="liquid-glass"
+        style={{
+          padding: '6px 12px',
+          marginRight: '40px', // Offset from finger
+          borderRadius: '12px',
+          fontSize: '14px',
+          color: 'var(--color-text)',
+          fontWeight: 'var(--font-weight-semibold)',
+          border: 'none',
+        }}
+      >
+        {label}
+      </div>
+    )
+  }
+
+  return (
+    <div
+      style={{
+        padding: '1px 8px',
+        marginRight: '8px',
+        borderRadius: '8px',
+        fontSize: '10px',
+        color: 'var(--color-gray)',
+        fontWeight: 'var(--font-weight-regular)',
+      }}
+    >
+      {label}
+    </div>
+  )
+}
 
 interface ScrubberListProps {
   yearGroups: YearGroup[]
@@ -63,8 +106,8 @@ function ScrubberList({ yearGroups, activeYearIndex, currentPosition, dragY }: S
 
   // The list should be positioned so the active item is centered at dragY
   // We use transform to move the list up by the calculated offset, then down by dragY
-  // Add half the month item height to center the active item under the finger
-  const listOffset = dragY - heightAboveActive + MONTH_ITEM_HEIGHT / 2
+  // Subtract half the active month item height to center the active item under the finger
+  const listOffset = dragY - heightAboveActive - ACTIVE_MONTH_ITEM_HEIGHT / 2
 
   return (
     <div
@@ -80,7 +123,6 @@ function ScrubberList({ yearGroups, activeYearIndex, currentPosition, dragY }: S
         fontSize: 'var(--font-size-xs)',
         color: 'var(--color-gray)',
         transform: `translateY(${listOffset}px)`,
-        paddingRight: 'var(--spacing-sm)',
       }}
     >
       {yearGroups.map((group, groupIndex) => {
@@ -93,6 +135,7 @@ function ScrubberList({ yearGroups, activeYearIndex, currentPosition, dragY }: S
             <div
               style={{
                 padding: '2px 8px',
+                marginRight: '8px',
                 borderRadius: '10px',
                 fontWeight: isActive ? 'var(--font-weight-semibold)' : 'var(--font-weight-regular)',
                 fontSize: '11px',
@@ -103,28 +146,13 @@ function ScrubberList({ yearGroups, activeYearIndex, currentPosition, dragY }: S
               {group.year}
             </div>
             {isActive &&
-              group.months.map((month) => {
-                const isActiveMonth = month.month === currentPosition.month
-                return (
-                  <div
-                    key={month.month}
-                    style={{
-                      padding: '1px 8px',
-                      borderRadius: '8px',
-                      fontSize: '10px',
-                      color: isActiveMonth ? 'var(--color-text)' : 'var(--color-gray)',
-                      fontWeight: isActiveMonth
-                        ? 'var(--font-weight-medium)'
-                        : 'var(--font-weight-regular)',
-                      background: isActiveMonth
-                        ? 'rgba(var(--color-primary-rgb), 0.15)'
-                        : 'transparent',
-                    }}
-                  >
-                    {month.label}
-                  </div>
-                )
-              })}
+              group.months.map((month) => (
+                <MonthItem
+                  key={month.month}
+                  label={month.label}
+                  isActive={month.month === currentPosition.month}
+                />
+              ))}
           </div>
         )
       })}
@@ -364,45 +392,36 @@ export function TimelineScrubber({
         touchAction: 'none',
         userSelect: 'none',
         pointerEvents: 'auto',
-        overflow: 'hidden',
       }}
     >
       {/* Collapsed state: show only current period, positioned based on timeline position */}
       {!isExpanded && (
         <div
-          class="scrubber-collapsed"
+          class="scrubber-collapsed liquid-glass"
           style={{
             position: 'absolute',
             top: `${relativePosition * 100}%`,
             right: 0,
             transform: 'translateY(-50%)',
             display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'flex-end',
-            gap: '1px',
-            padding: '4px 8px',
-            paddingRight: 'var(--spacing-sm)',
-            borderRadius: '12px',
-            background: 'rgba(var(--color-text-rgb), 0.08)',
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: '4px',
+            padding: '6px 10px',
+            // Rounded left corners, sharp right edge
+            borderRadius: '12px 0 0 12px',
+            border: 'none',
+            borderRight: 'none',
           }}
         >
           <div
             style={{
-              fontSize: '11px',
+              fontSize: '13px',
               fontWeight: 'var(--font-weight-semibold)',
               color: 'var(--color-text)',
             }}
           >
-            {currentPosition.year}
-          </div>
-          <div
-            style={{
-              fontSize: '10px',
-              fontWeight: 'var(--font-weight-medium)',
-              color: 'var(--color-gray)',
-            }}
-          >
-            {currentMonthLabel}
+            {currentMonthLabel} {currentPosition.year}
           </div>
         </div>
       )}
