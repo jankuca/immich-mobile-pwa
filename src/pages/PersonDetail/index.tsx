@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'preact/hooks'
+import { useEffect, useRef, useState } from 'preact/hooks'
 import { PersonHeader } from '../../components/common/PersonHeader'
 import { PhotoViewer } from '../../components/photoView/PhotoViewer'
 import {
-  type GetThumbnailPosition,
+  type TimelineBucket,
+  type TimelineController,
   VirtualizedTimeline,
 } from '../../components/timeline/VirtualizedTimeline'
 import { useHashLocation } from '../../contexts/HashLocationContext'
@@ -18,21 +19,16 @@ export function PersonDetail({ id, personId }: PersonDetailProps) {
   const [person, setPerson] = useState<Person | null>(null)
   const [assets, setAssets] = useState<Asset[]>([])
   const [isLoading, setIsLoading] = useState<boolean>(true)
-  const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null)
   const [selectedThumbnailPosition, setSelectedThumbnailPosition] =
     useState<ThumbnailPosition | null>(null)
-  const [allBuckets, setAllBuckets] = useState<string[]>([])
+  const [allBuckets, setAllBuckets] = useState<TimelineBucket[]>([])
   const [totalAssetCount, setTotalAssetCount] = useState<number>(0)
-  const [loadedBucketCount, setLoadedBucketCount] = useState<number>(0)
-  const [hasMoreContent, setHasMoreContent] = useState<boolean>(true)
   const { url, route } = useHashLocation()
 
-  // Store the thumbnail position getter from VirtualizedTimeline
-  const [getThumbnailPosition, setGetThumbnailPosition] = useState<GetThumbnailPosition | null>(
-    null,
-  )
+  // Controller ref for VirtualizedTimeline imperative actions
+  const timelineControllerRef = useRef<TimelineController | null>(null)
 
   // Number of buckets to load at once
   const bucketsPerLoad = 1
@@ -67,15 +63,17 @@ export function PersonDetail({ id, personId }: PersonDetailProps) {
           personId: effectiveId,
         })
 
-        // Extract buckets from the response and calculate total count
-        const buckets = timeBucketsResponse.map((bucket) => bucket.timeBucket) || []
+        // Store full bucket info and calculate total count
+        const buckets: TimelineBucket[] = timeBucketsResponse.map((bucket) => ({
+          timeBucket: bucket.timeBucket,
+          count: bucket.count,
+        }))
         const totalCount = timeBucketsResponse.reduce((sum, bucket) => sum + bucket.count, 0)
         setAllBuckets(buckets)
         setTotalAssetCount(totalCount)
 
-        // If no buckets, set hasMoreContent to false
+        // If no buckets, we're done loading
         if (buckets.length === 0) {
-          setHasMoreContent(false)
           setIsLoading(false)
           return
         }
@@ -93,18 +91,16 @@ export function PersonDetail({ id, personId }: PersonDetailProps) {
   }, [effectiveId])
 
   // Function to load more buckets
-  const loadMoreBuckets = async (buckets: string[], startIndex: number, personId: string) => {
+  const loadMoreBuckets = async (
+    buckets: TimelineBucket[],
+    startIndex: number,
+    personId: string,
+  ) => {
     if (startIndex >= buckets.length) {
-      setHasMoreContent(false)
-      setIsLoadingMore(false)
       return
     }
 
     try {
-      if (startIndex > 0) {
-        setIsLoadingMore(true)
-      }
-
       // Get the next batch of buckets
       const endIndex = Math.min(startIndex + bucketsPerLoad, buckets.length)
       const bucketsToLoad = buckets.slice(startIndex, endIndex)
@@ -120,7 +116,7 @@ export function PersonDetail({ id, personId }: PersonDetailProps) {
         const bucketIndex = startIndex + i
         try {
           const bucketAssets = await apiService.getTimeBucket({
-            timeBucket: bucket,
+            timeBucket: bucket.timeBucket,
             size: 'DAY',
             isTrashed: false,
             personId,
@@ -133,35 +129,23 @@ export function PersonDetail({ id, personId }: PersonDetailProps) {
             }
             newAssets.push(...bucketAssets)
           } else {
-            console.warn(`Unexpected response format for bucket ${bucket}:`, bucketAssets)
+            console.warn(
+              `Unexpected response format for bucket ${bucket.timeBucket}:`,
+              bucketAssets,
+            )
           }
         } catch (bucketError) {
-          console.error(`Error fetching assets for bucket ${bucket}:`, bucketError)
+          console.error(`Error fetching assets for bucket ${bucket.timeBucket}:`, bucketError)
         }
       }
 
       // Update state with new assets
       setAssets((prevAssets) => [...prevAssets, ...newAssets])
-      setLoadedBucketCount(endIndex)
-
-      // Check if we've loaded all buckets
-      if (endIndex >= buckets.length) {
-        setHasMoreContent(false)
-      }
     } catch (err) {
       console.error('Error loading more buckets:', err)
     } finally {
       setIsLoading(false)
-      setIsLoadingMore(false)
     }
-  }
-
-  // Handle loading more content
-  const handleLoadMore = () => {
-    if (isLoadingMore || !hasMoreContent || !effectiveId) {
-      return
-    }
-    loadMoreBuckets(allBuckets, loadedBucketCount, effectiveId)
   }
 
   // Handle asset selection
@@ -301,13 +285,11 @@ export function PersonDetail({ id, personId }: PersonDetailProps) {
         ) : assets.length > 0 ? (
           <VirtualizedTimeline
             assets={assets}
+            buckets={allBuckets}
             showDateHeaders={false}
-            hasMoreContent={hasMoreContent}
-            isLoadingMore={isLoadingMore}
-            onAssetOpenRequest={handleAssetClick}
-            onLoadMoreRequest={handleLoadMore}
-            onThumbnailPositionGetterReady={setGetThumbnailPosition}
+            onAssetClick={handleAssetClick}
             anchorAssetId={selectedAsset?.id}
+            controllerRef={timelineControllerRef}
           />
         ) : (
           <div
@@ -353,7 +335,9 @@ export function PersonDetail({ id, personId }: PersonDetailProps) {
           assets={assets}
           onClose={handleCloseViewer}
           thumbnailPosition={selectedThumbnailPosition}
-          getThumbnailPosition={getThumbnailPosition ?? undefined}
+          getThumbnailPosition={(assetId) =>
+            timelineControllerRef.current?.getThumbnailPosition(assetId) ?? null
+          }
           onAssetChange={(asset) => setSelectedAsset(asset as Asset)}
         />
       )}

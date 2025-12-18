@@ -5,7 +5,7 @@ import { SearchInput } from '../../components/search/SearchInput'
 import { SearchInputWrapper } from '../../components/search/SearchInputWrapper'
 import { type TimeBucket, TimelineScrubber } from '../../components/timeline/TimelineScrubber'
 import {
-  type GetThumbnailPosition,
+  type TimelineController,
   VirtualizedTimeline,
 } from '../../components/timeline/VirtualizedTimeline'
 import { useAuth } from '../../contexts/AuthContext'
@@ -16,7 +16,6 @@ import { type AssetTimelineItem, apiService } from '../../services/api'
 export function Timeline() {
   const [assets, setAssets] = useState<AssetTimelineItem[]>([])
   const [isLoading, setIsLoading] = useState<boolean>(true)
-  const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedAsset, setSelectedAsset] = useState<AssetTimelineItem | null>(null)
   const [selectedThumbnailPosition, setSelectedThumbnailPosition] =
@@ -25,19 +24,10 @@ export function Timeline() {
   const [allBuckets, setAllBuckets] = useState<TimeBucket[]>([])
   // Track which buckets have been loaded (by index) - use ref for synchronous checks
   const loadedBucketsRef = useRef<Set<number>>(new Set())
-  // Also keep a state version for passing to VirtualizedTimeline
-  const [loadedBucketIndices, setLoadedBucketIndices] = useState<Set<number>>(new Set())
-  const [hasMoreContent, setHasMoreContent] = useState<boolean>(true)
-  // Ref to hold the scroll-to-bucket function from VirtualizedTimeline
-  const scrollToBucketRef = useRef<((bucketIndex: number) => void) | null>(null)
-  // Ref to hold the refresh scroll function from VirtualizedTimeline
-  const refreshScrollRef = useRef<(() => void) | null>(null)
   // Synchronous loading flag to prevent race conditions
   const isLoadingRef = useRef<boolean>(false)
   // Current visible date for scrubber (from VirtualizedTimeline)
   const [visibleDate, setVisibleDate] = useState<string | null>(null)
-  // Ref to the scroll container for programmatic scrolling
-  const scrollContainerRef = useRef<HTMLDivElement>(null)
   // Track if we're currently scrubbing to avoid scroll event conflicts
   const isScrubbing = useRef(false)
   // AbortController for cancelling in-flight bucket requests
@@ -46,6 +36,8 @@ export function Timeline() {
   const loadingBucketsRef = useRef<Set<number>>(new Set())
   // State version of loading buckets for UI updates (spinners on placeholders)
   const [loadingBucketIndices, setLoadingBucketIndices] = useState<Set<number>>(new Set())
+  // Controller ref for VirtualizedTimeline imperative actions
+  const timelineControllerRef = useRef<TimelineController | null>(null)
   const { logout } = useAuth()
 
   // Search state
@@ -59,27 +51,6 @@ export function Timeline() {
 
   // Determine if we're in search mode
   const isSearchMode = searchQuery.trim().length > 0 || searchResults !== null
-
-  // Store the thumbnail position getter from VirtualizedTimeline
-  const [getThumbnailPosition, setGetThumbnailPosition] = useState<GetThumbnailPosition | null>(
-    null,
-  )
-
-  // Number of buckets to load at once
-  const bucketsPerLoad = 3
-
-  // Find the next unloaded bucket index starting from the end of loaded range
-  const getNextUnloadedIndex = useCallback(() => {
-    // Use ref for synchronous check
-    const loadedSet = loadedBucketsRef.current
-    // Find the first gap or continue from the end
-    for (let i = 0; i < allBuckets.length; i++) {
-      if (!loadedSet.has(i)) {
-        return i
-      }
-    }
-    return allBuckets.length
-  }, [allBuckets.length])
 
   // Find the bucket index for a given date
   const getBucketIndexForDate = useCallback(
@@ -114,15 +85,14 @@ export function Timeline() {
 
         setAllBuckets(timeBucketsResponse)
 
-        // If no buckets, set hasMoreContent to false
+        // If no buckets, nothing to load
         if (timeBucketsResponse.length === 0) {
-          setHasMoreContent(false)
           setIsLoading(false)
           return
         }
 
-        // Load the first batch of buckets
-        await loadBucketRange(timeBucketsResponse, 0, bucketsPerLoad)
+        // Load the first batch of buckets (3 buckets initially)
+        await loadBucketRange(timeBucketsResponse, 0, 3)
       } catch (err) {
         console.error('Error fetching timeline:', err)
         setError('Failed to load photos. Please try again.')
@@ -203,9 +173,6 @@ export function Timeline() {
         })
         return filteredAssets
       })
-
-      // Update the state version of loaded indices
-      setLoadedBucketIndices(new Set(loadedSet))
     },
     [getVisibleBucketIndex],
   )
@@ -241,7 +208,6 @@ export function Timeline() {
 
       if (indicesToLoad.length === 0) {
         setIsLoading(false)
-        setIsLoadingMore(false)
         return
       }
 
@@ -260,10 +226,6 @@ export function Timeline() {
       isLoadingRef.current = true
 
       try {
-        if (startIndex > 0) {
-          setIsLoadingMore(true)
-        }
-
         // Load all buckets in parallel for faster loading
         const loadPromises = indicesToLoad.map(async (index) => {
           const bucket = buckets[index]
@@ -346,18 +308,10 @@ export function Timeline() {
             })
             return deduplicated
           })
-
-          // Update the state version of loaded indices for VirtualizedTimeline
-          setLoadedBucketIndices(new Set(loadedSet))
         }
 
         // Update loading state to remove completed buckets
         setLoadingBucketIndices(new Set(loadingSet))
-
-        // Check if all buckets are loaded
-        if (loadedSet.size >= buckets.length) {
-          setHasMoreContent(false)
-        }
 
         // Cleanup distant buckets if we have too many loaded
         cleanupDistantBuckets(buckets)
@@ -381,21 +335,10 @@ export function Timeline() {
       } finally {
         isLoadingRef.current = false
         setIsLoading(false)
-        setIsLoadingMore(false)
       }
     },
     [cleanupDistantBuckets],
   )
-
-  // Handle loading more content (sequential loading from current position)
-  const handleLoadMore = useCallback(() => {
-    // Use ref for synchronous check to prevent race conditions
-    if (isLoadingRef.current || !hasMoreContent) {
-      return
-    }
-    const nextIndex = getNextUnloadedIndex()
-    loadBucketRange(allBuckets, nextIndex, bucketsPerLoad)
-  }, [allBuckets, getNextUnloadedIndex, hasMoreContent, loadBucketRange])
 
   // Load buckets around a specific date if not already loaded
   const loadBucketsAroundDate = useCallback(
@@ -433,16 +376,6 @@ export function Timeline() {
   // Counter to track scrub sessions and prevent race conditions
   const scrubIdRef = useRef<number>(0)
 
-  // Handle receiving the scroll-to-bucket function from VirtualizedTimeline
-  const handleScrollToBucketReady = useCallback((scrollToBucket: (bucketIndex: number) => void) => {
-    scrollToBucketRef.current = scrollToBucket
-  }, [])
-
-  // Handle receiving the refresh scroll function from VirtualizedTimeline
-  const handleRefreshScrollReady = useCallback((refreshScroll: () => void) => {
-    refreshScrollRef.current = refreshScroll
-  }, [])
-
   // Handle bucket load request from VirtualizedTimeline (when scrolling into unloaded area)
   const handleBucketLoadRequest = useCallback(
     (bucketIndex: number) => {
@@ -464,8 +397,8 @@ export function Timeline() {
       console.log(
         '[handleScrub] bucketIndex:',
         bucketIndex,
-        'scrollToBucketRef:',
-        !!scrollToBucketRef.current,
+        'timelineController:',
+        !!timelineControllerRef.current,
       )
       isScrubbing.current = true
       scrubTargetBucketRef.current = bucketIndex
@@ -478,10 +411,10 @@ export function Timeline() {
       cancelPendingLoads()
 
       // Scroll to the bucket position using the virtualized timeline's scroll function
-      if (scrollToBucketRef.current) {
-        scrollToBucketRef.current(bucketIndex)
+      if (timelineControllerRef.current) {
+        timelineControllerRef.current.scrollToBucket(bucketIndex)
       } else {
-        console.warn('[handleScrub] scrollToBucketRef is null!')
+        console.warn('[handleScrub] timelineControllerRef is null!')
       }
 
       // Debounced bucket loading during drag (longer debounce to reduce load frequency)
@@ -500,8 +433,8 @@ export function Timeline() {
               return
             }
             // Re-scroll to target after load in case layout shifted
-            if (scrubTargetBucketRef.current !== null && scrollToBucketRef.current) {
-              scrollToBucketRef.current(scrubTargetBucketRef.current)
+            if (scrubTargetBucketRef.current !== null && timelineControllerRef.current) {
+              timelineControllerRef.current.scrollToBucket(scrubTargetBucketRef.current)
             }
           })
         }
@@ -524,8 +457,8 @@ export function Timeline() {
       const currentScrubId = scrubIdRef.current
 
       // Scroll to the bucket position
-      if (scrollToBucketRef.current) {
-        scrollToBucketRef.current(bucketIndex)
+      if (timelineControllerRef.current) {
+        timelineControllerRef.current.scrollToBucket(bucketIndex)
       }
 
       // Capture the target at scrub end time for the callback
@@ -545,15 +478,15 @@ export function Timeline() {
         isScrubbing.current = false
 
         // Re-scroll to the target bucket now that content is loaded
-        if (scrubTargetBucketRef.current === targetBucketAtEnd && scrollToBucketRef.current) {
-          scrollToBucketRef.current(targetBucketAtEnd)
+        if (scrubTargetBucketRef.current === targetBucketAtEnd && timelineControllerRef.current) {
+          timelineControllerRef.current.scrollToBucket(targetBucketAtEnd)
         }
         // Clear the target ref
         scrubTargetBucketRef.current = null
 
         // Refresh scroll position to ensure layout recalculates with correct position
-        if (refreshScrollRef.current) {
-          refreshScrollRef.current()
+        if (timelineControllerRef.current) {
+          timelineControllerRef.current.refreshScroll()
         }
       })
     },
@@ -734,9 +667,9 @@ export function Timeline() {
         {isSearchMode && !isSearching && displayAssets.length > 0 && (
           <VirtualizedTimeline
             assets={displayAssets}
+            buckets={[]}
             showDateHeaders={false}
-            onAssetOpenRequest={handleAssetClick}
-            onThumbnailPositionGetterReady={setGetThumbnailPosition}
+            onAssetClick={handleAssetClick}
             anchorAssetId={selectedAsset?.id}
           />
         )}
@@ -833,20 +766,13 @@ export function Timeline() {
           <>
             <VirtualizedTimeline
               assets={assets}
-              allBuckets={allBuckets}
-              loadedBucketIndices={loadedBucketIndices}
+              buckets={allBuckets}
               loadingBucketIndices={loadingBucketIndices}
-              hasMoreContent={hasMoreContent}
-              isLoadingMore={isLoadingMore}
-              onAssetOpenRequest={handleAssetClick}
-              onLoadMoreRequest={handleLoadMore}
-              onThumbnailPositionGetterReady={setGetThumbnailPosition}
+              onAssetClick={handleAssetClick}
               anchorAssetId={selectedAsset?.id}
               onVisibleDateChange={handleVisibleDateChange}
-              scrollContainerRef={scrollContainerRef}
               onBucketLoadRequest={handleBucketLoadRequest}
-              onScrollToBucketReady={handleScrollToBucketReady}
-              onRefreshScrollReady={handleRefreshScrollReady}
+              controllerRef={timelineControllerRef}
             />
             <TimelineScrubber
               buckets={allBuckets}
@@ -864,7 +790,9 @@ export function Timeline() {
           assets={displayAssets}
           onClose={handleCloseViewer}
           thumbnailPosition={selectedThumbnailPosition}
-          getThumbnailPosition={getThumbnailPosition ?? undefined}
+          getThumbnailPosition={(assetId) =>
+            timelineControllerRef.current?.getThumbnailPosition(assetId) ?? null
+          }
           onAssetChange={setSelectedAsset}
         />
       )}

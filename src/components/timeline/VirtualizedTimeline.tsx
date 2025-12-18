@@ -5,14 +5,15 @@ import { useBucketNavigation } from '../../hooks/useBucketNavigation'
 import { useScrollAnchor } from '../../hooks/useScrollAnchor'
 import { useSections } from '../../hooks/useSections'
 import { useThumbnailRegistry } from '../../hooks/useThumbnailRegistry'
+import type { TimelineBucket } from '../../hooks/useTimelineBucketLoader'
 import { type LayoutItem, useTimelineLayout } from '../../hooks/useTimelineLayout'
 import { useTimelineScroll } from '../../hooks/useTimelineScroll'
 import { useVirtualization } from '../../hooks/useVirtualization'
 import type { ThumbnailPosition } from '../../hooks/useZoomTransition'
 import type { AssetOrder, AssetTimelineItem } from '../../services/api'
+import type { TimelineControllerRef } from './TimelineController'
 import { TimelineEmptyState } from './TimelineEmptyState'
 import { TimelineHeaderItem, TimelinePlaceholderRow, TimelineRow } from './TimelineItem'
-import { TimelineLoadingIndicator } from './TimelineLoadingIndicator'
 import { TimelineStickyHeader } from './TimelineStickyHeader'
 
 // Target thumbnail size in pixels - columns are calculated to fit this size
@@ -20,65 +21,47 @@ const TARGET_THUMBNAIL_SIZE = 130
 const MIN_COLUMNS = 3
 const ROW_GAP = 2
 
+// Re-export types for consumers
+export type { TimelineBucket }
+export type { TimelineController, TimelineControllerRef } from './TimelineController'
 export type GetThumbnailPosition = (assetId: string) => ThumbnailPosition | null
 
-/** Bucket metadata for timeline skeleton */
-export interface TimelineBucket {
-  timeBucket: string
-  count: number
-}
-
 interface VirtualizedTimelineProps<A extends AssetTimelineItem> {
+  /** Loaded assets to display */
   assets: A[]
   /** All buckets defining the full timeline structure (for reserving space) */
-  allBuckets?: TimelineBucket[]
-  /** Set of bucket indices that have been loaded */
-  loadedBucketIndices?: Set<number>
+  buckets: TimelineBucket[]
   /** Set of bucket indices that are currently loading */
   loadingBucketIndices?: Set<number>
+  /** Display options */
   showDateHeaders?: boolean
-  hasMoreContent?: boolean
-  isLoadingMore?: boolean
   order?: AssetOrder
   /** Whether to include top padding for the page header offset (default: true) */
   includeHeaderOffset?: boolean
-  onAssetOpenRequest: (asset: A, info: { position: ThumbnailPosition | null }) => void
-  onLoadMoreRequest?: () => void
-  /** Callback to provide the getThumbnailPosition function to parent */
-  onThumbnailPositionGetterReady?: (getter: GetThumbnailPosition) => void
+  /** Callback when user clicks an asset */
+  onAssetClick: (asset: A, info: { position: ThumbnailPosition | null }) => void
+  /** Callback to request loading a specific bucket by index */
+  onBucketLoadRequest?: (bucketIndex: number) => void
   /** ID of the asset to anchor/keep visible after orientation changes (e.g., the currently viewed photo) */
   anchorAssetId?: string | null | undefined
   /** Callback when the visible date changes (throttled) */
   onVisibleDateChange?: (date: string) => void
-  /** Ref to the scroll container for external control */
-  scrollContainerRef?: { current: HTMLDivElement | null }
-  /** Callback to request loading a specific bucket by index */
-  onBucketLoadRequest?: (bucketIndex: number) => void
-  /** Callback to provide the scroll-to-bucket function to parent */
-  onScrollToBucketReady?: (scrollToBucket: (bucketIndex: number) => void) => void
-  /** Callback to provide the refresh scroll position function to parent */
-  onRefreshScrollReady?: (refreshScroll: () => void) => void
+  /** Controller ref for imperative actions (getThumbnailPosition, scrollToBucket, etc.) */
+  controllerRef?: TimelineControllerRef
 }
 
 export function VirtualizedTimeline<A extends AssetTimelineItem>({
   assets,
-  allBuckets,
-  loadedBucketIndices: _loadedBucketIndices,
+  buckets,
   loadingBucketIndices,
   showDateHeaders = true,
-  hasMoreContent = false,
-  isLoadingMore = false,
   order = 'desc',
   includeHeaderOffset = true,
-  onAssetOpenRequest,
-  onLoadMoreRequest,
-  onThumbnailPositionGetterReady,
+  onAssetClick,
+  onBucketLoadRequest,
   anchorAssetId,
   onVisibleDateChange,
-  scrollContainerRef: externalScrollContainerRef,
-  onBucketLoadRequest,
-  onScrollToBucketReady,
-  onRefreshScrollReady,
+  controllerRef,
 }: VirtualizedTimelineProps<A>) {
   // Group assets into sections by date
   const { sections, sectionsByBucket } = useSections({ assets, showDateHeaders, order })
@@ -86,9 +69,7 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
   const [containerWidth, setContainerWidth] = useState<number>(0)
   const [viewportHeight, setViewportHeight] = useState(0)
   const containerRef = useRef<HTMLDivElement>(null)
-  const internalScrollContainerRef = useRef<HTMLDivElement>(null)
-  // Use external ref if provided, otherwise use internal
-  const scrollContainerRef = externalScrollContainerRef ?? internalScrollContainerRef
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
   // Flag to mark programmatic scrolls (used to skip side effects in scroll handler)
   const isAdjustingScrollRef = useRef(false)
 
@@ -107,13 +88,6 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
     unregisterThumbnail: handleThumbnailUnregister,
   } = useThumbnailRegistry()
 
-  // Provide the getter to parent component
-  useEffect(() => {
-    if (onThumbnailPositionGetterReady) {
-      onThumbnailPositionGetterReady(getThumbnailPosition)
-    }
-  }, [getThumbnailPosition, onThumbnailPositionGetterReady])
-
   // Calculate column count based on container width to maintain square thumbnails
   // Use a reasonable default width for initial calculations before ResizeObserver fires
   const effectiveWidth = containerWidth || 390 // Approximate mobile width as fallback
@@ -131,7 +105,7 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
     updateCurrentBucket,
     getBucketsToLoad,
   } = useBucketNavigation({
-    allBuckets,
+    allBuckets: buckets,
     sectionsByBucket,
     columnCount,
     rowHeight,
@@ -163,25 +137,23 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
     [scrollToAnchor],
   )
 
-  // Provide scroll-to-bucket function to parent
-  useEffect(() => {
-    if (onScrollToBucketReady && bucketPositions.length > 0) {
-      onScrollToBucketReady(scrollToBucket)
-    }
-  }, [scrollToBucket, onScrollToBucketReady, bucketPositions.length])
-
   // Function to refresh scroll position state
   // With anchored scrolling, this re-reads virtual position from the getter
   const refreshScroll = useCallback(() => {
     setVirtualScrollTop(getVirtualScrollTop())
   }, [getVirtualScrollTop])
 
-  // Provide refresh function to parent
+  // Expose controller functions to parent via ref
   useEffect(() => {
-    if (onRefreshScrollReady) {
-      onRefreshScrollReady(refreshScroll)
+    if (controllerRef) {
+      controllerRef.current = {
+        getThumbnailPosition,
+        scrollToBucket,
+        refreshScroll,
+        getScrollContainer: () => scrollContainerRef.current,
+      }
     }
-  }, [refreshScroll, onRefreshScrollReady])
+  }, [controllerRef, getThumbnailPosition, scrollToBucket, refreshScroll])
 
   // Calculate the layout of all items (headers and rows) with their positions
   const { layout, totalHeight } = useTimelineLayout({
@@ -223,8 +195,6 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
     currentBucketIndex,
     scrollContainerRef,
     viewportHeight,
-    hasMoreContent,
-    isLoadingMore,
     anchorAssetId,
     setScrollTop: setVirtualScrollTop,
     setViewportHeight,
@@ -232,7 +202,6 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
     getBucketsToLoad,
     onBucketLoadRequest,
     onVisibleDateChange,
-    onLoadMoreRequest,
     setFirstVisibleAssetId,
     isAdjustingScrollRef,
     // Anchored scroll integration
@@ -282,7 +251,7 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
         assets={item.assets ?? []}
         columnCount={columnCount}
         thumbnailSize={thumbnailSize}
-        onAssetClick={onAssetOpenRequest}
+        onAssetClick={onAssetClick}
         onThumbnailRegister={handleThumbnailRegister}
         onThumbnailUnregister={handleThumbnailUnregister}
       />
@@ -341,11 +310,8 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
             </div>
           </div>
 
-          {/* Loading indicator */}
-          {isLoadingMore && <TimelineLoadingIndicator />}
-
           {/* End of content message */}
-          {!hasMoreContent && sections.length > 0 && (
+          {buckets.length > 0 && sections.length > 0 && (
             <div
               style={{
                 textAlign: 'center',

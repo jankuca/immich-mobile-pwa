@@ -13,10 +13,6 @@ interface UseTimelineScrollOptions<A> {
   scrollContainerRef: { current: HTMLDivElement | null }
   /** Current viewport height (for change detection) */
   viewportHeight: number
-  /** Whether there is more content to load */
-  hasMoreContent: boolean
-  /** Whether content is currently loading */
-  isLoadingMore: boolean
   /** ID of the asset to anchor to (skip first visible tracking when set) */
   anchorAssetId?: string | null | undefined
   /** Callback to update scroll position state (virtual scroll position) */
@@ -31,8 +27,6 @@ interface UseTimelineScrollOptions<A> {
   onBucketLoadRequest?: ((bucketIndex: number) => void) | undefined
   /** Callback when the visible date changes */
   onVisibleDateChange?: ((date: string) => void) | undefined
-  /** Callback to request loading more content */
-  onLoadMoreRequest?: (() => void) | undefined
   /** Callback to update first visible asset ID for anchoring */
   setFirstVisibleAssetId: (assetId: string | null) => void
   /** Ref flag to mark programmatic scrolls (shared with parent) */
@@ -55,8 +49,6 @@ export function useTimelineScroll<A extends { id: string }>({
   currentBucketIndex,
   scrollContainerRef,
   viewportHeight,
-  hasMoreContent,
-  isLoadingMore,
   anchorAssetId,
   setScrollTop,
   setViewportHeight,
@@ -64,7 +56,6 @@ export function useTimelineScroll<A extends { id: string }>({
   getBucketsToLoad,
   onBucketLoadRequest,
   onVisibleDateChange,
-  onLoadMoreRequest,
   setFirstVisibleAssetId,
   isAdjustingScrollRef,
   handleAnchoredScroll,
@@ -121,7 +112,7 @@ export function useTimelineScroll<A extends { id: string }>({
     scrollRafRef.current = requestAnimationFrame(() => {
       // Use anchored scroll handler if available, otherwise use DOM scrollTop
       const newScrollTop = processAnchoredScroll(scrollContainer)
-      const { scrollHeight, clientHeight } = scrollContainer
+      const { clientHeight } = scrollContainer
 
       // Update scroll position for virtualization
       setScrollTop(newScrollTop)
@@ -164,18 +155,6 @@ export function useTimelineScroll<A extends { id: string }>({
         lastVisibleDateRef.current = visibleDate
         onVisibleDateChange(visibleDate)
       }
-
-      // Check if we're near the end and need to load more
-      // Only use legacy load-more when NOT in bucket-based mode
-      // (bucket-based mode uses onBucketLoadRequest instead)
-      if (onLoadMoreRequest && bucketPositions.length === 0) {
-        const scrollPosition = newScrollTop / (scrollHeight - clientHeight)
-        const isNearEnd = scrollPosition > 0.8
-
-        if (isNearEnd && hasMoreContent && !isLoadingMore) {
-          onLoadMoreRequest()
-        }
-      }
     })
   }, [
     anchorAssetId,
@@ -183,12 +162,9 @@ export function useTimelineScroll<A extends { id: string }>({
     currentBucketIndex,
     getBucketsToLoad,
     processAnchoredScroll,
-    hasMoreContent,
-    isLoadingMore,
     isAdjustingScrollRef,
     layout,
     onBucketLoadRequest,
-    onLoadMoreRequest,
     onVisibleDateChange,
     scrollContainerRef,
     setFirstVisibleAssetId,
@@ -223,18 +199,6 @@ export function useTimelineScroll<A extends { id: string }>({
       if (scrollContainer.clientHeight > 0 && viewportHeight === 0) {
         setViewportHeight(scrollContainer.clientHeight)
       }
-
-      // Check if we need to load more content initially (if container isn't filled)
-      // Only use legacy load-more when NOT in bucket-based mode
-      if (
-        bucketPositions.length === 0 &&
-        scrollContainer.scrollHeight <= scrollContainer.clientHeight &&
-        hasMoreContent &&
-        !isLoadingMore &&
-        onLoadMoreRequest
-      ) {
-        onLoadMoreRequest()
-      }
     }
 
     return () => {
@@ -242,5 +206,5 @@ export function useTimelineScroll<A extends { id: string }>({
         scrollContainer.removeEventListener('scroll', handleScroll)
       }
     }
-  }, [handleScroll, hasMoreContent, isLoadingMore, onLoadMoreRequest, layout, viewportHeight])
+  }, [handleScroll, layout, viewportHeight])
 }

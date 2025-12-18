@@ -3,7 +3,8 @@ import { AlbumHeader } from '../../components/common/AlbumHeader'
 import { PhotoViewer } from '../../components/photoView/PhotoViewer'
 import { ShareModal } from '../../components/share/ShareModal'
 import {
-  type GetThumbnailPosition,
+  type TimelineBucket,
+  type TimelineController,
   VirtualizedTimeline,
 } from '../../components/timeline/VirtualizedTimeline'
 import { useHashLocation } from '../../contexts/HashLocationContext'
@@ -19,23 +20,19 @@ export function AlbumDetail({ id, albumId }: AlbumDetailProps) {
   const [album, setAlbum] = useState<Album | null>(null)
   const [assets, setAssets] = useState<Asset[]>([])
   const [isLoading, setIsLoading] = useState<boolean>(true)
-  const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null)
   const [selectedThumbnailPosition, setSelectedThumbnailPosition] =
     useState<ThumbnailPosition | null>(null)
-  const [allBuckets, setAllBuckets] = useState<string[]>([])
-  const [hasMoreContent, setHasMoreContent] = useState<boolean>(true)
+  const [allBuckets, setAllBuckets] = useState<TimelineBucket[]>([])
   const [showShareModal, setShowShareModal] = useState<boolean>(false)
   const { url, route } = useHashLocation()
 
   // Track loaded bucket count synchronously to prevent race conditions
   const loadedBucketCountRef = useRef<number>(0)
 
-  // Store the thumbnail position getter from VirtualizedTimeline
-  const [getThumbnailPosition, setGetThumbnailPosition] = useState<GetThumbnailPosition | null>(
-    null,
-  )
+  // Controller ref for VirtualizedTimeline imperative actions
+  const timelineControllerRef = useRef<TimelineController | null>(null)
 
   // Number of buckets to load at once
   const bucketsPerLoad = 1
@@ -75,13 +72,15 @@ export function AlbumDetail({ id, albumId }: AlbumDetailProps) {
           ...(albumData.order && { order: albumData.order }),
         })
 
-        // Extract buckets from the response
-        const buckets = timeBucketsResponse.map((bucket) => bucket.timeBucket) || []
+        // Store full bucket info
+        const buckets: TimelineBucket[] = timeBucketsResponse.map((bucket) => ({
+          timeBucket: bucket.timeBucket,
+          count: bucket.count,
+        }))
         setAllBuckets(buckets)
 
-        // If no buckets, set hasMoreContent to false
+        // If no buckets, we're done loading
         if (buckets.length === 0) {
-          setHasMoreContent(false)
           setIsLoading(false)
           return
         }
@@ -100,7 +99,7 @@ export function AlbumDetail({ id, albumId }: AlbumDetailProps) {
 
   // Function to load more buckets
   const loadMoreBuckets = async (
-    buckets: string[],
+    buckets: TimelineBucket[],
     startIndex: number,
     albumId: string,
     order?: 'asc' | 'desc',
@@ -108,8 +107,6 @@ export function AlbumDetail({ id, albumId }: AlbumDetailProps) {
     // Use ref for synchronous check to prevent race conditions
     if (startIndex >= buckets.length || startIndex < loadedBucketCountRef.current) {
       // Already loaded or past the end
-      setHasMoreContent(startIndex >= buckets.length ? false : hasMoreContent)
-      setIsLoadingMore(false)
       return
     }
 
@@ -118,10 +115,6 @@ export function AlbumDetail({ id, albumId }: AlbumDetailProps) {
     loadedBucketCountRef.current = endIndex
 
     try {
-      if (startIndex > 0) {
-        setIsLoadingMore(true)
-      }
-
       // Get the next batch of buckets
       const bucketsToLoad = buckets.slice(startIndex, endIndex)
 
@@ -136,7 +129,7 @@ export function AlbumDetail({ id, albumId }: AlbumDetailProps) {
         const bucketIndex = startIndex + i
         try {
           const bucketAssets = await apiService.getTimeBucket({
-            timeBucket: bucket,
+            timeBucket: bucket.timeBucket,
             size: 'DAY',
             isTrashed: false,
             albumId,
@@ -150,38 +143,25 @@ export function AlbumDetail({ id, albumId }: AlbumDetailProps) {
             }
             newAssets.push(...(bucketAssets as Asset[]))
           } else {
-            console.warn(`Unexpected response format for bucket ${bucket}:`, bucketAssets)
+            console.warn(
+              `Unexpected response format for bucket ${bucket.timeBucket}:`,
+              bucketAssets,
+            )
           }
         } catch (bucketError) {
-          console.error(`Error fetching assets for bucket ${bucket}:`, bucketError)
+          console.error(`Error fetching assets for bucket ${bucket.timeBucket}:`, bucketError)
         }
       }
 
       // Update state with new assets
       setAssets((prevAssets) => [...prevAssets, ...newAssets])
-
-      // Check if we've loaded all buckets
-      if (endIndex >= buckets.length) {
-        setHasMoreContent(false)
-      }
     } catch (err) {
       console.error('Error loading more buckets:', err)
       // Reset ref on error to allow retry
       loadedBucketCountRef.current = startIndex
     } finally {
       setIsLoading(false)
-      setIsLoadingMore(false)
     }
-  }
-
-  // Handle loading more content
-  const handleLoadMore = () => {
-    // Use ref for synchronous check to prevent race conditions
-    const currentLoadedCount = loadedBucketCountRef.current
-    if (currentLoadedCount >= allBuckets.length || !hasMoreContent || !effectiveId) {
-      return
-    }
-    loadMoreBuckets(allBuckets, currentLoadedCount, effectiveId, album?.order)
   }
 
   // Handle asset selection
@@ -355,14 +335,12 @@ export function AlbumDetail({ id, albumId }: AlbumDetailProps) {
         ) : assets.length > 0 ? (
           <VirtualizedTimeline
             assets={assets}
+            buckets={allBuckets}
             showDateHeaders={allBuckets.length > 1}
-            hasMoreContent={hasMoreContent}
-            isLoadingMore={isLoadingMore}
             {...(album?.order && { order: album.order })}
-            onAssetOpenRequest={handleAssetClick}
-            onLoadMoreRequest={handleLoadMore}
-            onThumbnailPositionGetterReady={setGetThumbnailPosition}
+            onAssetClick={handleAssetClick}
             anchorAssetId={selectedAsset?.id}
+            controllerRef={timelineControllerRef}
           />
         ) : (
           <div
@@ -415,7 +393,9 @@ export function AlbumDetail({ id, albumId }: AlbumDetailProps) {
           assets={assets}
           onClose={handleCloseViewer}
           thumbnailPosition={selectedThumbnailPosition}
-          getThumbnailPosition={getThumbnailPosition ?? undefined}
+          getThumbnailPosition={(assetId) =>
+            timelineControllerRef.current?.getThumbnailPosition(assetId) ?? null
+          }
           onAssetChange={(asset) => setSelectedAsset(asset as Asset)}
         />
       )}
