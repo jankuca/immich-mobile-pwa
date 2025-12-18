@@ -45,8 +45,10 @@ export interface AssetTimelineItem {
   ownerId: string
   type: 'IMAGE' | 'VIDEO' | 'AUDIO' | 'OTHER'
   fileCreatedAt: string
-  /** The timeBucket this asset belongs to (used for grouping, based on localDateTime) */
-  timeBucket?: string
+  /** The local date/time of the asset (for accurate date grouping) */
+  localDateTime?: string
+  /** The index of the bucket this asset was loaded from (for layout purposes) */
+  _bucketIndex?: number
   thumbhash: string | null
   isFavorite: boolean
   isTrashed: boolean
@@ -68,6 +70,8 @@ export interface Asset extends TimeBucketAsset {
   fileModifiedAt: string
   localDateTime: string
   isArchived: boolean
+  /** The index of the bucket this asset was loaded from (for layout purposes) */
+  _bucketIndex?: number
   exifInfo?: NonNullable<AssetTimelineItem['exifInfo']> & {
     dateTimeOriginal?: string | null
     exifImageWidth?: number | null
@@ -318,27 +322,41 @@ class ApiService {
         ) as TimeBucketAsset,
     )
 
-    // Include the timeBucket with each asset for proper grouping
-    // (since fileCreatedAt is UTC but bucket grouping uses localDateTime)
-    const bucketDate = params.timeBucket.split('T')[0] ?? params.timeBucket
+    return items.map((item) => {
+      // Calculate local date from fileCreatedAt + localOffsetHours
+      // localOffsetHours is the UTC offset (e.g., 2 for UTC+2, -5 for UTC-5)
+      let localDateTime: string | null = null
+      if (item.fileCreatedAt && typeof item.localOffsetHours === 'number') {
+        const utcDate = new Date(item.fileCreatedAt)
+        const localMs = utcDate.getTime() + item.localOffsetHours * 60 * 60 * 1000
+        const localDate = new Date(localMs)
+        // Format as YYYY-MM-DD
+        localDateTime = localDate.toISOString().split('T')[0] ?? null
+      }
 
-    return items.map((item) => ({
-      id: item.id,
-      ownerId: item.ownerId,
-      type: item.isImage ? 'IMAGE' : 'VIDEO',
-      fileCreatedAt: item.fileCreatedAt,
-      timeBucket: bucketDate,
-      thumbhash: item.thumbhash,
-      isFavorite: item.isFavorite,
-      isTrashed: item.isTrashed,
-      duration: item.duration,
-      exifInfo: {
-        latitude: item.latitude,
-        longitude: item.longitude,
-        city: item.city,
-        country: item.country,
-      },
-    }))
+      const result: AssetTimelineItem = {
+        id: item.id,
+        ownerId: item.ownerId,
+        type: item.isImage ? 'IMAGE' : 'VIDEO',
+        fileCreatedAt: item.fileCreatedAt,
+        thumbhash: item.thumbhash,
+        isFavorite: item.isFavorite,
+        isTrashed: item.isTrashed,
+        duration: item.duration,
+        exifInfo: {
+          latitude: item.latitude,
+          longitude: item.longitude,
+          city: item.city,
+          country: item.country,
+        },
+      }
+
+      if (localDateTime) {
+        result.localDateTime = localDateTime
+      }
+
+      return result
+    })
   }
 
   async getAsset(assetId: string, options: { signal?: AbortSignal } = {}): Promise<Asset> {

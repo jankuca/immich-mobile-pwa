@@ -158,13 +158,10 @@ export function Timeline() {
       const windowStart = Math.max(0, visibleIndex - Math.floor(MAX_LOADED_BUCKETS / 2))
       const windowEnd = Math.min(buckets.length, windowStart + MAX_LOADED_BUCKETS)
 
-      // Find bucket dates (days) to keep
-      const bucketsToKeep = new Set<string>()
+      // Find bucket indices to keep
+      const indicesToKeep = new Set<number>()
       for (let i = windowStart; i < windowEnd; i++) {
-        const bucket = buckets[i]
-        if (bucket) {
-          bucketsToKeep.add(bucket.timeBucket.split('T')[0] ?? bucket.timeBucket)
-        }
+        indicesToKeep.add(i)
       }
 
       // Unload buckets outside the window
@@ -184,13 +181,11 @@ export function Timeline() {
         loadedSet.delete(index)
       }
 
-      // Update assets - filter out assets from unloaded buckets
+      // Update assets - filter out assets from unloaded buckets using _bucketIndex
       setAssets((prevAssets) => {
         const filteredAssets = prevAssets.filter((asset) => {
-          // Use timeBucket if available, otherwise fall back to deriving from fileCreatedAt
-          const assetDay =
-            asset.timeBucket ?? new Date(asset.fileCreatedAt).toISOString().split('T')[0]
-          return assetDay && bucketsToKeep.has(assetDay)
+          // Keep assets whose bucket index is in the keep set
+          return asset._bucketIndex !== undefined && indicesToKeep.has(asset._bucketIndex)
         })
         return filteredAssets
       })
@@ -263,12 +258,17 @@ export function Timeline() {
         const results = await Promise.all(loadPromises)
 
         // Collect all assets and handle errors
+        // Add _bucketIndex to each asset so we know which bucket it came from
         const newAssets: AssetTimelineItem[] = []
         for (const result of results) {
           if (result.error) {
             // Remove from loaded set on error so it can be retried
             loadedSet.delete(result.index)
           } else {
+            // Tag each asset with its bucket index for layout purposes
+            for (const asset of result.assets) {
+              asset._bucketIndex = result.index
+            }
             newAssets.push(...result.assets)
           }
         }

@@ -128,7 +128,12 @@ export function AlbumDetail({ id, albumId }: AlbumDetailProps) {
       const newAssets: Asset[] = []
 
       // Load assets for each bucket
-      for (const bucket of bucketsToLoad) {
+      for (let i = 0; i < bucketsToLoad.length; i++) {
+        const bucket = bucketsToLoad[i]
+        if (!bucket) {
+          continue
+        }
+        const bucketIndex = startIndex + i
         try {
           const bucketAssets = await apiService.getTimeBucket({
             timeBucket: bucket,
@@ -139,6 +144,10 @@ export function AlbumDetail({ id, albumId }: AlbumDetailProps) {
           })
 
           if (Array.isArray(bucketAssets)) {
+            // Tag each asset with its bucket index for layout purposes
+            for (const asset of bucketAssets) {
+              ;(asset as Asset)._bucketIndex = bucketIndex
+            }
             newAssets.push(...(bucketAssets as Asset[]))
           } else {
             console.warn(`Unexpected response format for bucket ${bucket}:`, bucketAssets)

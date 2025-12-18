@@ -74,7 +74,7 @@ interface LayoutItem<A extends AssetTimelineItem> {
 export function VirtualizedTimeline<A extends AssetTimelineItem>({
   assets,
   allBuckets,
-  loadedBucketIndices,
+  loadedBucketIndices: _loadedBucketIndices,
   showDateHeaders = true,
   hasMoreContent = false,
   isLoadingMore = false,
@@ -160,6 +160,23 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
     loaded: boolean
   }
 
+  // Group sections by the bucket index of their assets
+  // A section belongs to a bucket if ANY of its assets have that _bucketIndex
+  // (In practice, all assets in a section should have the same bucket index due to sequential buckets)
+  const sectionsByBucket = useMemo(() => {
+    const map = new Map<number, TimelineSection<A>[]>()
+    for (const section of sections) {
+      // Get the bucket index from the first asset (all assets in a section should have the same bucket)
+      const bucketIndex = section.assets[0]?._bucketIndex
+      if (bucketIndex !== undefined) {
+        const existing = map.get(bucketIndex) ?? []
+        existing.push(section)
+        map.set(bucketIndex, existing)
+      }
+    }
+    return map
+  }, [sections])
+
   const bucketPositions: BucketPosition[] = useMemo(() => {
     if (!allBuckets || allBuckets.length === 0 || rowHeight === 0) {
       return []
@@ -174,14 +191,32 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
         continue
       }
 
-      const isLoaded = loadedBucketIndices?.has(i) ?? false
+      const bucketSections = sectionsByBucket.get(i)
+      // A bucket is truly loaded only if we have sections for it
+      // This prevents race conditions where loadedBucketIndices updates before sections
+      const isLoaded = bucketSections !== undefined && bucketSections.length > 0
 
-      // Each bucket is one DAY (size: 'DAY' from API), so we can calculate exact height:
-      // - 1 header per bucket (if showing headers)
-      // - Exact row count based on bucket.count from API
-      const bucketRowCount = Math.ceil(bucket.count / columnCount)
-      const headerHeight = showDateHeaders ? HEADER_HEIGHT : 0
-      const bucketHeight = headerHeight + bucketRowCount * rowHeight
+      let bucketHeight: number
+
+      if (isLoaded) {
+        // Loaded bucket: calculate exact height based on actual sections
+        // Each section has 1 header (if showing) + N rows
+        let height = 0
+        for (const section of bucketSections) {
+          if (showDateHeaders) {
+            height += HEADER_HEIGHT
+          }
+          const sectionRowCount = Math.ceil(section.assets.length / columnCount)
+          height += sectionRowCount * rowHeight
+        }
+        bucketHeight = height
+      } else {
+        // Unloaded bucket: estimate height
+        // We don't know how many days are in this bucket, so estimate 1 header per bucket
+        const bucketRowCount = Math.ceil(bucket.count / columnCount)
+        const headerHeight = showDateHeaders ? HEADER_HEIGHT : 0
+        bucketHeight = headerHeight + bucketRowCount * rowHeight
+      }
 
       positions.push({
         bucketIndex: i,
@@ -195,7 +230,9 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
     }
 
     return positions
-  }, [allBuckets, loadedBucketIndices, columnCount, rowHeight, showDateHeaders])
+    // Note: We intentionally use sectionsByBucket instead of loadedBucketIndices
+    // to prevent race conditions where loadedBucketIndices updates before sections
+  }, [allBuckets, sectionsByBucket, columnCount, rowHeight, showDateHeaders])
 
   // Total height from bucket skeleton (if available) or sections
   const skeletonTotalHeight = useMemo(() => {
@@ -241,54 +278,47 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
       const layoutVisibleTop = Math.max(0, currentScrollTop - layoutBuffer)
       const layoutVisibleBottom = currentScrollTop + viewportHeight + layoutBuffer
 
-      // Group sections by day to match with DAY buckets
-      // Section dates are in YYYY-MM-DD format (from toISOString().split('T')[0])
-      const sectionsByDay = new Map<string, TimelineSection<A>>()
-      for (const section of sections) {
-        // section.date is already YYYY-MM-DD format
-        sectionsByDay.set(section.date, section)
-      }
-
       // Iterate through bucket positions and build layout
       for (const bucketPos of bucketPositions) {
         const bucketBottom = bucketPos.top + bucketPos.height
         const isNearVisible = bucketBottom > layoutVisibleTop && bucketPos.top < layoutVisibleBottom
 
-        // Extract day key from bucket timeBucket (format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS...)
-        const dayKey = bucketPos.timeBucket.split('T')[0] ?? bucketPos.timeBucket
-        const daySection = sectionsByDay.get(dayKey)
+        // Get sections that belong to this bucket (by _bucketIndex)
+        const bucketSections = sectionsByBucket.get(bucketPos.bucketIndex)
 
-        if (daySection) {
-          // Bucket is loaded - render the day's section within the bucket's reserved space
+        if (bucketSections && bucketSections.length > 0) {
+          // Bucket is loaded - render all sections within the bucket's reserved space
           let offsetWithinBucket = 0
 
-          // Add header if showing date headers
-          if (showDateHeaders) {
-            items.push({
-              type: 'header',
-              key: `header-${daySection.date}`,
-              top: bucketPos.top + offsetWithinBucket,
-              height: HEADER_HEIGHT,
-              date: daySection.date,
-            })
-            offsetWithinBucket += HEADER_HEIGHT
-          }
+          for (const section of bucketSections) {
+            // Add header if showing date headers
+            if (showDateHeaders) {
+              items.push({
+                type: 'header',
+                key: `header-${section.date}`,
+                top: bucketPos.top + offsetWithinBucket,
+                height: HEADER_HEIGHT,
+                date: section.date,
+              })
+              offsetWithinBucket += HEADER_HEIGHT
+            }
 
-          // Add rows for this day's assets
-          const sectionRowCount = Math.ceil(daySection.assets.length / columnCount)
-          for (let rowIndex = 0; rowIndex < sectionRowCount; rowIndex++) {
-            const startAsset = rowIndex * columnCount
-            const endAsset = Math.min(startAsset + columnCount, daySection.assets.length)
-            items.push({
-              type: 'row',
-              key: `row-${daySection.date}-${rowIndex}`,
-              top: bucketPos.top + offsetWithinBucket,
-              height: rowHeight,
-              date: daySection.date,
-              assets: daySection.assets.slice(startAsset, endAsset),
-              rowIndex,
-            })
-            offsetWithinBucket += rowHeight
+            // Add rows for this section's assets
+            const sectionRowCount = Math.ceil(section.assets.length / columnCount)
+            for (let rowIndex = 0; rowIndex < sectionRowCount; rowIndex++) {
+              const startAsset = rowIndex * columnCount
+              const endAsset = Math.min(startAsset + columnCount, section.assets.length)
+              items.push({
+                type: 'row',
+                key: `row-${section.date}-${rowIndex}`,
+                top: bucketPos.top + offsetWithinBucket,
+                height: rowHeight,
+                date: section.date,
+                assets: section.assets.slice(startAsset, endAsset),
+                rowIndex,
+              })
+              offsetWithinBucket += rowHeight
+            }
           }
         } else if (isNearVisible) {
           // Bucket is not loaded but near visible range - render placeholder header and rows
@@ -463,35 +493,53 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
       return
     }
 
-    // If showDateHeaders is true, group by date as before
-    const groupedByDate: { [key: string]: A[] } = {}
+    // If showDateHeaders is true, group by date AND bucket index
+    // This ensures that a date spanning multiple buckets creates separate sections per bucket
+    // Key format: "bucketIndex:date" to ensure uniqueness per bucket
+    const groupedByBucketAndDate: { [key: string]: A[] } = {}
     for (const asset of assets) {
       if (!asset.fileCreatedAt) {
         continue // Skip assets without date, don't abort the whole grouping
       }
 
-      // Use the timeBucket if available (set by API based on localDateTime),
+      // Use localDateTime if available (calculated from fileCreatedAt + localOffsetHours),
       // otherwise fall back to deriving from fileCreatedAt (UTC)
-      const date = asset.timeBucket ?? new Date(asset.fileCreatedAt).toISOString().split('T')[0]
+      const date = asset.localDateTime ?? new Date(asset.fileCreatedAt).toISOString().split('T')[0]
       if (!date) {
         continue
       }
 
-      if (!groupedByDate[date]) {
-        groupedByDate[date] = []
+      // Use bucket index as part of the key to keep assets from different buckets separate
+      const bucketIndex = asset._bucketIndex ?? -1
+      const key = `${bucketIndex}:${date}`
+
+      if (!groupedByBucketAndDate[key]) {
+        groupedByBucketAndDate[key] = []
       }
 
-      groupedByDate[date].push(asset)
+      groupedByBucketAndDate[key].push(asset)
     }
 
-    // Convert to array and sort by date based on order prop
-    const sortedSections = Object.entries(groupedByDate)
-      .map(([date, assets]) => ({ date, assets }))
+    // Convert to array and sort by bucket index (primary) and date (secondary)
+    // This ensures sections are ordered by their bucket position
+    const sortedSections = Object.entries(groupedByBucketAndDate)
+      .map(([key, assets]) => {
+        const [bucketIndexStr, date] = key.split(':')
+        const bucketIndex = Number.parseInt(bucketIndexStr ?? '-1', 10)
+        return { date: date ?? '', assets, bucketIndex }
+      })
       .sort((a, b) => {
+        // Primary sort by bucket index (ascending for desc order, descending for asc order)
+        if (a.bucketIndex !== b.bucketIndex) {
+          return order === 'asc' ? b.bucketIndex - a.bucketIndex : a.bucketIndex - b.bucketIndex
+        }
+        // Secondary sort by date within the same bucket
         const timeA = new Date(a.date).getTime()
         const timeB = new Date(b.date).getTime()
         return order === 'asc' ? timeA - timeB : timeB - timeA
       })
+      // Remove the temporary bucketIndex property from the final sections
+      .map(({ date, assets }) => ({ date, assets }))
     setSections(sortedSections)
   }, [assets, showDateHeaders, order])
 
