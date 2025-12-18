@@ -198,26 +198,53 @@ export function Timeline() {
     loadBucketRange(allBuckets, nextIndex, bucketsPerLoad)
   }, [allBuckets, getNextUnloadedIndex, isLoadingMore, hasMoreContent, loadBucketRange])
 
-  // Handle scrubber drag - scroll to the target position
-  const handleScrub = useCallback((progress: number) => {
-    const scrollContainer = scrollContainerRef.current
-    if (!scrollContainer) {
-      return
-    }
+  // Debounce timer ref for bucket loading during scrub
+  const scrubLoadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-    const { scrollHeight, clientHeight } = scrollContainer
-    const targetScroll = progress * (scrollHeight - clientHeight)
-    scrollContainer.scrollTop = targetScroll
-  }, [])
+  // Handle scrubber drag - scroll to the target position and trigger debounced loading
+  const handleScrub = useCallback(
+    (progress: number) => {
+      const scrollContainer = scrollContainerRef.current
+      if (!scrollContainer) {
+        return
+      }
+
+      const { scrollHeight, clientHeight } = scrollContainer
+      const targetScroll = progress * (scrollHeight - clientHeight)
+      scrollContainer.scrollTop = targetScroll
+
+      // Debounced bucket loading during drag
+      if (scrubLoadTimerRef.current) {
+        clearTimeout(scrubLoadTimerRef.current)
+      }
+
+      scrubLoadTimerRef.current = setTimeout(() => {
+        // Calculate which bucket index corresponds to the current progress
+        const bucketIndex = Math.floor(progress * allBuckets.length)
+
+        // Load buckets around the target position
+        const bufferBuckets = 3
+        const startIndex = Math.max(0, bucketIndex - bufferBuckets)
+        loadBucketRange(allBuckets, startIndex, bufferBuckets * 2 + 1)
+      }, 150) // 150ms debounce
+    },
+    [allBuckets, loadBucketRange],
+  )
 
   // Handle scrubber drag start
   const handleScrubStart = useCallback(() => {
     setIsScrubbing(true)
   }, [])
 
-  // Handle scrubber drag end - trigger bucket loading for the target position
+  // Handle scrubber drag end - trigger immediate bucket loading for the final position
   const handleScrubEnd = useCallback(() => {
     setIsScrubbing(false)
+
+    // Clear any pending debounced load
+    if (scrubLoadTimerRef.current) {
+      clearTimeout(scrubLoadTimerRef.current)
+      scrubLoadTimerRef.current = null
+    }
 
     // Calculate which bucket index corresponds to the current scroll progress
     const bucketIndex = Math.floor(scrollProgress * allBuckets.length)
