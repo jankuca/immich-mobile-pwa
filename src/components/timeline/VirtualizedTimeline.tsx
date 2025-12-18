@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'preact/hooks'
 import { useBucketNavigation } from '../../hooks/useBucketNavigation'
 import { useSections } from '../../hooks/useSections'
 import { useThumbnailRegistry } from '../../hooks/useThumbnailRegistry'
+import { type LayoutItem, useTimelineLayout } from '../../hooks/useTimelineLayout'
 import type { ThumbnailPosition } from '../../hooks/useZoomTransition'
 import type { AssetOrder, AssetTimelineItem } from '../../services/api'
 import { SectionPill } from '../common/SectionPill'
@@ -50,22 +51,6 @@ interface VirtualizedTimelineProps<A extends AssetTimelineItem> {
   onBucketLoadRequest?: (bucketIndex: number) => void
   /** Callback to provide the scroll-to-bucket function to parent */
   onScrollToBucketReady?: (scrollToBucket: (bucketIndex: number) => void) => void
-}
-
-// Layout item represents either a header or a row of assets
-interface LayoutItem<A extends AssetTimelineItem> {
-  type: 'header' | 'row'
-  key: string
-  top: number
-  height: number
-  date: string
-  // For rows
-  assets?: A[]
-  rowIndex?: number
-  // For placeholder items (unloaded buckets)
-  isPlaceholder?: boolean
-  // For collapsed bucket placeholders (single item spanning entire unloaded bucket far from view)
-  isBucketPlaceholder?: boolean
 }
 
 export function VirtualizedTimeline<A extends AssetTimelineItem>({
@@ -171,151 +156,18 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
   }, [scrollToBucket, onScrollToBucketReady, bucketPositions.length])
 
   // Calculate the layout of all items (headers and rows) with their positions
-  const { layout, totalHeight } = (() => {
-    // If we have bucket positions, use skeleton-based layout
-    if (bucketPositions.length > 0 && thumbnailSize > 0) {
-      const items: LayoutItem<A>[] = []
-
-      // Determine visible range for layout generation (with generous buffer to avoid layout recalc)
-      const currentScrollTop = getScrollTop()
-      const layoutBuffer = viewportHeight * 3 // 3 screens worth of buffer
-      const layoutVisibleTop = Math.max(0, currentScrollTop - layoutBuffer)
-      const layoutVisibleBottom = currentScrollTop + viewportHeight + layoutBuffer
-
-      // Iterate through bucket positions and build layout
-      for (const bucketPos of bucketPositions) {
-        const bucketBottom = bucketPos.top + bucketPos.height
-        const isNearVisible = bucketBottom > layoutVisibleTop && bucketPos.top < layoutVisibleBottom
-
-        // Get sections that belong to this bucket (by _bucketIndex)
-        const bucketSections = sectionsByBucket.get(bucketPos.bucketIndex)
-
-        if (bucketSections && bucketSections.length > 0) {
-          // Bucket is loaded - render all sections within the bucket's reserved space
-          let offsetWithinBucket = 0
-
-          for (const section of bucketSections) {
-            // Add header if showing date headers
-            if (showDateHeaders) {
-              items.push({
-                type: 'header',
-                key: `header-${section.date}`,
-                top: bucketPos.top + offsetWithinBucket,
-                height: HEADER_HEIGHT,
-                date: section.date,
-              })
-              offsetWithinBucket += HEADER_HEIGHT
-            }
-
-            // Add rows for this section's assets
-            const sectionRowCount = Math.ceil(section.assets.length / columnCount)
-            for (let rowIndex = 0; rowIndex < sectionRowCount; rowIndex++) {
-              const startAsset = rowIndex * columnCount
-              const endAsset = Math.min(startAsset + columnCount, section.assets.length)
-              items.push({
-                type: 'row',
-                key: `row-${section.date}-${rowIndex}`,
-                top: bucketPos.top + offsetWithinBucket,
-                height: rowHeight,
-                date: section.date,
-                assets: section.assets.slice(startAsset, endAsset),
-                rowIndex,
-              })
-              offsetWithinBucket += rowHeight
-            }
-          }
-        } else if (isNearVisible) {
-          // Bucket is not loaded but near visible range - render placeholder header and rows
-          let offsetWithinBucket = 0
-
-          // Add placeholder header
-          if (showDateHeaders) {
-            items.push({
-              type: 'header',
-              key: `header-placeholder-${bucketPos.timeBucket}`,
-              top: bucketPos.top + offsetWithinBucket,
-              height: HEADER_HEIGHT,
-              date: bucketPos.timeBucket,
-              isPlaceholder: true,
-            })
-            offsetWithinBucket += HEADER_HEIGHT
-          }
-
-          // Add placeholder rows based on bucket count
-          const estimatedRows = Math.ceil(
-            (bucketPos.height - (showDateHeaders ? HEADER_HEIGHT : 0)) / rowHeight,
-          )
-          for (let rowIndex = 0; rowIndex < estimatedRows; rowIndex++) {
-            items.push({
-              type: 'row',
-              key: `row-placeholder-${bucketPos.timeBucket}-${rowIndex}`,
-              top: bucketPos.top + offsetWithinBucket,
-              height: rowHeight,
-              date: bucketPos.timeBucket,
-              isPlaceholder: true,
-              rowIndex,
-            })
-            offsetWithinBucket += rowHeight
-          }
-        } else {
-          // For buckets far from visible range and not loaded, generate a single
-          // bucket-sized placeholder so there's always an item to find when scrolling
-          items.push({
-            type: 'header',
-            key: `header-placeholder-${bucketPos.timeBucket}`,
-            top: bucketPos.top,
-            height: bucketPos.height,
-            date: bucketPos.timeBucket,
-            isPlaceholder: true,
-            isBucketPlaceholder: true, // Marks this as a collapsed bucket placeholder
-          })
-        }
-      }
-
-      return { layout: items, totalHeight: skeletonTotalHeight }
-    }
-
-    // Fallback: no bucket metadata - use original section-based layout
-    if (thumbnailSize === 0 || sections.length === 0) {
-      return { layout: [] as LayoutItem<A>[], totalHeight: 0 }
-    }
-
-    const items: LayoutItem<A>[] = []
-    let currentTop = 0
-
-    for (const section of sections) {
-      // Add header if showing date headers
-      if (showDateHeaders) {
-        items.push({
-          type: 'header',
-          key: `header-${section.date}`,
-          top: currentTop,
-          height: HEADER_HEIGHT,
-          date: section.date,
-        })
-        currentTop += HEADER_HEIGHT
-      }
-
-      // Add rows for this section
-      const rowCount = Math.ceil(section.assets.length / columnCount)
-      for (let rowIndex = 0; rowIndex < rowCount; rowIndex++) {
-        const startAsset = rowIndex * columnCount
-        const endAsset = Math.min(startAsset + columnCount, section.assets.length)
-        items.push({
-          type: 'row',
-          key: `row-${section.date}-${rowIndex}`,
-          top: currentTop,
-          height: rowHeight,
-          date: section.date,
-          assets: section.assets.slice(startAsset, endAsset),
-          rowIndex,
-        })
-        currentTop += rowHeight
-      }
-    }
-
-    return { layout: items, totalHeight: currentTop }
-  })()
+  const { layout, totalHeight } = useTimelineLayout({
+    sections,
+    sectionsByBucket,
+    bucketPositions,
+    skeletonTotalHeight,
+    columnCount,
+    rowHeight,
+    thumbnailSize,
+    showDateHeaders,
+    scrollTop: getScrollTop(),
+    viewportHeight,
+  })
 
   // Calculate visible range and spacer heights for flow-based virtualization
   // This approach renders items in normal document flow (not absolute) so sticky headers work
