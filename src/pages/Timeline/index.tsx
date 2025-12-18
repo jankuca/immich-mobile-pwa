@@ -38,6 +38,10 @@ export function Timeline() {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   // Track if we're currently scrubbing to avoid scroll event conflicts
   const isScrubbing = useRef(false)
+  // AbortController for cancelling in-flight bucket requests
+  const loadAbortControllerRef = useRef<AbortController | null>(null)
+  // Track which buckets are currently being loaded (to avoid duplicate requests)
+  const loadingBucketsRef = useRef<Set<number>>(new Set())
   const { logout } = useAuth()
 
   // Search state
@@ -126,7 +130,8 @@ export function Timeline() {
   }, [])
 
   // Maximum number of buckets to keep loaded at once (sliding window)
-  const MAX_LOADED_BUCKETS = 50
+  // Keep this relatively small to avoid OOM - each bucket can contain many photos
+  const MAX_LOADED_BUCKETS = 24
 
   // Get the current visible bucket index based on visibleDate
   const getVisibleBucketIndex = useCallback(() => {
@@ -196,6 +201,16 @@ export function Timeline() {
     [getVisibleBucketIndex],
   )
 
+  // Cancel any in-flight requests and clear loading state
+  const cancelPendingLoads = useCallback(() => {
+    if (loadAbortControllerRef.current) {
+      loadAbortControllerRef.current.abort()
+      loadAbortControllerRef.current = null
+    }
+    // Clear the loading set so cancelled buckets can be retried
+    loadingBucketsRef.current.clear()
+  }, [])
+
   // Function to load a specific range of buckets (loading only, no unloading)
   const loadBucketRange = useCallback(
     async (buckets: TimeBucket[], startIndex: number, count: number) => {
@@ -204,13 +219,14 @@ export function Timeline() {
 
       // Use ref for synchronous check to prevent race conditions
       const loadedSet = loadedBucketsRef.current
+      const loadingSet = loadingBucketsRef.current
 
-      // Collect indices that haven't been loaded yet
+      // Collect indices that haven't been loaded or are currently loading
       for (let i = startIndex; i < endIndex; i++) {
-        if (!loadedSet.has(i)) {
+        if (!loadedSet.has(i) && !loadingSet.has(i)) {
           indicesToLoad.push(i)
-          // Mark as loading immediately to prevent concurrent loads
-          loadedSet.add(i)
+          // Mark as loading to prevent concurrent loads
+          loadingSet.add(i)
         }
       }
 
@@ -219,6 +235,15 @@ export function Timeline() {
         setIsLoadingMore(false)
         return
       }
+
+      // Cancel any previous load operation
+      if (loadAbortControllerRef.current) {
+        loadAbortControllerRef.current.abort()
+      }
+
+      // Create new AbortController for this batch
+      const abortController = new AbortController()
+      loadAbortControllerRef.current = abortController
 
       // Set loading flag synchronously
       isLoadingRef.current = true
@@ -232,70 +257,88 @@ export function Timeline() {
         const loadPromises = indicesToLoad.map(async (index) => {
           const bucket = buckets[index]
           if (!bucket) {
-            return { index, assets: [] as AssetTimelineItem[], error: false }
+            return { index, assets: [] as AssetTimelineItem[], error: false, aborted: false }
           }
           try {
-            const bucketAssets = await apiService.getTimeBucket({
-              timeBucket: bucket.timeBucket,
-              size: 'DAY',
-              isTrashed: false,
-            })
+            const bucketAssets = await apiService.getTimeBucket(
+              {
+                timeBucket: bucket.timeBucket,
+                size: 'DAY',
+                isTrashed: false,
+              },
+              abortController.signal,
+            )
 
             if (Array.isArray(bucketAssets)) {
-              return { index, assets: bucketAssets, error: false }
+              return { index, assets: bucketAssets, error: false, aborted: false }
             }
             console.warn(
               `Unexpected response format for bucket ${bucket.timeBucket}:`,
               bucketAssets,
             )
-            return { index, assets: [] as AssetTimelineItem[], error: false }
+            return { index, assets: [] as AssetTimelineItem[], error: false, aborted: false }
           } catch (bucketError) {
+            // Check if this was an abort
+            if (bucketError instanceof Error && bucketError.name === 'CanceledError') {
+              return { index, assets: [] as AssetTimelineItem[], error: false, aborted: true }
+            }
             console.error(`Error fetching assets for bucket ${bucket.timeBucket}:`, bucketError)
-            return { index, assets: [] as AssetTimelineItem[], error: true }
+            return { index, assets: [] as AssetTimelineItem[], error: true, aborted: false }
           }
         })
 
         const results = await Promise.all(loadPromises)
 
-        // Collect all assets and handle errors
+        // Collect all assets and handle errors/aborts
         // Add _bucketIndex to each asset so we know which bucket it came from
         const newAssets: AssetTimelineItem[] = []
         for (const result of results) {
-          if (result.error) {
-            // Remove from loaded set on error so it can be retried
-            loadedSet.delete(result.index)
-          } else {
-            // Tag each asset with its bucket index for layout purposes
-            for (const asset of result.assets) {
-              asset._bucketIndex = result.index
-            }
-            newAssets.push(...result.assets)
+          // Remove from loading set
+          loadingSet.delete(result.index)
+
+          if (result.aborted) {
+            // Request was cancelled - don't mark as loaded, allow retry
+            continue
           }
+          if (result.error) {
+            // Error - don't mark as loaded, allow retry
+            continue
+          }
+          // Success - mark as loaded
+          loadedSet.add(result.index)
+          // Tag each asset with its bucket index for layout purposes
+          for (const asset of result.assets) {
+            asset._bucketIndex = result.index
+          }
+          newAssets.push(...result.assets)
         }
 
-        // Update assets - just add the new ones (no filtering here)
-        setAssets((prevAssets) => {
-          // Add new assets and sort
-          const combined = [...prevAssets, ...newAssets]
-          // Deduplicate by asset ID in case of overlapping loads
-          const seen = new Set<string>()
-          const deduplicated = combined.filter((asset) => {
-            if (seen.has(asset.id)) {
-              return false
-            }
-            seen.add(asset.id)
-            return true
+        // Only update state if we got some assets (not all aborted)
+        if (newAssets.length > 0) {
+          // Update assets - just add the new ones (no filtering here)
+          setAssets((prevAssets) => {
+            // Add new assets and sort
+            const combined = [...prevAssets, ...newAssets]
+            // Deduplicate by asset ID in case of overlapping loads
+            const seen = new Set<string>()
+            const deduplicated = combined.filter((asset) => {
+              if (seen.has(asset.id)) {
+                return false
+              }
+              seen.add(asset.id)
+              return true
+            })
+            deduplicated.sort((a, b) => {
+              const dateA = new Date(a.fileCreatedAt).getTime()
+              const dateB = new Date(b.fileCreatedAt).getTime()
+              return dateB - dateA // Descending order
+            })
+            return deduplicated
           })
-          deduplicated.sort((a, b) => {
-            const dateA = new Date(a.fileCreatedAt).getTime()
-            const dateB = new Date(b.fileCreatedAt).getTime()
-            return dateB - dateA // Descending order
-          })
-          return deduplicated
-        })
 
-        // Update the state version of loaded indices for VirtualizedTimeline
-        setLoadedBucketIndices(new Set(loadedSet))
+          // Update the state version of loaded indices for VirtualizedTimeline
+          setLoadedBucketIndices(new Set(loadedSet))
+        }
 
         // Check if all buckets are loaded
         if (loadedSet.size >= buckets.length) {
@@ -305,6 +348,10 @@ export function Timeline() {
         // Cleanup distant buckets if we have too many loaded
         cleanupDistantBuckets(buckets)
       } catch (err) {
+        // Clean up loading state for all indices on error
+        for (const index of indicesToLoad) {
+          loadingSet.delete(index)
+        }
         console.error('Error loading bucket range:', err)
       } finally {
         isLoadingRef.current = false
@@ -385,6 +432,9 @@ export function Timeline() {
       isScrubbing.current = true
       scrubTargetBucketRef.current = bucketIndex
 
+      // Cancel any pending loads from previous scrub position
+      cancelPendingLoads()
+
       // Scroll to the bucket position using the virtualized timeline's scroll function
       if (scrollToBucketRef.current) {
         scrollToBucketRef.current(bucketIndex)
@@ -409,7 +459,7 @@ export function Timeline() {
         }
       }, 400) // 400ms debounce - less frequent loading during drag
     },
-    [allBuckets, loadBucketRange],
+    [allBuckets, cancelPendingLoads, loadBucketRange],
   )
 
   // Handle scrubber drag end - trigger immediate bucket loading for the final position

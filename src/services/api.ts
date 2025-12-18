@@ -283,16 +283,19 @@ class ApiService {
     return response.data
   }
 
-  async getTimeBucket(params: {
-    timeBucket: string
-    size: 'DAY' | 'MONTH'
-    isFavorite?: boolean
-    isArchived?: boolean
-    isTrashed?: boolean
-    personId?: string
-    albumId?: string
-    order?: AssetOrder
-  }): Promise<AssetTimelineItem[]> {
+  async getTimeBucket(
+    params: {
+      timeBucket: string
+      size: 'DAY' | 'MONTH'
+      isFavorite?: boolean
+      isArchived?: boolean
+      isTrashed?: boolean
+      personId?: string
+      albumId?: string
+      order?: AssetOrder
+    },
+    signal?: AbortSignal,
+  ): Promise<AssetTimelineItem[]> {
     const response = await this.api.get('/timeline/bucket', {
       params: {
         timeBucket: params.timeBucket,
@@ -304,6 +307,7 @@ class ApiService {
         albumId: params.albumId,
         order: params.order,
       },
+      ...(signal && { signal }),
     })
 
     // NOTE: Convert response data from {a:[],b:[],c:[]} to [{a,b,c},{a,b,c}]
