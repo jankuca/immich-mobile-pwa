@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'preact/hooks'
+import { useEffect, useRef, useState } from 'preact/hooks'
 import { AlbumHeader } from '../../components/common/AlbumHeader'
 import { PhotoViewer } from '../../components/photoView/PhotoViewer'
 import { ShareModal } from '../../components/share/ShareModal'
@@ -25,10 +25,12 @@ export function AlbumDetail({ id, albumId }: AlbumDetailProps) {
   const [selectedThumbnailPosition, setSelectedThumbnailPosition] =
     useState<ThumbnailPosition | null>(null)
   const [allBuckets, setAllBuckets] = useState<string[]>([])
-  const [loadedBucketCount, setLoadedBucketCount] = useState<number>(0)
   const [hasMoreContent, setHasMoreContent] = useState<boolean>(true)
   const [showShareModal, setShowShareModal] = useState<boolean>(false)
   const { url, route } = useHashLocation()
+
+  // Track loaded bucket count synchronously to prevent race conditions
+  const loadedBucketCountRef = useRef<number>(0)
 
   // Store the thumbnail position getter from VirtualizedTimeline
   const [getThumbnailPosition, setGetThumbnailPosition] = useState<GetThumbnailPosition | null>(
@@ -46,6 +48,9 @@ export function AlbumDetail({ id, albumId }: AlbumDetailProps) {
 
   // Fetch album data
   useEffect(() => {
+    // Reset ref when album changes
+    loadedBucketCountRef.current = 0
+
     const fetchAlbum = async () => {
       if (!effectiveId) {
         setError('Album ID is missing')
@@ -56,6 +61,7 @@ export function AlbumDetail({ id, albumId }: AlbumDetailProps) {
       try {
         setIsLoading(true)
         setError(null)
+        setAssets([]) // Clear existing assets when switching albums
 
         // Get album details
         const albumData = await apiService.getAlbum(effectiveId)
@@ -99,11 +105,17 @@ export function AlbumDetail({ id, albumId }: AlbumDetailProps) {
     albumId: string,
     order?: 'asc' | 'desc',
   ) => {
-    if (startIndex >= buckets.length) {
-      setHasMoreContent(false)
+    // Use ref for synchronous check to prevent race conditions
+    if (startIndex >= buckets.length || startIndex < loadedBucketCountRef.current) {
+      // Already loaded or past the end
+      setHasMoreContent(startIndex >= buckets.length ? false : hasMoreContent)
       setIsLoadingMore(false)
       return
     }
+
+    // Mark as loading synchronously
+    const endIndex = Math.min(startIndex + bucketsPerLoad, buckets.length)
+    loadedBucketCountRef.current = endIndex
 
     try {
       if (startIndex > 0) {
@@ -111,7 +123,6 @@ export function AlbumDetail({ id, albumId }: AlbumDetailProps) {
       }
 
       // Get the next batch of buckets
-      const endIndex = Math.min(startIndex + bucketsPerLoad, buckets.length)
       const bucketsToLoad = buckets.slice(startIndex, endIndex)
 
       const newAssets: Asset[] = []
@@ -128,7 +139,7 @@ export function AlbumDetail({ id, albumId }: AlbumDetailProps) {
           })
 
           if (Array.isArray(bucketAssets)) {
-            newAssets.push(...bucketAssets)
+            newAssets.push(...(bucketAssets as Asset[]))
           } else {
             console.warn(`Unexpected response format for bucket ${bucket}:`, bucketAssets)
           }
@@ -139,7 +150,6 @@ export function AlbumDetail({ id, albumId }: AlbumDetailProps) {
 
       // Update state with new assets
       setAssets((prevAssets) => [...prevAssets, ...newAssets])
-      setLoadedBucketCount(endIndex)
 
       // Check if we've loaded all buckets
       if (endIndex >= buckets.length) {
@@ -147,6 +157,8 @@ export function AlbumDetail({ id, albumId }: AlbumDetailProps) {
       }
     } catch (err) {
       console.error('Error loading more buckets:', err)
+      // Reset ref on error to allow retry
+      loadedBucketCountRef.current = startIndex
     } finally {
       setIsLoading(false)
       setIsLoadingMore(false)
@@ -155,10 +167,12 @@ export function AlbumDetail({ id, albumId }: AlbumDetailProps) {
 
   // Handle loading more content
   const handleLoadMore = () => {
-    if (isLoadingMore || !hasMoreContent || !effectiveId) {
+    // Use ref for synchronous check to prevent race conditions
+    const currentLoadedCount = loadedBucketCountRef.current
+    if (currentLoadedCount >= allBuckets.length || !hasMoreContent || !effectiveId) {
       return
     }
-    loadMoreBuckets(allBuckets, loadedBucketCount, effectiveId, album?.order)
+    loadMoreBuckets(allBuckets, currentLoadedCount, effectiveId, album?.order)
   }
 
   // Handle asset selection

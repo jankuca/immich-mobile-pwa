@@ -23,9 +23,11 @@ export function Timeline() {
     useState<ThumbnailPosition | null>(null)
   // Store full bucket info with counts
   const [allBuckets, setAllBuckets] = useState<TimeBucket[]>([])
-  // Track which buckets have been loaded (by index)
-  const [loadedBuckets, setLoadedBuckets] = useState<Set<number>>(new Set())
+  // Track which buckets have been loaded (by index) - use ref for synchronous checks
+  const loadedBucketsRef = useRef<Set<number>>(new Set())
   const [hasMoreContent, setHasMoreContent] = useState<boolean>(true)
+  // Synchronous loading flag to prevent race conditions
+  const isLoadingRef = useRef<boolean>(false)
   // Current visible date for scrubber (from VirtualizedTimeline)
   const [visibleDate, setVisibleDate] = useState<string | null>(null)
   // Ref to the scroll container for programmatic scrolling
@@ -56,14 +58,16 @@ export function Timeline() {
 
   // Find the next unloaded bucket index starting from the end of loaded range
   const getNextUnloadedIndex = useCallback(() => {
+    // Use ref for synchronous check
+    const loadedSet = loadedBucketsRef.current
     // Find the first gap or continue from the end
     for (let i = 0; i < allBuckets.length; i++) {
-      if (!loadedBuckets.has(i)) {
+      if (!loadedSet.has(i)) {
         return i
       }
     }
     return allBuckets.length
-  }, [allBuckets.length, loadedBuckets])
+  }, [allBuckets.length])
 
   // Find the bucket index for a given date
   const getBucketIndexForDate = useCallback(
@@ -81,6 +85,10 @@ export function Timeline() {
 
   // Fetch initial timeline data
   useEffect(() => {
+    // Reset refs when component mounts/remounts
+    loadedBucketsRef.current = new Set()
+    isLoadingRef.current = false
+
     const fetchInitialTimeline = async () => {
       try {
         setIsLoading(true)
@@ -119,10 +127,15 @@ export function Timeline() {
       const endIndex = Math.min(startIndex + count, buckets.length)
       const indicesToLoad: number[] = []
 
+      // Use ref for synchronous check to prevent race conditions
+      const loadedSet = loadedBucketsRef.current
+
       // Collect indices that haven't been loaded yet
       for (let i = startIndex; i < endIndex; i++) {
-        if (!loadedBuckets.has(i)) {
+        if (!loadedSet.has(i)) {
           indicesToLoad.push(i)
+          // Mark as loading immediately to prevent concurrent loads
+          loadedSet.add(i)
         }
       }
 
@@ -131,6 +144,9 @@ export function Timeline() {
         setIsLoadingMore(false)
         return
       }
+
+      // Set loading flag synchronously
+      isLoadingRef.current = true
 
       try {
         if (startIndex > 0) {
@@ -164,17 +180,10 @@ export function Timeline() {
             }
           } catch (bucketError) {
             console.error(`Error fetching assets for bucket ${bucket.timeBucket}:`, bucketError)
+            // Remove from loaded set on error so it can be retried
+            loadedSet.delete(index)
           }
         }
-
-        // Update loaded buckets set
-        setLoadedBuckets((prev) => {
-          const next = new Set(prev)
-          for (const i of newLoadedIndices) {
-            next.add(i)
-          }
-          return next
-        })
 
         // Update assets - need to insert in correct position based on bucket order
         setAssets((prevAssets) => {
@@ -189,28 +198,29 @@ export function Timeline() {
         })
 
         // Check if all buckets are loaded
-        const totalLoaded = loadedBuckets.size + newLoadedIndices.length
-        if (totalLoaded >= buckets.length) {
+        if (loadedSet.size >= buckets.length) {
           setHasMoreContent(false)
         }
       } catch (err) {
         console.error('Error loading bucket range:', err)
       } finally {
+        isLoadingRef.current = false
         setIsLoading(false)
         setIsLoadingMore(false)
       }
     },
-    [loadedBuckets],
+    [],
   )
 
   // Handle loading more content (sequential loading from current position)
   const handleLoadMore = useCallback(() => {
-    if (isLoadingMore || !hasMoreContent) {
+    // Use ref for synchronous check to prevent race conditions
+    if (isLoadingRef.current || !hasMoreContent) {
       return
     }
     const nextIndex = getNextUnloadedIndex()
     loadBucketRange(allBuckets, nextIndex, bucketsPerLoad)
-  }, [allBuckets, getNextUnloadedIndex, isLoadingMore, hasMoreContent, loadBucketRange])
+  }, [allBuckets, getNextUnloadedIndex, hasMoreContent, loadBucketRange])
 
   // Load buckets around a specific date if not already loaded
   const loadBucketsAroundDate = useCallback(
@@ -220,24 +230,25 @@ export function Timeline() {
         return
       }
 
-      // Check if buckets around this index need loading
+      // Check if buckets around this index need loading (use ref for synchronous check)
       const bufferBuckets = 3
       const startIndex = Math.max(0, bucketIndex - bufferBuckets)
       const endIndex = Math.min(allBuckets.length, bucketIndex + bufferBuckets + 1)
+      const loadedSet = loadedBucketsRef.current
 
       let needsLoading = false
       for (let i = startIndex; i < endIndex; i++) {
-        if (!loadedBuckets.has(i)) {
+        if (!loadedSet.has(i)) {
           needsLoading = true
           break
         }
       }
 
-      if (needsLoading && !isLoadingMore) {
+      if (needsLoading && !isLoadingRef.current) {
         loadBucketRange(allBuckets, startIndex, endIndex - startIndex)
       }
     },
-    [allBuckets, getBucketIndexForDate, isLoadingMore, loadBucketRange, loadedBuckets],
+    [allBuckets, getBucketIndexForDate, loadBucketRange],
   )
 
   // Debounce timer ref for bucket loading during scrub
