@@ -1,9 +1,9 @@
 import pluralize from 'pluralize'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks'
+import { useThumbnailRegistry } from '../../hooks/useThumbnailRegistry'
 import type { ThumbnailPosition } from '../../hooks/useZoomTransition'
 import type { AssetOrder, AssetTimelineItem } from '../../services/api'
 import { SectionPill } from '../common/SectionPill'
-import type { ThumbnailPositionGetter } from './TimelineThumbnail'
 import { TimelineThumbnail } from './TimelineThumbnail'
 
 // Target thumbnail size in pixels - columns are calculated to fit this size
@@ -98,8 +98,12 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
   // Use external ref if provided, otherwise use internal
   const scrollContainerRef = externalScrollContainerRef ?? internalScrollContainerRef
 
-  // Registry of thumbnail position getters by asset ID
-  const thumbnailPositionGettersRef = useRef<Map<string, ThumbnailPositionGetter>>(new Map())
+  // Thumbnail position registry
+  const {
+    getThumbnailPosition,
+    registerThumbnail: handleThumbnailRegister,
+    unregisterThumbnail: handleThumbnailUnregister,
+  } = useThumbnailRegistry()
 
   // Track the first visible asset for anchoring when no photo is open
   const firstVisibleAssetIdRef = useRef<string | null>(null)
@@ -123,25 +127,6 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
   const getScrollTop = useCallback(() => {
     return scrollContainerRef.current?.scrollTop ?? scrollTop
   }, [scrollTop, scrollContainerRef])
-
-  // Function to get thumbnail position by asset ID
-  const getThumbnailPosition = useCallback((assetId: string): ThumbnailPosition | null => {
-    const getter = thumbnailPositionGettersRef.current.get(assetId)
-    return getter ? getter() : null
-  }, [])
-
-  // Register a thumbnail position getter
-  const handleThumbnailRegister = useCallback(
-    (assetId: string, getPosition: ThumbnailPositionGetter) => {
-      thumbnailPositionGettersRef.current.set(assetId, getPosition)
-    },
-    [],
-  )
-
-  // Unregister a thumbnail position getter
-  const handleThumbnailUnregister = useCallback((assetId: string) => {
-    thumbnailPositionGettersRef.current.delete(assetId)
-  }, [])
 
   // Provide the getter to parent component
   useEffect(() => {
