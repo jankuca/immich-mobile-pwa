@@ -91,7 +91,7 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
   // Get actual scroll position from DOM (fallback to state for SSR/initial render)
   const getScrollTop = useCallback(() => {
     return scrollContainerRef.current?.scrollTop ?? scrollTop
-  }, [scrollTop])
+  }, [scrollTop, scrollContainerRef])
 
   // Function to get thumbnail position by asset ID
   const getThumbnailPosition = useCallback((assetId: string): ThumbnailPosition | null => {
