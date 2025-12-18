@@ -4,8 +4,8 @@ import type { BucketPosition } from './useBucketNavigation'
 /**
  * Configuration for anchored scrolling
  */
-const SCROLL_BUFFER_HEIGHT = 5000 // Total scroll height to maintain
-const SCROLL_RESET_THRESHOLD = 1500 // Reset when within this distance from edge
+const SCROLL_BUFFER_HEIGHT = 50000 // Total scroll height to maintain
+const SCROLL_RESET_THRESHOLD = 15000 // Reset when within this distance from edge
 const SCROLL_MIDDLE = SCROLL_BUFFER_HEIGHT / 2 // Middle position to reset to
 
 export interface AnchorState {
