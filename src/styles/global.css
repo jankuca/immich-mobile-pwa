@@ -201,7 +201,7 @@ html, body {
   height: calc(var(--tabbar-height) + calc(var(--spacing-sm) + env(safe-area-inset-bottom, 0px)));
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   background: linear-gradient(
     180deg,
     rgba(var(--color-background-rgb), 0) 0%,
