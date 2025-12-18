@@ -160,13 +160,11 @@ export function Timeline() {
           setIsLoadingMore(true)
         }
 
-        const newAssets: AssetTimelineItem[] = []
-
-        // Load assets for each bucket
-        for (const index of indicesToLoad) {
+        // Load all buckets in parallel for faster loading
+        const loadPromises = indicesToLoad.map(async (index) => {
           const bucket = buckets[index]
           if (!bucket) {
-            continue
+            return { index, assets: [] as AssetTimelineItem[], error: false }
           }
           try {
             const bucketAssets = await apiService.getTimeBucket({
@@ -176,17 +174,29 @@ export function Timeline() {
             })
 
             if (Array.isArray(bucketAssets)) {
-              newAssets.push(...bucketAssets)
-            } else {
-              console.warn(
-                `Unexpected response format for bucket ${bucket.timeBucket}:`,
-                bucketAssets,
-              )
+              return { index, assets: bucketAssets, error: false }
             }
+            console.warn(
+              `Unexpected response format for bucket ${bucket.timeBucket}:`,
+              bucketAssets,
+            )
+            return { index, assets: [] as AssetTimelineItem[], error: false }
           } catch (bucketError) {
             console.error(`Error fetching assets for bucket ${bucket.timeBucket}:`, bucketError)
+            return { index, assets: [] as AssetTimelineItem[], error: true }
+          }
+        })
+
+        const results = await Promise.all(loadPromises)
+
+        // Collect all assets and handle errors
+        const newAssets: AssetTimelineItem[] = []
+        for (const result of results) {
+          if (result.error) {
             // Remove from loaded set on error so it can be retried
-            loadedSet.delete(index)
+            loadedSet.delete(result.index)
+          } else {
+            newAssets.push(...result.assets)
           }
         }
 
@@ -361,26 +371,29 @@ export function Timeline() {
         scrubLoadTimerRef.current = null
       }
 
-      // Set the final target
-      scrubTargetBucketRef.current = bucketIndex
+      // Clear scrubbing state immediately so manual scrolling works right away
+      isScrubbing.current = false
 
       // Scroll to the bucket position
       if (scrollToBucketRef.current) {
         scrollToBucketRef.current(bucketIndex)
       }
 
+      // Capture the target at scrub end time for the callback
+      const targetBucketAtEnd = bucketIndex
+
       // Load buckets around the target position
       const bufferBuckets = 5
       const startIndex = Math.max(0, bucketIndex - bufferBuckets)
 
       loadBucketRange(allBuckets, startIndex, bufferBuckets * 2 + 1).then(() => {
-        // Re-scroll to the final target after loading (in case layout shifted)
-        if (scrollToBucketRef.current && scrubTargetBucketRef.current !== null) {
-          scrollToBucketRef.current(scrubTargetBucketRef.current)
+        // Only re-scroll if still at the same target (user hasn't scrolled away)
+        // Check by comparing with scrubTargetBucketRef which would be updated if user scrubs again
+        if (scrubTargetBucketRef.current === targetBucketAtEnd && scrollToBucketRef.current) {
+          scrollToBucketRef.current(targetBucketAtEnd)
         }
-        // Clear scrubbing state
+        // Clear the target ref
         scrubTargetBucketRef.current = null
-        isScrubbing.current = false
       })
     },
     [allBuckets, loadBucketRange],
@@ -391,6 +404,9 @@ export function Timeline() {
     (date: string) => {
       // Only update if not currently scrubbing
       if (!isScrubbing.current) {
+        // Clear any pending scrub target when user scrolls manually
+        // This prevents the post-load re-scroll from resetting position
+        scrubTargetBucketRef.current = null
         setVisibleDate(date)
         // Load buckets around the visible date to fill in any gaps
         loadBucketsAroundDate(date)
