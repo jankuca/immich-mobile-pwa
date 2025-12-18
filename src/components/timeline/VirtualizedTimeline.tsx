@@ -1,5 +1,6 @@
 import pluralize from 'pluralize'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks'
+import { useSections } from '../../hooks/useSections'
 import { useThumbnailRegistry } from '../../hooks/useThumbnailRegistry'
 import type { ThumbnailPosition } from '../../hooks/useZoomTransition'
 import type { AssetOrder, AssetTimelineItem } from '../../services/api'
@@ -50,11 +51,6 @@ interface VirtualizedTimelineProps<A extends AssetTimelineItem> {
   onScrollToBucketReady?: (scrollToBucket: (bucketIndex: number) => void) => void
 }
 
-interface TimelineSection<A extends AssetTimelineItem> {
-  date: string
-  assets: A[]
-}
-
 // Layout item represents either a header or a row of assets
 interface LayoutItem<A extends AssetTimelineItem> {
   type: 'header' | 'row'
@@ -89,7 +85,9 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
   onBucketLoadRequest,
   onScrollToBucketReady,
 }: VirtualizedTimelineProps<A>) {
-  const [sections, setSections] = useState<TimelineSection<A>[]>([])
+  // Group assets into sections by date
+  const { sections, sectionsByBucket } = useSections({ assets, showDateHeaders, order })
+
   const [containerWidth, setContainerWidth] = useState<number>(0)
   const [scrollTop, setScrollTop] = useState(0)
   const [viewportHeight, setViewportHeight] = useState(0)
@@ -153,23 +151,6 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
     height: number
     loaded: boolean
   }
-
-  // Group sections by the bucket index of their assets
-  // A section belongs to a bucket if ANY of its assets have that _bucketIndex
-  // (In practice, all assets in a section should have the same bucket index due to sequential buckets)
-  const sectionsByBucket = useMemo(() => {
-    const map = new Map<number, TimelineSection<A>[]>()
-    for (const section of sections) {
-      // Get the bucket index from the first asset (all assets in a section should have the same bucket)
-      const bucketIndex = section.assets[0]?._bucketIndex
-      if (bucketIndex !== undefined) {
-        const existing = map.get(bucketIndex) ?? []
-        existing.push(section)
-        map.set(bucketIndex, existing)
-      }
-    }
-    return map
-  }, [sections])
 
   const bucketPositions: BucketPosition[] = useMemo(() => {
     if (!allBuckets || allBuckets.length === 0 || rowHeight === 0) {
@@ -476,80 +457,6 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
       stickyHeader: currentStickyHeader,
     }
   })()
-
-  // Group assets by date
-  useEffect(() => {
-    if (assets?.length === 0) {
-      return
-    }
-
-    // If showDateHeaders is false, merge all assets into a single section
-    if (!showDateHeaders) {
-      // Sort assets by date based on order prop
-      const sortedAssets = [...assets].sort((a, b) => {
-        const dateA = a.fileCreatedAt ? new Date(a.fileCreatedAt).getTime() : 0
-        const dateB = b.fileCreatedAt ? new Date(b.fileCreatedAt).getTime() : 0
-        return order === 'asc' ? dateA - dateB : dateB - dateA
-      })
-
-      // Create a single section with all assets
-      const mergedSection = {
-        date: 'all-assets',
-        assets: sortedAssets,
-      }
-      setSections([mergedSection])
-      return
-    }
-
-    // If showDateHeaders is true, group by date AND bucket index
-    // This ensures that a date spanning multiple buckets creates separate sections per bucket
-    // Key format: "bucketIndex:date" to ensure uniqueness per bucket
-    const groupedByBucketAndDate: { [key: string]: A[] } = {}
-    for (const asset of assets) {
-      if (!asset.fileCreatedAt) {
-        continue // Skip assets without date, don't abort the whole grouping
-      }
-
-      // Use localDateTime if available (calculated from fileCreatedAt + localOffsetHours),
-      // otherwise fall back to deriving from fileCreatedAt (UTC)
-      const date = asset.localDateTime ?? new Date(asset.fileCreatedAt).toISOString().split('T')[0]
-      if (!date) {
-        continue
-      }
-
-      // Use bucket index as part of the key to keep assets from different buckets separate
-      const bucketIndex = asset._bucketIndex ?? -1
-      const key = `${bucketIndex}:${date}`
-
-      if (!groupedByBucketAndDate[key]) {
-        groupedByBucketAndDate[key] = []
-      }
-
-      groupedByBucketAndDate[key].push(asset)
-    }
-
-    // Convert to array and sort by bucket index (primary) and date (secondary)
-    // This ensures sections are ordered by their bucket position
-    const sortedSections = Object.entries(groupedByBucketAndDate)
-      .map(([key, assets]) => {
-        const [bucketIndexStr, date] = key.split(':')
-        const bucketIndex = Number.parseInt(bucketIndexStr ?? '-1', 10)
-        return { date: date ?? '', assets, bucketIndex }
-      })
-      .sort((a, b) => {
-        // Primary sort by bucket index (ascending for desc order, descending for asc order)
-        if (a.bucketIndex !== b.bucketIndex) {
-          return order === 'asc' ? b.bucketIndex - a.bucketIndex : a.bucketIndex - b.bucketIndex
-        }
-        // Secondary sort by date within the same bucket
-        const timeA = new Date(a.date).getTime()
-        const timeB = new Date(b.date).getTime()
-        return order === 'asc' ? timeA - timeB : timeB - timeA
-      })
-      // Remove the temporary bucketIndex property from the final sections
-      .map(({ date, assets }) => ({ date, assets }))
-    setSections(sortedSections)
-  }, [assets, showDateHeaders, order])
 
   // Helper function to get the asset index in the flat list
   const getAssetIndex = useCallback(
