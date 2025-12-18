@@ -35,10 +35,7 @@ interface UseTimelineScrollOptions<A> {
   onLoadMoreRequest?: (() => void) | undefined
   /** Callback to update first visible asset ID for anchoring */
   setFirstVisibleAssetId: (assetId: string | null) => void
-}
-
-interface UseTimelineScrollResult {
-  /** Flag ref to mark programmatic scrolls */
+  /** Ref flag to mark programmatic scrolls (shared with parent) */
   isAdjustingScrollRef: { current: boolean }
 }
 
@@ -65,15 +62,13 @@ export function useTimelineScroll<A extends { id: string }>({
   onVisibleDateChange,
   onLoadMoreRequest,
   setFirstVisibleAssetId,
-}: UseTimelineScrollOptions<A>): UseTimelineScrollResult {
+  isAdjustingScrollRef,
+}: UseTimelineScrollOptions<A>): void {
   // Throttle scroll state updates
   const scrollRafRef = useRef<number | null>(null)
 
   // Throttle visible date updates to avoid excessive re-renders
   const lastVisibleDateRef = useRef<string | null>(null)
-
-  // Flag to prevent scroll handler from re-processing during programmatic scrolls
-  const isAdjustingScrollRef = useRef<boolean>(false)
 
   // Handle scroll events
   const handleScroll = useCallback(() => {
@@ -82,13 +77,21 @@ export function useTimelineScroll<A extends { id: string }>({
       return
     }
 
-    // Skip if this is a programmatic scroll adjustment (to prevent loops)
-    if (isAdjustingScrollRef.current) {
+    // Check if this is a programmatic scroll adjustment
+    const isProgrammaticScroll = isAdjustingScrollRef.current
+    if (isProgrammaticScroll) {
       isAdjustingScrollRef.current = false
+      // For programmatic scrolls, update scrollTop immediately (no RAF)
+      // This ensures layout recalculates correctly after scrubbing
+      const { scrollTop: newScrollTop, clientHeight } = scrollContainer
+      setScrollTop(newScrollTop)
+      if (clientHeight !== viewportHeight) {
+        setViewportHeight(clientHeight)
+      }
       return
     }
 
-    // Use RAF to batch scroll updates
+    // Use RAF to batch scroll updates for user scrolling
     if (scrollRafRef.current) {
       cancelAnimationFrame(scrollRafRef.current)
     }
@@ -213,8 +216,4 @@ export function useTimelineScroll<A extends { id: string }>({
       }
     }
   }, [handleScroll, hasMoreContent, isLoadingMore, onLoadMoreRequest, layout, viewportHeight])
-
-  return {
-    isAdjustingScrollRef,
-  }
 }

@@ -82,6 +82,15 @@ export function useTimelineLayout<A>({
       const layoutVisibleTop = Math.max(0, scrollTop - layoutBuffer)
       const layoutVisibleBottom = scrollTop + viewportHeight + layoutBuffer
 
+      // Debug: log which buckets have sections
+      const loadedBucketIndices = Array.from(sectionsByBucket.keys())
+      console.log(
+        '[useTimelineLayout] sectionsByBucket keys:',
+        loadedBucketIndices,
+        'scrollTop:',
+        scrollTop,
+      )
+
       for (const bucketPos of bucketPositions) {
         const bucketBottom = bucketPos.top + bucketPos.height
         const isNearVisible = bucketBottom > layoutVisibleTop && bucketPos.top < layoutVisibleBottom

@@ -30,6 +30,8 @@ export function Timeline() {
   const [hasMoreContent, setHasMoreContent] = useState<boolean>(true)
   // Ref to hold the scroll-to-bucket function from VirtualizedTimeline
   const scrollToBucketRef = useRef<((bucketIndex: number) => void) | null>(null)
+  // Ref to hold the refresh scroll function from VirtualizedTimeline
+  const refreshScrollRef = useRef<(() => void) | null>(null)
   // Synchronous loading flag to prevent race conditions
   const isLoadingRef = useRef<boolean>(false)
   // Current visible date for scrubber (from VirtualizedTimeline)
@@ -151,6 +153,11 @@ export function Timeline() {
   // Cleanup function to unload buckets far from visible position
   const cleanupDistantBuckets = useCallback(
     (buckets: TimeBucket[]) => {
+      // Skip cleanup during scrubbing - visibleDate is stale so we'd clean up the wrong buckets
+      if (isScrubbing.current) {
+        return
+      }
+
       const loadedSet = loadedBucketsRef.current
 
       // Only cleanup if we have too many loaded
@@ -423,10 +430,17 @@ export function Timeline() {
   const scrubLoadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Track the final target bucket index for scrubbing
   const scrubTargetBucketRef = useRef<number | null>(null)
+  // Counter to track scrub sessions and prevent race conditions
+  const scrubIdRef = useRef<number>(0)
 
   // Handle receiving the scroll-to-bucket function from VirtualizedTimeline
   const handleScrollToBucketReady = useCallback((scrollToBucket: (bucketIndex: number) => void) => {
     scrollToBucketRef.current = scrollToBucket
+  }, [])
+
+  // Handle receiving the refresh scroll function from VirtualizedTimeline
+  const handleRefreshScrollReady = useCallback((refreshScroll: () => void) => {
+    refreshScrollRef.current = refreshScroll
   }, [])
 
   // Handle bucket load request from VirtualizedTimeline (when scrolling into unloaded area)
@@ -447,8 +461,18 @@ export function Timeline() {
   // Handle scrubber drag - load buckets for the target bucket index
   const handleScrub = useCallback(
     (bucketIndex: number) => {
+      console.log(
+        '[handleScrub] bucketIndex:',
+        bucketIndex,
+        'scrollToBucketRef:',
+        !!scrollToBucketRef.current,
+      )
       isScrubbing.current = true
       scrubTargetBucketRef.current = bucketIndex
+
+      // Increment scrub ID to invalidate any previous scrub's callbacks
+      scrubIdRef.current += 1
+      const currentScrubId = scrubIdRef.current
 
       // Cancel any pending loads from previous scrub position
       cancelPendingLoads()
@@ -456,6 +480,8 @@ export function Timeline() {
       // Scroll to the bucket position using the virtualized timeline's scroll function
       if (scrollToBucketRef.current) {
         scrollToBucketRef.current(bucketIndex)
+      } else {
+        console.warn('[handleScrub] scrollToBucketRef is null!')
       }
 
       // Debounced bucket loading during drag (longer debounce to reduce load frequency)
@@ -469,6 +495,10 @@ export function Timeline() {
           const bufferBuckets = 3
           const startIndex = Math.max(0, bucketIndex - bufferBuckets)
           loadBucketRange(allBuckets, startIndex, bufferBuckets * 2 + 1).then(() => {
+            // Only process if this is still the active scrub
+            if (scrubIdRef.current !== currentScrubId) {
+              return
+            }
             // Re-scroll to target after load in case layout shifted
             if (scrubTargetBucketRef.current !== null && scrollToBucketRef.current) {
               scrollToBucketRef.current(scrubTargetBucketRef.current)
@@ -489,6 +519,10 @@ export function Timeline() {
         scrubLoadTimerRef.current = null
       }
 
+      // Increment scrub ID to invalidate any previous scrub's callbacks
+      scrubIdRef.current += 1
+      const currentScrubId = scrubIdRef.current
+
       // Scroll to the bucket position
       if (scrollToBucketRef.current) {
         scrollToBucketRef.current(bucketIndex)
@@ -502,18 +536,25 @@ export function Timeline() {
       const startIndex = Math.max(0, bucketIndex - bufferBuckets)
 
       loadBucketRange(allBuckets, startIndex, bufferBuckets * 2 + 1).then(() => {
+        // Only process if this is still the active scrub (no newer scrub has started)
+        if (scrubIdRef.current !== currentScrubId) {
+          return
+        }
+
         // Clear scrubbing state after loading completes
-        // This prevents handleVisibleDateChange from clearing scrubTargetBucketRef
-        // during the programmatic scroll before buckets are loaded
         isScrubbing.current = false
 
         // Re-scroll to the target bucket now that content is loaded
-        // Only if user hasn't scrubbed again (scrubTargetBucketRef would be different)
         if (scrubTargetBucketRef.current === targetBucketAtEnd && scrollToBucketRef.current) {
           scrollToBucketRef.current(targetBucketAtEnd)
         }
         // Clear the target ref
         scrubTargetBucketRef.current = null
+
+        // Refresh scroll position to ensure layout recalculates with correct position
+        if (refreshScrollRef.current) {
+          refreshScrollRef.current()
+        }
       })
     },
     [allBuckets, loadBucketRange],
@@ -805,6 +846,7 @@ export function Timeline() {
               scrollContainerRef={scrollContainerRef}
               onBucketLoadRequest={handleBucketLoadRequest}
               onScrollToBucketReady={handleScrollToBucketReady}
+              onRefreshScrollReady={handleRefreshScrollReady}
             />
             <TimelineScrubber
               buckets={allBuckets}
