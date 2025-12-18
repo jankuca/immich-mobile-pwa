@@ -109,8 +109,17 @@ export function useBucketNavigation<A>({
         heightCache.set(i, bucketHeight)
       } else {
         // Estimate height for unloaded bucket
+        // A bucket represents a month, which contains multiple days (sections)
+        // Each day gets a header. Use actual days in the month as upper bound.
+        const bucketDate = new Date(bucket.timeBucket)
+        // Get number of days in this month by going to day 0 of next month
+        const daysInMonth = new Date(
+          bucketDate.getFullYear(),
+          bucketDate.getMonth() + 1,
+          0,
+        ).getDate()
         const bucketRowCount = Math.ceil(bucket.count / columnCount)
-        const headerHeight = showDateHeaders ? HEADER_HEIGHT : 0
+        const headerHeight = showDateHeaders ? HEADER_HEIGHT * daysInMonth : 0
         bucketHeight = headerHeight + bucketRowCount * rowHeight
       }
 
