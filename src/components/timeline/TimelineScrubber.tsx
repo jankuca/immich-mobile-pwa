@@ -168,27 +168,33 @@ export function TimelineScrubber({
     return null
   }
 
+  // Calculate the offset to position the list so current position is at the drag point
+  const progress = isDragging ? dragProgress : scrollProgress
+
   return (
     <div
       ref={containerRef}
       class="timeline-scrubber"
       onPointerDown={handlePointerDown}
       style={{
-        position: 'absolute',
+        position: 'fixed',
         right: 0,
-        top: 'var(--timeline-header-offset)',
-        bottom: 'var(--timeline-bottom-offset, var(--tabbar-height))',
+        top: 'calc(var(--header-height) + env(safe-area-inset-top, 0px))',
+        bottom: 'calc(var(--tabbar-height) + env(safe-area-inset-bottom, 0px))',
         width: '60px',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'flex-end',
+        justifyContent: 'flex-start',
         paddingRight: 'var(--spacing-sm)',
         zIndex: 10,
         touchAction: 'none',
         userSelect: 'none',
+        pointerEvents: 'auto',
+        overflow: 'hidden',
       }}
     >
-      {/* Year/Month list */}
+      {/* Year/Month list - positioned based on scroll progress */}
       <div
         class="scrubber-list"
         style={{
@@ -198,6 +204,8 @@ export function TimelineScrubber({
           gap: '2px',
           fontSize: 'var(--font-size-xs)',
           color: 'var(--color-gray)',
+          transform: `translateY(calc(${progress * 100}% - ${activeYearIndex * 20}px))`,
+          transition: isDragging ? 'none' : 'transform 0.1s ease-out',
         }}
       >
         {yearGroups.map((group, groupIndex) => {
@@ -209,14 +217,14 @@ export function TimelineScrubber({
             >
               <div
                 style={{
-                  padding: '2px 6px',
-                  borderRadius: '4px',
+                  padding: '2px 8px',
+                  borderRadius: '10px',
                   fontWeight: isActive
                     ? 'var(--font-weight-semibold)'
                     : 'var(--font-weight-regular)',
-                  fontSize: 'var(--font-size-xs)',
+                  fontSize: '11px',
                   color: isActive ? 'var(--color-text)' : 'var(--color-gray)',
-                  background: isActive ? 'rgba(var(--color-text-rgb), 0.1)' : 'transparent',
+                  background: isActive ? 'rgba(var(--color-text-rgb), 0.08)' : 'transparent',
                 }}
               >
                 {group.year}
@@ -228,12 +236,16 @@ export function TimelineScrubber({
                     <div
                       key={month.month}
                       style={{
-                        padding: '1px 6px',
+                        padding: '1px 8px',
+                        borderRadius: '8px',
                         fontSize: '10px',
                         color: isActiveMonth ? 'var(--color-text)' : 'var(--color-gray)',
                         fontWeight: isActiveMonth
                           ? 'var(--font-weight-medium)'
                           : 'var(--font-weight-regular)',
+                        background: isActiveMonth
+                          ? 'rgba(var(--color-primary-rgb), 0.15)'
+                          : 'transparent',
                       }}
                     >
                       {month.label}
