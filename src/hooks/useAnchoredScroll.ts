@@ -4,7 +4,7 @@ import type { BucketPosition } from './useBucketNavigation'
 /**
  * Configuration for anchored scrolling
  */
-const SCROLL_BUFFER_HEIGHT = 50000 // Total scroll height to maintain
+const SCROLL_BUFFER_HEIGHT = 50000 // Maximum scroll buffer height
 const SCROLL_RESET_THRESHOLD = 15000 // Reset when within this distance from edge
 const SCROLL_MIDDLE = SCROLL_BUFFER_HEIGHT / 2 // Middle position to reset to
 
@@ -18,6 +18,8 @@ export interface AnchorState {
 interface UseAnchoredScrollOptions {
   /** Calculated bucket positions */
   bucketPositions: BucketPosition[]
+  /** Total virtual height of all content */
+  totalContentHeight: number
   /** Ref to the scroll container */
   scrollContainerRef: { current: HTMLDivElement | null }
   /** Callback when anchor changes (for loading buckets) */
@@ -36,6 +38,8 @@ interface UseAnchoredScrollResult {
   getVirtualScrollTop: () => number
   /** The physical scroll height to use for the container */
   scrollBufferHeight: number
+  /** The top padding to add before content (for boundary limiting) */
+  scrollBufferTopPadding: number
   /** Handle scroll events and return the new virtual and physical scroll positions */
   handleScroll: () => ScrollResult
   /** Scroll to a specific bucket (for scrubbing) */
@@ -56,10 +60,11 @@ interface UseAnchoredScrollResult {
  */
 export function useAnchoredScroll({
   bucketPositions,
+  totalContentHeight,
   scrollContainerRef,
   onAnchorChange,
 }: UseAnchoredScrollOptions): UseAnchoredScrollResult {
-  // Anchor state - which bucket is at the "reference point" (at SCROLL_MIDDLE)
+  // Anchor state - which bucket is at the "reference point"
   const [anchor, setAnchor] = useState<AnchorState>({
     bucketIndex: 0,
     offsetWithinBucket: 0,
@@ -74,7 +79,7 @@ export function useAnchoredScroll({
   // Debounce timer for detecting scroll end
   const scrollEndTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Calculate the anchor's virtual position (the position at SCROLL_MIDDLE)
+  // Calculate the anchor's virtual position
   // Uses pending anchor if available to handle async state updates
   const getAnchorPosition = useCallback(() => {
     const effectiveAnchor = pendingAnchorRef.current ?? anchor
@@ -84,6 +89,36 @@ export function useAnchoredScroll({
     }
     return bucketPos.top + effectiveAnchor.offsetWithinBucket
   }, [bucketPositions, anchor])
+
+  // Calculate boundary-aware scroll buffer dimensions
+  // This physically limits scrolling at the start and end of content
+  const getScrollBufferDimensions = useCallback(() => {
+    const anchorPos = getAnchorPosition()
+
+    // Calculate how much virtual space is available in each direction
+    const spaceAbove = anchorPos // Virtual pixels above anchor
+    const spaceBelow = Math.max(0, totalContentHeight - anchorPos) // Virtual pixels below anchor
+
+    // Determine the scroll buffer padding and height
+    // We want the physical scroll area to match the available virtual content
+    // but capped at SCROLL_MIDDLE in each direction
+
+    // Top padding: if near start, reduce padding so scroll physically stops
+    // When spaceAbove = 0, topPadding should be 0 (can't scroll up)
+    // When spaceAbove >= SCROLL_MIDDLE, topPadding = SCROLL_MIDDLE (full buffer)
+    const topPadding = Math.min(spaceAbove, SCROLL_MIDDLE)
+
+    // Bottom space: if near end, reduce height so scroll physically stops
+    // When spaceBelow = 0, bottomSpace should be 0 (can't scroll down)
+    // When spaceBelow >= SCROLL_MIDDLE, bottomSpace = SCROLL_MIDDLE (full buffer)
+    const bottomSpace = Math.min(spaceBelow, SCROLL_MIDDLE)
+
+    // Total buffer height is top padding + 1px for content position + bottom space
+    // We add 1px to ensure there's always a scrollable position for the anchor
+    const bufferHeight = topPadding + bottomSpace + 1
+
+    return { topPadding, bufferHeight }
+  }, [getAnchorPosition, totalContentHeight])
 
   // Clear pending anchor when state catches up
   useEffect(() => {
@@ -98,9 +133,11 @@ export function useAnchoredScroll({
       return 0
     }
     const anchorPos = getAnchorPosition()
-    const scrollOffset = scrollContainer.scrollTop - SCROLL_MIDDLE
+    const { topPadding } = getScrollBufferDimensions()
+    // The anchor is at physical position topPadding
+    const scrollOffset = scrollContainer.scrollTop - topPadding
     return Math.max(0, anchorPos + scrollOffset)
-  }, [bucketPositions, scrollContainerRef, getAnchorPosition])
+  }, [bucketPositions, scrollContainerRef, getAnchorPosition, getScrollBufferDimensions])
 
   // Find bucket at a given virtual position (binary search)
   const findBucketAtPosition = useCallback(
@@ -132,14 +169,15 @@ export function useAnchoredScroll({
 
   // Perform the scroll reset (called when scrolling has stopped)
   const performReset = useCallback(
-    (scrollContainer: HTMLElement, newVirtual: number) => {
+    (newVirtual: number) => {
       const { bucketIndex: newBucketIndex, offset } = findBucketAtPosition(newVirtual)
       const newAnchor = { bucketIndex: newBucketIndex, offsetWithinBucket: offset }
       // Set pending anchor first so getAnchorPosition uses it immediately
       pendingAnchorRef.current = newAnchor
       setAnchor(newAnchor)
       isResettingRef.current = true
-      scrollContainer.scrollTop = SCROLL_MIDDLE
+      // After anchor change, the buffer dimensions will update
+      // The scroll position will be set in the effect that watches topPadding
     },
     [findBucketAtPosition],
   )
@@ -148,10 +186,12 @@ export function useAnchoredScroll({
   const handleScroll = useCallback((): ScrollResult => {
     const scrollContainer = scrollContainerRef.current
     if (!scrollContainer || bucketPositions.length === 0) {
-      return { virtual: getVirtualScrollTop(), physical: SCROLL_MIDDLE }
+      const { topPadding } = getScrollBufferDimensions()
+      return { virtual: getVirtualScrollTop(), physical: topPadding }
     }
 
     const currentScrollTop = scrollContainer.scrollTop
+    const { topPadding, bufferHeight } = getScrollBufferDimensions()
 
     // Skip if this is a reset scroll
     if (isResettingRef.current) {
@@ -160,16 +200,18 @@ export function useAnchoredScroll({
     }
 
     const anchorPos = getAnchorPosition()
-    const scrollOffset = currentScrollTop - SCROLL_MIDDLE
+    // The anchor is at physical position topPadding
+    const scrollOffset = currentScrollTop - topPadding
 
     // Calculate virtual position
     let newVirtual = anchorPos + scrollOffset
 
-    // Clamp to top boundary - prevent scrolling above content
+    // Clamp to boundaries
     if (newVirtual < 0) {
       newVirtual = 0
-      // Don't adjust scrollTop here - let it hit the edge naturally
-      // We'll reset when scrolling stops
+    }
+    if (newVirtual > totalContentHeight) {
+      newVirtual = totalContentHeight
     }
 
     // Update current bucket tracking based on virtual position
@@ -179,9 +221,12 @@ export function useAnchoredScroll({
     }
 
     // Check if we're approaching edges and need to schedule a reset
-    const needsReset =
-      currentScrollTop < SCROLL_RESET_THRESHOLD ||
-      currentScrollTop > SCROLL_BUFFER_HEIGHT - SCROLL_RESET_THRESHOLD
+    // Only reset if we have room to expand the buffer (not at actual content boundaries)
+    const nearTopEdge = currentScrollTop < SCROLL_RESET_THRESHOLD && topPadding >= SCROLL_MIDDLE
+    const nearBottomEdge =
+      currentScrollTop > bufferHeight - SCROLL_RESET_THRESHOLD &&
+      bufferHeight - topPadding >= SCROLL_MIDDLE
+    const needsReset = nearTopEdge || nearBottomEdge
 
     // Clear any existing reset timer
     if (scrollEndTimerRef.current) {
@@ -190,17 +235,24 @@ export function useAnchoredScroll({
     }
 
     // Schedule reset for when scrolling stops (debounced)
-    if (needsReset && newVirtual > 0) {
+    if (needsReset) {
       scrollEndTimerRef.current = setTimeout(() => {
-        // Re-check if we still need reset (scroll position might have changed)
+        // Re-check if we still need reset
         const currentPos = scrollContainer.scrollTop
-        const stillNeedsReset =
-          currentPos < SCROLL_RESET_THRESHOLD ||
-          currentPos > SCROLL_BUFFER_HEIGHT - SCROLL_RESET_THRESHOLD
-        if (stillNeedsReset) {
+        const { topPadding: currentTopPadding, bufferHeight: currentBufferHeight } =
+          getScrollBufferDimensions()
+        const stillNearTop =
+          currentPos < SCROLL_RESET_THRESHOLD && currentTopPadding >= SCROLL_MIDDLE
+        const stillNearBottom =
+          currentPos > currentBufferHeight - SCROLL_RESET_THRESHOLD &&
+          currentBufferHeight - currentTopPadding >= SCROLL_MIDDLE
+        if (stillNearTop || stillNearBottom) {
           // Recalculate virtual position at reset time
-          const resetVirtual = Math.max(0, getAnchorPosition() + (currentPos - SCROLL_MIDDLE))
-          performReset(scrollContainer, resetVirtual)
+          const resetVirtual = Math.max(
+            0,
+            Math.min(totalContentHeight, getAnchorPosition() + (currentPos - currentTopPadding)),
+          )
+          performReset(resetVirtual)
         }
         scrollEndTimerRef.current = null
       }, 150) // Wait 150ms after last scroll event
@@ -209,9 +261,11 @@ export function useAnchoredScroll({
     return { virtual: newVirtual, physical: currentScrollTop }
   }, [
     bucketPositions,
+    totalContentHeight,
     scrollContainerRef,
     getVirtualScrollTop,
     getAnchorPosition,
+    getScrollBufferDimensions,
     findBucketAtPosition,
     onAnchorChange,
     performReset,
@@ -236,9 +290,8 @@ export function useAnchoredScroll({
       pendingAnchorRef.current = newAnchor
       setAnchor(newAnchor)
 
-      // Reset scroll to middle
+      // The scroll position will be set in the effect below when dimensions update
       isResettingRef.current = true
-      scrollContainer.scrollTop = SCROLL_MIDDLE
 
       // Notify of anchor change
       if (onAnchorChange) {
@@ -248,23 +301,38 @@ export function useAnchoredScroll({
     [scrollContainerRef, onAnchorChange],
   )
 
-  // Initialize scroll position to middle on mount and cleanup timer on unmount
+  // Get current scroll buffer dimensions (for render)
+  const { topPadding, bufferHeight } = getScrollBufferDimensions()
+
+  // Update scroll position when buffer dimensions change (after anchor reset)
+  useEffect(() => {
+    const scrollContainer = scrollContainerRef.current
+    if (scrollContainer && isResettingRef.current) {
+      // Scroll to anchor position (topPadding)
+      scrollContainer.scrollTop = topPadding
+      isResettingRef.current = false
+    }
+  }, [scrollContainerRef, topPadding])
+
+  // Initialize scroll position on mount and cleanup timer on unmount
   useEffect(() => {
     const scrollContainer = scrollContainerRef.current
     if (scrollContainer) {
-      scrollContainer.scrollTop = SCROLL_MIDDLE
+      // Start at the anchor position (which is at topPadding)
+      scrollContainer.scrollTop = topPadding
     }
     return () => {
       if (scrollEndTimerRef.current) {
         clearTimeout(scrollEndTimerRef.current)
       }
     }
-  }, [scrollContainerRef])
+  }, [scrollContainerRef, topPadding])
 
   return {
     anchor,
     getVirtualScrollTop,
-    scrollBufferHeight: SCROLL_BUFFER_HEIGHT,
+    scrollBufferHeight: bufferHeight,
+    scrollBufferTopPadding: topPadding,
     handleScroll,
     scrollToAnchor,
     isResetting: isResettingRef.current,

@@ -121,6 +121,7 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
     scrollToAnchor,
   } = useAnchoredScroll({
     bucketPositions,
+    totalContentHeight: skeletonTotalHeight,
     scrollContainerRef,
     onAnchorChange: (bucketIndex: number) => {
       // Update current bucket tracking when anchor changes
