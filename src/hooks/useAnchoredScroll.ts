@@ -117,6 +117,16 @@ export function useAnchoredScroll({
     // We add 1px to ensure there's always a scrollable position for the anchor
     const bufferHeight = topPadding + bottomSpace + 1
 
+    console.log('[useAnchoredScroll] getScrollBufferDimensions:', {
+      anchorPos,
+      totalContentHeight,
+      spaceAbove,
+      spaceBelow,
+      topPadding,
+      bottomSpace,
+      bufferHeight,
+    })
+
     return { topPadding, bufferHeight }
   }, [getAnchorPosition, totalContentHeight])
 
@@ -192,6 +202,15 @@ export function useAnchoredScroll({
 
     const currentScrollTop = scrollContainer.scrollTop
     const { topPadding, bufferHeight } = getScrollBufferDimensions()
+
+    console.log('[useAnchoredScroll] handleScroll:', {
+      scrollTop: currentScrollTop,
+      scrollHeight: scrollContainer.scrollHeight,
+      clientHeight: scrollContainer.clientHeight,
+      maxScroll: scrollContainer.scrollHeight - scrollContainer.clientHeight,
+      bufferHeight,
+      topPadding,
+    })
 
     // Skip if this is a reset scroll
     if (isResettingRef.current) {
@@ -314,19 +333,28 @@ export function useAnchoredScroll({
     }
   }, [scrollContainerRef, topPadding])
 
-  // Initialize scroll position on mount and cleanup timer on unmount
+  // Track whether we've initialized scroll position
+  const hasInitializedRef = useRef(false)
+
+  // Initialize scroll position on mount (once we have valid dimensions)
+  // This only runs when we first get a non-zero buffer height
   useEffect(() => {
     const scrollContainer = scrollContainerRef.current
-    if (scrollContainer) {
+    if (scrollContainer && bufferHeight > 1 && !hasInitializedRef.current) {
       // Start at the anchor position (which is at topPadding)
       scrollContainer.scrollTop = topPadding
+      hasInitializedRef.current = true
     }
+  }, [scrollContainerRef, topPadding, bufferHeight])
+
+  // Cleanup timer on unmount
+  useEffect(() => {
     return () => {
       if (scrollEndTimerRef.current) {
         clearTimeout(scrollEndTimerRef.current)
       }
     }
-  }, [scrollContainerRef, topPadding])
+  }, [])
 
   return {
     anchor,

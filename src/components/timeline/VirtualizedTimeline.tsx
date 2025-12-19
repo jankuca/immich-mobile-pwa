@@ -120,6 +120,7 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
   const {
     getVirtualScrollTop,
     scrollBufferHeight,
+    scrollBufferTopPadding,
     handleScroll: handleAnchoredScroll,
     scrollToAnchor,
   } = useAnchoredScroll({
@@ -295,23 +296,34 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
           {/* Scroll buffer - fixed height container for anchored scrolling */}
           <div style={{ height: scrollBufferHeight, position: 'relative' }}>
             {/* Content wrapper - positioned using transform based on virtual scroll position */}
-            <div
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                right: 0,
-                // Transform to position content at the correct virtual scroll position
-                // topSpacerHeight = virtual Y of first visible item
-                // virtualScrollTop = current virtual scroll position
-                // physicalScrollTop = current physical scroll position in the buffer
-                // We want: content at virtual topSpacerHeight to appear at physical physicalScrollTop
-                transform: `translateY(${topSpacerHeight - virtualScrollTop + physicalScrollTop}px)`,
-              }}
-            >
-              {/* Visible items rendered in normal document flow */}
-              {visibleItems.map((item) => renderItem(item))}
-            </div>
+            {(() => {
+              // Clamp physical scroll to prevent content from being pushed past visible area
+              // When virtualScrollTop is clamped to totalHeight (at end of content),
+              // physicalScrollTop may exceed what's needed due to other elements in scroll container
+              // This limits physicalScrollTop to match the virtual content bounds
+              const maxPhysicalForVirtual = virtualScrollTop + scrollBufferTopPadding
+              const clampedPhysicalScrollTop = Math.min(physicalScrollTop, maxPhysicalForVirtual)
+
+              return (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    // Transform to position content at the correct virtual scroll position
+                    // topSpacerHeight = virtual Y of first visible item
+                    // virtualScrollTop = current virtual scroll position
+                    // clampedPhysicalScrollTop = physical scroll position, clamped to content bounds
+                    // We want: content at virtual topSpacerHeight to appear at physical scroll position
+                    transform: `translateY(${topSpacerHeight - virtualScrollTop + clampedPhysicalScrollTop}px)`,
+                  }}
+                >
+                  {/* Visible items rendered in normal document flow */}
+                  {visibleItems.map((item) => renderItem(item))}
+                </div>
+              )
+            })()}
           </div>
 
           {/* End of content message */}
