@@ -3,14 +3,18 @@ import type { ComponentChildren } from 'preact'
 interface HeaderProps {
   title: string
   showBackButton?: boolean
-  leftAction?: {
-    icon: ComponentChildren
-    onClick: () => void
-  }
-  rightAction?: {
-    icon: ComponentChildren
-    onClick: () => void
-  }
+  leftAction?:
+    | {
+        icon: ComponentChildren
+        onClick: () => void
+      }
+    | undefined
+  rightAction?:
+    | {
+        icon: ComponentChildren
+        onClick: () => void
+      }
+    | undefined
 }
 
 export const Header = ({ title, showBackButton = false, leftAction, rightAction }: HeaderProps) => {

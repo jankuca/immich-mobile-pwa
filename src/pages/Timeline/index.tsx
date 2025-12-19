@@ -38,7 +38,7 @@ export function Timeline() {
   const [loadingBucketIndices, setLoadingBucketIndices] = useState<Set<number>>(new Set())
   // Controller ref for VirtualizedTimeline imperative actions
   const timelineControllerRef = useRef<TimelineController | null>(null)
-  const { logout } = useAuth()
+  const { logout, isEnvAuth } = useAuth()
 
   // Search state
   const {
@@ -612,40 +612,44 @@ export function Timeline() {
     <div class="ios-page has-search-input">
       <Header
         title={isSearchMode ? 'Search' : 'Timeline'}
-        rightAction={{
-          icon: (
-            <svg
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-              <path
-                d="M16 17l5-5-5-5"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-              <path
-                d="M21 12H9"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-            </svg>
-          ),
-          onClick: handleLogout,
-        }}
+        rightAction={
+          isEnvAuth
+            ? undefined
+            : {
+                icon: (
+                  <svg
+                    width="24"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                    <path
+                      d="M16 17l5-5-5-5"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                    <path
+                      d="M21 12H9"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                ),
+                onClick: handleLogout,
+              }
+        }
       />
 
       {/* Search Input */}
