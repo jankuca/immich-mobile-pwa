@@ -19,7 +19,7 @@ import { TimelineStickyHeader } from './TimelineStickyHeader'
 // Target thumbnail size in pixels - columns are calculated to fit this size
 const TARGET_THUMBNAIL_SIZE = 130
 const MIN_COLUMNS = 3
-const ROW_GAP = 2
+const ROW_GAP = 1
 
 // Re-export types for consumers
 export type { TimelineBucket }
