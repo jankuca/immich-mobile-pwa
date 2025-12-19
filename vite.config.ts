@@ -8,6 +8,7 @@ export default defineConfig(({ command, mode }) => {
   // Set the third parameter to '' to load all env regardless of the `VITE_` prefix.
   const env = loadEnv(mode, process.cwd(), '')
   const IMMICH_API_URL = env.IMMICH_API_URL
+  const IMMICH_API_KEY = env.IMMICH_API_KEY
 
   // Only require IMMICH_API_URL when running the dev server
   if (command === 'serve' && !IMMICH_API_URL) {
@@ -16,6 +17,10 @@ export default defineConfig(({ command, mode }) => {
 
   return {
     plugins: [preact()],
+    // Expose pre-auth flag to the client (not the API key itself)
+    define: {
+      'import.meta.env.VITE_IMMICH_PRE_AUTHENTICATED': JSON.stringify(!!IMMICH_API_KEY),
+    },
     resolve: {
       alias: {
         react: 'preact/compat',
@@ -39,12 +44,17 @@ export default defineConfig(({ command, mode }) => {
               // Configure the proxy to handle the API key
               configure: (proxy, _options) => {
                 proxy.on('proxyReq', (proxyReq, req, _res) => {
-                  // Extract the API key from the query parameters
+                  // If dev server has an API key configured, use it for all requests
+                  if (IMMICH_API_KEY) {
+                    proxyReq.setHeader('x-api-key', IMMICH_API_KEY)
+                  }
+
+                  // Extract the API key from the query parameters (for client-provided keys)
                   const url = new URL(String(req.url), 'http://localhost')
                   const apiKey = url.searchParams.get('key')
 
                   if (apiKey) {
-                    // Add the API key as a header
+                    // Add the API key as a header (overrides server key if both present)
                     proxyReq.setHeader('x-api-key', apiKey)
 
                     // Remove the key from the query parameters

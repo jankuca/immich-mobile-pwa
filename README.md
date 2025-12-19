@@ -25,6 +25,10 @@ Create a `.env` file in the project root:
 
 ```env
 IMMICH_API_URL=http://your-immich-server:2283
+
+# Optional: Skip the login screen by providing an API key
+# The key is used server-side only and never exposed to the browser
+IMMICH_API_KEY=your-api-key
 ```
 
 ### Running the Dev Server
@@ -53,6 +57,10 @@ Create a `.env` file in the project root:
 ```env
 PORT=3000
 IMMICH_API_URL=http://your-immich-server:2283
+
+# Optional: Skip the login screen by providing an API key
+# The key is used server-side only and never exposed to the browser
+IMMICH_API_KEY=your-api-key
 ```
 
 ### Running with Docker Compose

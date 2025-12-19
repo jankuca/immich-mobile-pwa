@@ -468,24 +468,27 @@ class ApiService {
 
   // Asset URLs
   getAssetThumbnailUrl(assetId: string, format: 'webp' | 'jpeg' = 'webp'): string {
-    // Include the API key in the URL for direct image requests
     // Use the current origin to ensure the URL works when accessed from different origins
     const origin = window.location.origin
-    return `${origin}/api/assets/${assetId}/thumbnail?format=${format}&key=${this.apiKey}`
+    // Only include the API key if we have one (in pre-auth mode, the server adds it)
+    const keyParam = this.apiKey ? `&key=${this.apiKey}` : ''
+    return `${origin}/api/assets/${assetId}/thumbnail?format=${format}${keyParam}`
   }
 
   getAssetUrl(assetId: string): string {
-    // Include the API key in the URL for direct image requests
     // Use the current origin to ensure the URL works when accessed from different origins
     const origin = window.location.origin
-    return `${origin}/api/assets/${assetId}/original?key=${this.apiKey}`
+    // Only include the API key if we have one (in pre-auth mode, the server adds it)
+    const keyParam = this.apiKey ? `?key=${this.apiKey}` : ''
+    return `${origin}/api/assets/${assetId}/original${keyParam}`
   }
 
   getPersonThumbnailUrl(personId: string): string {
-    // Include the API key in the URL for direct image requests
     // Use the current origin to ensure the URL works when accessed from different origins
     const origin = window.location.origin
-    return `${origin}/api/people/${personId}/thumbnail?key=${this.apiKey}`
+    // Only include the API key if we have one (in pre-auth mode, the server adds it)
+    const keyParam = this.apiKey ? `?key=${this.apiKey}` : ''
+    return `${origin}/api/people/${personId}/thumbnail${keyParam}`
   }
 
   // Server Config

@@ -10,4 +10,5 @@ services:
     environment:
       - PORT=${PORT}
       - IMMICH_API_URL=${IMMICH_API_URL}
+      - IMMICH_API_KEY=${IMMICH_API_KEY:-}
     restart: unless-stopped
