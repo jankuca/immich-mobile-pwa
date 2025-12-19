@@ -65,7 +65,7 @@
         "useImportRestrictions": "off"
       }
     },
-    "ignore": ["node_modules", "dist", ".git"]
+    "ignore": ["node_modules", "dist", ".git", "server.js"]
   },
   "formatter": {
     "enabled": true,
@@ -86,7 +86,7 @@
   },
   "files": {
     "include": ["**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx"],
-    "ignore": ["node_modules", "dist", ".git"]
+    "ignore": ["node_modules", "dist", ".git", "server.js"]
   },
   "vcs": {
     "enabled": true,

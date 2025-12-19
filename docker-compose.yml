@@ -1,0 +1,13 @@
+services:
+  immich-mobile:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    ports:
+      - "${PORT}:${PORT}"
+    environment:
+      - PORT=${PORT}
+      - IMMICH_API_URL=${IMMICH_API_URL}
+    restart: unless-stopped
