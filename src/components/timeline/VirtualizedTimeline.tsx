@@ -281,7 +281,7 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
             overflow: 'auto',
             backgroundColor: 'var(--color-background)',
             paddingTop: includeHeaderOffset ? 'var(--timeline-header-offset)' : undefined,
-            paddingBottom: 'var(--timeline-bottom-offset, var(--tabbar-height))',
+            paddingBottom: 'var(--timeline-bottom-offset, 0px)',
           }}
         >
           {/* Sticky header overlay - rendered separately from the flow to avoid spacer instability */}
