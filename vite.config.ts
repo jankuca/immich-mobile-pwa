@@ -1,13 +1,14 @@
 import preact from '@preact/preset-vite'
-import { defineConfig } from 'vite'
-
-// IMMICH_API_URL is only needed for the dev server proxy, not for production builds
-// biome-ignore lint/nursery/noProcessEnv: build-time environment variable
-const IMMICH_API_URL = process.env.IMMICH_API_URL
+import { defineConfig, loadEnv } from 'vite'
 
 // https://vitejs.dev/config/
 // biome-ignore lint/style/noDefaultExport: vite-enforced format
-export default defineConfig(({ command }) => {
+export default defineConfig(({ command, mode }) => {
+  // Load env file based on `mode` in the current working directory.
+  // Set the third parameter to '' to load all env regardless of the `VITE_` prefix.
+  const env = loadEnv(mode, process.cwd(), '')
+  const IMMICH_API_URL = env.IMMICH_API_URL
+
   // Only require IMMICH_API_URL when running the dev server
   if (command === 'serve' && !IMMICH_API_URL) {
     throw new Error('IMMICH_API_URL environment variable is required for dev server')
