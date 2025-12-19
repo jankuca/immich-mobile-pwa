@@ -1,15 +1,70 @@
-# `create-preact`
+# Immich Mobile Web
 
-<h2 align="center">
-  <img height="256" width="256" src="./src/assets/preact.svg">
-</h2>
+A lightweight, mobile-first web client for [Immich](https://immich.app/) — the self-hosted photo and video backup solution.
 
-<h3 align="center">Get started using Preact and Vite!</h3>
+Built with Preact and Vite, this app provides a fast, responsive interface for browsing your photo library, albums, and people.
 
-## Getting Started
+## Features
 
--   `npm run dev` - Starts a dev server at http://localhost:5173/
+- **Timeline View** — Browse your photos chronologically
+- **Albums** — View and navigate your photo albums
+- **People** — Browse photos organized by recognized faces
+- **API Key Authentication** — Secure access to your Immich server
 
--   `npm run build` - Builds for production, emitting to `dist/`
+## Prerequisites
 
--   `npm run preview` - Starts a server at http://localhost:4173/ to test production build locally
+- Node.js 20+
+- An Immich server instance
+- An Immich API key (generate one from your Immich settings)
+
+## Development
+
+### Environment Setup
+
+Create a `.env` file in the project root:
+
+```env
+IMMICH_API_URL=http://your-immich-server:2283
+```
+
+### Running the Dev Server
+
+```bash
+npm install
+npm run dev
+```
+
+The app will be available at http://localhost:5173/
+
+### Other Commands
+
+- `npm run build` — Build for production, emitting to `dist/`
+- `npm run preview` — Preview the production build locally
+- `npm run lint` — Run Biome linter
+- `npm run format` — Format code with Biome
+- `npm run check` — Run Biome checks and apply fixes
+
+## Docker Compose
+
+### Environment Setup
+
+Create a `.env` file in the project root:
+
+```env
+PORT=3000
+IMMICH_API_URL=http://your-immich-server:2283
+```
+
+### Running with Docker Compose
+
+```bash
+docker compose up -d
+```
+
+The app will be available at http://localhost:3000/ (or whatever port you configured).
+
+### Stopping the Container
+
+```bash
+docker compose down
+```
