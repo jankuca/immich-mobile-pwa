@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'preact/hooks'
+import { apiService } from '../services/api'
 
 export interface AssetSelectionState {
   /** Whether selection mode is currently active */
@@ -7,6 +8,8 @@ export interface AssetSelectionState {
   selectedAssetIds: Set<string>
   /** Number of selected assets */
   selectionCount: number
+  /** Whether a share/download operation is in progress */
+  isSharing: boolean
   /** Enter selection mode */
   enterSelectionMode: () => void
   /** Exit selection mode and clear selection */
@@ -23,6 +26,58 @@ export interface AssetSelectionState {
   deselectAssets: (assetIds: string[]) => void
   /** Clear all selections (but stay in selection mode) */
   clearSelection: () => void
+  /** Share/download selected assets using navigator.share() */
+  shareSelectedAssets: () => Promise<void>
+}
+
+/**
+ * Get file extension from content type
+ */
+function getExtensionFromContentType(contentType: string): string {
+  if (contentType.includes('png')) {
+    return 'png'
+  }
+  if (contentType.includes('gif')) {
+    return 'gif'
+  }
+  if (contentType.includes('webp')) {
+    return 'webp'
+  }
+  if (contentType.includes('video')) {
+    return 'mp4'
+  }
+  return 'jpg'
+}
+
+/**
+ * Fetch an asset as a File object for sharing
+ */
+async function fetchAssetAsFile(assetId: string): Promise<File> {
+  const url = apiService.getAssetUrl(assetId)
+  const response = await fetch(url)
+  if (!response.ok) {
+    throw new Error(`Failed to fetch asset ${assetId}`)
+  }
+  const blob = await response.blob()
+  const contentType = response.headers.get('content-type') || 'image/jpeg'
+  const extension = getExtensionFromContentType(contentType)
+  return new File([blob], `photo-${assetId}.${extension}`, { type: contentType })
+}
+
+/**
+ * Download files by creating temporary download links
+ */
+function downloadFiles(files: File[]) {
+  for (const file of files) {
+    const url = URL.createObjectURL(file)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = file.name
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
 }
 
 /**
@@ -32,6 +87,7 @@ export interface AssetSelectionState {
 export function useAssetSelection(): AssetSelectionState {
   const [isSelectionMode, setIsSelectionMode] = useState(false)
   const [selectedAssetIds, setSelectedAssetIds] = useState<Set<string>>(new Set())
+  const [isSharing, setIsSharing] = useState(false)
 
   const enterSelectionMode = useCallback(() => {
     setIsSelectionMode(true)
@@ -93,10 +149,42 @@ export function useAssetSelection(): AssetSelectionState {
     setSelectedAssetIds(new Set())
   }, [])
 
+  const shareSelectedAssets = useCallback(async () => {
+    if (selectedAssetIds.size === 0) {
+      return
+    }
+
+    setIsSharing(true)
+    try {
+      // Fetch all selected assets as files
+      const assetIds = Array.from(selectedAssetIds)
+      const files = await Promise.all(assetIds.map(fetchAssetAsFile))
+
+      // Check if navigator.share supports files
+      if (navigator.canShare?.({ files })) {
+        await navigator.share({
+          files,
+          title: `${files.length} photo${files.length > 1 ? 's' : ''}`,
+        })
+      } else {
+        // Fallback: download files directly
+        downloadFiles(files)
+      }
+    } catch (error) {
+      // User cancelled the share or an error occurred
+      if ((error as Error).name !== 'AbortError') {
+        console.error('Share failed:', error)
+      }
+    } finally {
+      setIsSharing(false)
+    }
+  }, [selectedAssetIds])
+
   return {
     isSelectionMode,
     selectedAssetIds,
     selectionCount: selectedAssetIds.size,
+    isSharing,
     enterSelectionMode,
     exitSelectionMode,
     toggleSelectionMode,
@@ -105,6 +193,6 @@ export function useAssetSelection(): AssetSelectionState {
     selectAssets,
     deselectAssets,
     clearSelection,
+    shareSelectedAssets,
   }
 }
-

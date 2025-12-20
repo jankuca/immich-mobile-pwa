@@ -37,6 +37,7 @@ export function PersonDetail({ id, personId }: PersonDetailProps) {
     toggleSelectionMode,
     exitSelectionMode,
     toggleAssetSelection,
+    shareSelectedAssets,
   } = useAssetSelection()
 
   // Controller ref for VirtualizedTimeline imperative actions
@@ -177,12 +178,6 @@ export function PersonDetail({ id, personId }: PersonDetailProps) {
     route('/people')
   }
 
-  // Stub download handler
-  const handleDownload = () => {
-    console.log('Download requested for:', Array.from(selectedAssetIds))
-    // TODO: Implement download functionality
-  }
-
   // Icons
   const closeIcon = (
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -261,7 +256,7 @@ export function PersonDetail({ id, personId }: PersonDetailProps) {
             selectionCount > 0
               ? {
                   icon: downloadIcon,
-                  onClick: handleDownload,
+                  onClick: shareSelectedAssets,
                 }
               : undefined
           }

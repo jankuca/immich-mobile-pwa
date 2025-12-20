@@ -58,6 +58,7 @@ export function Timeline() {
     toggleSelectionMode,
     exitSelectionMode,
     toggleAssetSelection,
+    shareSelectedAssets,
   } = useAssetSelection()
 
   // Determine if we're in search mode
@@ -619,12 +620,6 @@ export function Timeline() {
     return null
   }
 
-  // Stub download handler
-  const handleDownload = () => {
-    console.log('Download requested for:', Array.from(selectedAssetIds))
-    // TODO: Implement download functionality
-  }
-
   // Close icon for selection mode
   const closeIcon = (
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -701,7 +696,7 @@ export function Timeline() {
       if (selectionCount > 0) {
         return {
           icon: downloadIcon,
-          onClick: handleDownload,
+          onClick: shareSelectedAssets,
         }
       }
       return undefined

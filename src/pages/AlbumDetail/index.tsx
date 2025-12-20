@@ -38,6 +38,7 @@ export function AlbumDetail({ id, albumId }: AlbumDetailProps) {
     toggleSelectionMode,
     exitSelectionMode,
     toggleAssetSelection,
+    shareSelectedAssets,
   } = useAssetSelection()
 
   // Track loaded bucket count synchronously to prevent race conditions
@@ -195,12 +196,6 @@ export function AlbumDetail({ id, albumId }: AlbumDetailProps) {
     route('/albums')
   }
 
-  // Stub download handler
-  const handleDownload = () => {
-    console.log('Download requested for:', Array.from(selectedAssetIds))
-    // TODO: Implement download functionality
-  }
-
   // Icons for selection mode header
   const closeIcon = (
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -279,7 +274,7 @@ export function AlbumDetail({ id, albumId }: AlbumDetailProps) {
             selectionCount > 0
               ? {
                   icon: downloadIcon,
-                  onClick: handleDownload,
+                  onClick: shareSelectedAssets,
                 }
               : undefined
           }
