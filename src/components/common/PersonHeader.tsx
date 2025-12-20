@@ -3,7 +3,6 @@ import { useEffect, useRef, useState } from 'preact/hooks'
 import type { Person } from '../../services/api'
 import { apiService } from '../../services/api'
 import './PersonHeader.css'
-import { SectionPill } from './SectionPill'
 
 interface MenuItem {
   label: string
@@ -125,149 +124,200 @@ export const PersonHeader = ({
   }, [])
 
   // Calculate animated values
-  const avatarScale = 1 - scrollProgress * 0.4 // 1 -> 0.6
-  const fadeOutOpacity = 1 - Math.min(1, scrollProgress / 0.75) // Fade faster
-  const fadeInOpacity = Math.max(0, (scrollProgress - 0.5) / 0.5) // Start at 50%, complete at 100%
+  const avatarOpacity = 1 - Math.min(1, scrollProgress / 0.6) // Fade out by 60% scroll
+  const avatarSize = 64 * (1 - scrollProgress) // 64px -> 0px
+  const countOpacity = 1 - Math.min(1, scrollProgress / 0.5) // Fade out count faster
+  const countHeight = 18 * (1 - scrollProgress) // ~18px -> 0px (shrink layout height smoothly)
   // Height transitions from full header height to collapsed state
-  // Collapsed height = scaled avatar (38px) + padding (~24px) + safe area = 62px + safe area
-  // Use CSS calc so safe area is included dynamically
+  // Collapsed height = standard header height (44px) + safe area
   const expandedPortion = headerHeight * (1 - scrollProgress)
   const bgHeight =
     headerHeight > 0
-      ? `calc(${expandedPortion}px + ${scrollProgress} * (62px + env(safe-area-inset-top, 0px)))`
+      ? `calc(${expandedPortion}px + ${scrollProgress} * (44px + env(safe-area-inset-top, 0px)))`
       : '100%'
+
+  // Title font size transitions from xl (20px) to lg (17px)
+  const titleFontSize = 20 - scrollProgress * 3 // 20px -> 17px
+  // Title font weight transitions from bold (700) to semibold (600)
+  const titleFontWeight = 700 - scrollProgress * 100 // 700 -> 600
+
+  // Action button positioning:
+  // - Expanded: top = safe-area + spacing-sm (aligned to top of header)
+  // - Collapsed: centered in 44px header = safe-area + 0px (44px button in 44px header)
+  // The spacing-sm is ~8px, so we interpolate from 8px to 0px
+  const actionTopOffset = 8 * (1 - scrollProgress)
+  const actionTop = `calc(env(safe-area-inset-top, 0px) + ${actionTopOffset}px)`
+
+  // Content gap shrinks to 0 when collapsed
+  const contentGap = 8 * (1 - scrollProgress) // 8px -> 0px
+
+  // Content positioning:
+  // - Expanded: bottom = spacing-md (16px) from header bottom
+  // - Collapsed: title should be centered in 44px header (below safe area)
+  // Title is ~17px tall when collapsed, so center offset = (44 - 17) / 2 ≈ 13.5px
+  // We interpolate from 16px to 13px
+  const contentBottom = 16 - scrollProgress * 3 // 16px -> 13px
 
   return (
     <header ref={headerRef} class="ios-header person-header">
-      {/* Dark background section that shrinks on scroll */}
+      {/* Dark background section that shrinks on scroll - contains all positioned content */}
       <div class="person-header-collapser" style={{ height: bgHeight }}>
         <div class="person-header-bg" style={{ height: '100%' }} />
 
-        {/* Name pill - fades in on scroll, positioned below dark section */}
-        <div class="person-header-pill" style={{ opacity: fadeInOpacity }}>
-          <SectionPill sticky={true}>{person?.name ?? ''}</SectionPill>
-        </div>
-      </div>
-
-      {/* Left action - stays in place */}
-      {leftAction && (
-        <button class="person-header-left-action" onClick={leftAction.onClick} type="button">
-          {leftAction.icon}
-        </button>
-      )}
-
-      {/* Main content area */}
-      <div class="person-header-content">
-        {/* Person thumbnail - shrinks on scroll */}
-        <div
-          class="person-header-avatar"
-          style={{ transform: `scale(${avatarScale}) translateY(-${scrollProgress * 30}px)` }}
-        >
-          {person?.thumbnailPath && (
-            <img
-              src={apiService.getPersonThumbnailUrl(person.id)}
-              alt={person.name}
-              class="person-header-avatar-img"
-            />
-          )}
-        </div>
-
-        {/* Name and count - fade out on scroll */}
-        <h1 class="person-header-title" style={{ opacity: fadeOutOpacity }}>
-          {person ? person.name : 'Loading…'}
-        </h1>
-
-        {assetCount !== undefined && assetCount > 0 && (
-          <p class="person-header-count" style={{ opacity: fadeOutOpacity }}>
-            {assetCount} {assetCount === 1 ? 'photo' : 'photos'}
-          </p>
-        )}
-      </div>
-
-      {/* Right action - either a simple button or a menu trigger */}
-      {menuItems && menuItems.length > 0 ? (
-        <div class="person-header-right-action" style={{ zIndex: 100 }}>
+        {/* Left action - position animates with scroll */}
+        {leftAction && (
           <button
+            class="person-header-left-action"
+            onClick={leftAction.onClick}
             type="button"
-            onClick={() => setShowDropdown(!showDropdown)}
+            style={{ top: actionTop }}
+          >
+            {leftAction.icon}
+          </button>
+        )}
+
+        {/* Main content area - positioned from bottom of collapser */}
+        <div
+          class="person-header-content"
+          style={{ bottom: `${contentBottom}px`, gap: `${contentGap}px` }}
+        >
+          {/* Person thumbnail - shrinks to 0 on scroll */}
+          <div
+            class="person-header-avatar"
             style={{
-              width: '44px',
-              height: '44px',
-              flexShrink: 0,
-              background: 'none',
-              border: 'none',
-              color: 'var(--color-primary)',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
+              width: `${avatarSize}px`,
+              height: `${avatarSize}px`,
+              opacity: avatarOpacity,
             }}
           >
-            {/* More icon (three horizontal dots in a circle) */}
-            <svg
-              width="28"
-              height="28"
-              viewBox="0 0 28 28"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <circle cx="14" cy="14" r="13" stroke="currentColor" stroke-width="1.5" fill="none" />
-              <circle cx="8" cy="14" r="1.5" fill="currentColor" />
-              <circle cx="14" cy="14" r="1.5" fill="currentColor" />
-              <circle cx="20" cy="14" r="1.5" fill="currentColor" />
-            </svg>
-          </button>
+            {person?.thumbnailPath && (
+              <img
+                src={apiService.getPersonThumbnailUrl(person.id)}
+                alt={person.name}
+                class="person-header-avatar-img"
+              />
+            )}
+          </div>
 
-          {/* Dropdown menu */}
-          {showDropdown && (
-            <div
+          {/* Name - stays visible, font size animates */}
+          <h1
+            class="person-header-title"
+            style={{ fontSize: `${titleFontSize}px`, fontWeight: titleFontWeight }}
+          >
+            {person ? person.name : 'Loading…'}
+          </h1>
+
+          {assetCount !== undefined && assetCount > 0 && (
+            <p
+              class="person-header-count"
               style={{
-                position: 'absolute',
-                top: '100%',
-                right: 0,
-                marginTop: 'var(--spacing-xs)',
-                backgroundColor: 'var(--color-background)',
-                borderRadius: 'var(--radius-md)',
-                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-                border: '1px solid rgba(var(--color-text-rgb), 0.1)',
-                minWidth: '150px',
-                zIndex: 1000,
+                opacity: countOpacity,
+                height: `${countHeight}px`,
+                overflow: 'hidden',
               }}
             >
-              {menuItems.map((item, index) => (
-                <button
-                  key={index}
-                  type="button"
-                  onClick={() => {
-                    setShowDropdown(false)
-                    item.onClick()
-                  }}
-                  style={{
-                    display: 'block',
-                    width: '100%',
-                    padding: 'var(--spacing-md) var(--spacing-lg)',
-                    background: 'none',
-                    border: 'none',
-                    textAlign: 'left',
-                    cursor: 'pointer',
-                    color: 'var(--color-text)',
-                    fontSize: 'var(--font-size-md)',
-                    fontWeight: 'var(--font-weight-regular)',
-                  }}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
+              {assetCount} {assetCount === 1 ? 'photo' : 'photos'}
+            </p>
           )}
         </div>
-      ) : (
-        rightAction && (
-          <button class="person-header-right-action" onClick={rightAction.onClick} type="button">
-            {rightAction.icon}
-          </button>
-        )
-      )}
+
+        {/* Right action - either a simple button or a menu trigger */}
+        {menuItems && menuItems.length > 0 ? (
+          <div class="person-header-right-action" style={{ zIndex: 100, top: actionTop }}>
+            <button
+              type="button"
+              onClick={() => setShowDropdown(!showDropdown)}
+              style={{
+                width: '44px',
+                height: '44px',
+                flexShrink: 0,
+                background: 'none',
+                border: 'none',
+                color: 'var(--color-primary)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              {/* More icon (three horizontal dots in a circle) */}
+              <svg
+                width="28"
+                height="28"
+                viewBox="0 0 28 28"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <circle
+                  cx="14"
+                  cy="14"
+                  r="13"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                  fill="none"
+                />
+                <circle cx="8" cy="14" r="1.5" fill="currentColor" />
+                <circle cx="14" cy="14" r="1.5" fill="currentColor" />
+                <circle cx="20" cy="14" r="1.5" fill="currentColor" />
+              </svg>
+            </button>
+
+            {/* Dropdown menu */}
+            {showDropdown && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '100%',
+                  right: 0,
+                  marginTop: 'var(--spacing-xs)',
+                  backgroundColor: 'var(--color-background)',
+                  borderRadius: 'var(--radius-md)',
+                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+                  border: '1px solid rgba(var(--color-text-rgb), 0.1)',
+                  minWidth: '150px',
+                  zIndex: 1000,
+                }}
+              >
+                {menuItems.map((item, index) => (
+                  <button
+                    key={index}
+                    type="button"
+                    onClick={() => {
+                      setShowDropdown(false)
+                      item.onClick()
+                    }}
+                    style={{
+                      display: 'block',
+                      width: '100%',
+                      padding: 'var(--spacing-md) var(--spacing-lg)',
+                      background: 'none',
+                      border: 'none',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      color: 'var(--color-text)',
+                      fontSize: 'var(--font-size-md)',
+                      fontWeight: 'var(--font-weight-regular)',
+                    }}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          rightAction && (
+            <button
+              class="person-header-right-action"
+              onClick={rightAction.onClick}
+              type="button"
+              style={{ top: actionTop }}
+            >
+              {rightAction.icon}
+            </button>
+          )
+        )}
+      </div>
     </header>
   )
 }

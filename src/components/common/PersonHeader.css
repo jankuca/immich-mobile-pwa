@@ -5,6 +5,10 @@
   display: flex;
   flex-direction: column;
   align-items: center;
+  /* Override padding from global styles - we handle positioning via JS */
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  overflow: hidden;
 }
 
 /* Override ios-header background - we use .person-header-bg instead */
@@ -14,11 +18,11 @@
   -webkit-backdrop-filter: none;
 }
 
-/* Left action button */
+/* Left action button - positioned relative to collapser bottom */
 .person-header-left-action {
   position: absolute;
   left: var(--spacing-sm);
-  top: calc(env(safe-area-inset-top, 0px) + var(--spacing-sm));
+  /* Position is controlled via inline style based on scroll */
   width: 44px;
   height: 44px;
   background: none;
@@ -31,11 +35,11 @@
   z-index: 2;
 }
 
-/* Right action button */
+/* Right action button - positioned relative to collapser bottom */
 .person-header-right-action {
   position: absolute;
   right: var(--spacing-sm);
-  top: calc(env(safe-area-inset-top, 0px) + var(--spacing-sm));
+  /* Position is controlled via inline style based on scroll */
   width: 44px;
   height: 44px;
   background: none;
@@ -48,14 +52,16 @@
   z-index: 2;
 }
 
-/* Main content container */
+/* Main content container - positioned absolutely, animated via JS */
 .person-header-content {
-  position: relative;
-  width: 100%;
+  position: absolute;
+  left: 0;
+  right: 0;
+  /* Bottom position is controlled via inline style based on scroll */
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: flex-end;
   gap: var(--spacing-sm);
   z-index: 1;
 }
@@ -115,12 +121,4 @@
   background-color: rgba(var(--color-background-rgb), 0.7);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-}
-
-/* Name pill - positioned at bottom */
-.person-header-pill {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
 }
