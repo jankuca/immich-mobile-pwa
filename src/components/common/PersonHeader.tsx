@@ -131,10 +131,27 @@ export const PersonHeader = ({
   // Height transitions from full header height to collapsed state
   // Collapsed height = standard header height (44px) + safe area
   const expandedPortion = headerHeight * (1 - scrollProgress)
+  const collapsedHeight = 44 // Standard header height without safe area
   const bgHeight =
     headerHeight > 0
-      ? `calc(${expandedPortion}px + ${scrollProgress} * (44px + env(safe-area-inset-top, 0px)))`
+      ? `calc(${expandedPortion}px + ${scrollProgress} * (${collapsedHeight}px + env(safe-area-inset-top, 0px)))`
       : '100%'
+
+  // Update timeline header offset CSS variable as header collapses
+  useEffect(() => {
+    const header = headerRef.current
+    if (!header || headerHeight === 0) {
+      return
+    }
+
+    const page = header.closest('.ios-page') as HTMLElement | null
+    const timeline = page?.querySelector('.virtualized-timeline') as HTMLElement | null
+    if (timeline) {
+      // Calculate current header height: interpolate from full height to collapsed (44px + safe-area)
+      const currentHeight = `calc(${expandedPortion}px + ${scrollProgress} * (${collapsedHeight}px + env(safe-area-inset-top, 0px)))`
+      timeline.style.setProperty('--timeline-header-offset', currentHeight)
+    }
+  }, [scrollProgress, headerHeight, expandedPortion])
 
   // Title font size transitions from xl (20px) to lg (17px)
   const titleFontSize = 20 - scrollProgress * 3 // 20px -> 17px

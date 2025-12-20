@@ -416,7 +416,7 @@ export function PersonDetail({ id, personId }: PersonDetailProps) {
           <VirtualizedTimeline
             assets={assets}
             buckets={allBuckets}
-            showDateHeaders={false}
+            showDateHeaders={true}
             onAssetClick={handleAssetClick}
             onBucketLoadRequest={handleBucketLoadRequest}
             anchorAssetId={selectedAsset?.id}
