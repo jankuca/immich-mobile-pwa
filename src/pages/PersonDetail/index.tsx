@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'preact/hooks'
 import { Header } from '../../components/common/Header'
 import { PersonHeader } from '../../components/common/PersonHeader'
 import { PhotoViewer } from '../../components/photoView/PhotoViewer'
+import { AssetShareModal } from '../../components/share/AssetShareModal'
 import {
   type TimelineBucket,
   type TimelineController,
@@ -27,6 +28,7 @@ export function PersonDetail({ id, personId }: PersonDetailProps) {
     useState<ThumbnailPosition | null>(null)
   const [allBuckets, setAllBuckets] = useState<TimelineBucket[]>([])
   const [totalAssetCount, setTotalAssetCount] = useState<number>(0)
+  const [showAssetShareModal, setShowAssetShareModal] = useState<boolean>(false)
   const { url, route } = useHashLocation()
 
   // Selection state
@@ -243,6 +245,25 @@ export function PersonDetail({ id, personId }: PersonDetailProps) {
     </svg>
   )
 
+  const linkIcon = (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path
+        d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+
   return (
     <div class="ios-page">
       {isSelectionMode ? (
@@ -252,12 +273,18 @@ export function PersonDetail({ id, personId }: PersonDetailProps) {
             icon: closeIcon,
             onClick: exitSelectionMode,
           }}
-          rightAction={
+          rightActions={
             selectionCount > 0
-              ? {
-                  icon: downloadIcon,
-                  onClick: shareSelectedAssets,
-                }
+              ? [
+                  {
+                    icon: linkIcon,
+                    onClick: () => setShowAssetShareModal(true),
+                  },
+                  {
+                    icon: downloadIcon,
+                    onClick: shareSelectedAssets,
+                  },
+                ]
               : undefined
           }
         />
@@ -420,6 +447,13 @@ export function PersonDetail({ id, personId }: PersonDetailProps) {
             timelineControllerRef.current?.getThumbnailPosition(assetId) ?? null
           }
           onAssetChange={(asset) => setSelectedAsset(asset as Asset)}
+        />
+      )}
+
+      {showAssetShareModal && selectionCount > 0 && (
+        <AssetShareModal
+          assetIds={Array.from(selectedAssetIds)}
+          onClose={() => setShowAssetShareModal(false)}
         />
       )}
     </div>

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'preact/hooks'
 import { AlbumHeader } from '../../components/common/AlbumHeader'
 import { Header } from '../../components/common/Header'
 import { PhotoViewer } from '../../components/photoView/PhotoViewer'
+import { AssetShareModal } from '../../components/share/AssetShareModal'
 import { ShareModal } from '../../components/share/ShareModal'
 import {
   type TimelineBucket,
@@ -28,6 +29,7 @@ export function AlbumDetail({ id, albumId }: AlbumDetailProps) {
     useState<ThumbnailPosition | null>(null)
   const [allBuckets, setAllBuckets] = useState<TimelineBucket[]>([])
   const [showShareModal, setShowShareModal] = useState<boolean>(false)
+  const [showAssetShareModal, setShowAssetShareModal] = useState<boolean>(false)
   const { url, route } = useHashLocation()
 
   // Selection state
@@ -261,6 +263,25 @@ export function AlbumDetail({ id, albumId }: AlbumDetailProps) {
     </svg>
   )
 
+  const linkIcon = (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path
+        d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+
   return (
     <div class="ios-page">
       {isSelectionMode ? (
@@ -270,12 +291,18 @@ export function AlbumDetail({ id, albumId }: AlbumDetailProps) {
             icon: closeIcon,
             onClick: exitSelectionMode,
           }}
-          rightAction={
+          rightActions={
             selectionCount > 0
-              ? {
-                  icon: downloadIcon,
-                  onClick: shareSelectedAssets,
-                }
+              ? [
+                  {
+                    icon: linkIcon,
+                    onClick: () => setShowAssetShareModal(true),
+                  },
+                  {
+                    icon: downloadIcon,
+                    onClick: shareSelectedAssets,
+                  },
+                ]
               : undefined
           }
         />
@@ -455,6 +482,13 @@ export function AlbumDetail({ id, albumId }: AlbumDetailProps) {
 
       {showShareModal && album && (
         <ShareModal album={album} onClose={() => setShowShareModal(false)} />
+      )}
+
+      {showAssetShareModal && selectionCount > 0 && (
+        <AssetShareModal
+          assetIds={Array.from(selectedAssetIds)}
+          onClose={() => setShowAssetShareModal(false)}
+        />
       )}
     </div>
   )

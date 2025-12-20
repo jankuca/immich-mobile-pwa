@@ -1,25 +1,37 @@
 import type { ComponentChildren } from 'preact'
 
+interface HeaderAction {
+  icon: ComponentChildren
+  onClick: () => void
+}
+
 interface HeaderProps {
   title: string
   showBackButton?: boolean
-  leftAction?:
-    | {
-        icon: ComponentChildren
-        onClick: () => void
-      }
-    | undefined
-  rightAction?:
-    | {
-        icon: ComponentChildren
-        onClick: () => void
-      }
-    | undefined
+  leftAction?: HeaderAction | undefined
+  rightAction?: HeaderAction | undefined
+  /** Multiple right actions - displayed in order from right to left */
+  rightActions?: HeaderAction[] | undefined
 }
 
-export const Header = ({ title, showBackButton = false, leftAction, rightAction }: HeaderProps) => {
+export const Header = ({
+  title,
+  showBackButton = false,
+  leftAction,
+  rightAction,
+  rightActions,
+}: HeaderProps) => {
   const handleBack = () => {
     window.history.back()
+  }
+
+  // Combine rightAction and rightActions for rendering
+  const allRightActions: HeaderAction[] = []
+  if (rightAction) {
+    allRightActions.push(rightAction)
+  }
+  if (rightActions) {
+    allRightActions.push(...rightActions)
   }
 
   return (
@@ -93,22 +105,33 @@ export const Header = ({ title, showBackButton = false, leftAction, rightAction 
         {title}
       </h1>
 
-      {rightAction && (
-        <button
-          class="ios-header-action ios-header-right-action"
-          onClick={rightAction.onClick}
+      {allRightActions.length > 0 && (
+        <div
           style={{
-            background: 'none',
-            border: 'none',
-            color: 'var(--color-primary)',
-            cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
+            gap: 'var(--spacing-xs)',
           }}
         >
-          {rightAction.icon}
-        </button>
+          {allRightActions.map((action, index) => (
+            <button
+              key={index}
+              class="ios-header-action ios-header-right-action"
+              onClick={action.onClick}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--color-primary)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              {action.icon}
+            </button>
+          ))}
+        </div>
       )}
     </header>
   )

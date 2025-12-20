@@ -3,6 +3,7 @@ import { Header } from '../../components/common/Header'
 import { PhotoViewer } from '../../components/photoView/PhotoViewer'
 import { SearchInput } from '../../components/search/SearchInput'
 import { SearchInputWrapper } from '../../components/search/SearchInputWrapper'
+import { AssetShareModal } from '../../components/share/AssetShareModal'
 import { type TimeBucket, TimelineScrubber } from '../../components/timeline/TimelineScrubber'
 import {
   type TimelineController,
@@ -40,6 +41,8 @@ export function Timeline() {
   // Controller ref for VirtualizedTimeline imperative actions
   const timelineControllerRef = useRef<TimelineController | null>(null)
   const { logout, isEnvAuth } = useAuth()
+  // State for share modal
+  const [showShareModal, setShowShareModal] = useState(false)
 
   // Search state
   const {
@@ -689,16 +692,47 @@ export function Timeline() {
     return undefined
   }
 
-  // Determine right action for header
-  const getRightAction = () => {
-    if (isSelectionMode) {
-      // Show download button when items are selected
-      if (selectionCount > 0) {
-        return {
+  // Link icon for share link button
+  const linkIcon = (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path
+        d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+
+  // Determine right actions for header (returns array for selection mode)
+  const getRightActions = () => {
+    if (isSelectionMode && selectionCount > 0) {
+      return [
+        {
+          icon: linkIcon,
+          onClick: () => setShowShareModal(true),
+        },
+        {
           icon: downloadIcon,
           onClick: shareSelectedAssets,
-        }
-      }
+        },
+      ]
+    }
+    return undefined
+  }
+
+  // Determine right action for header (single action for non-selection modes)
+  const getRightAction = () => {
+    if (isSelectionMode) {
+      // Selection mode uses rightActions instead
       return undefined
     }
     if (isSearchMode) {
@@ -754,6 +788,7 @@ export function Timeline() {
         title={getHeaderTitle()}
         leftAction={getLeftAction()}
         rightAction={getRightAction()}
+        rightActions={getRightActions()}
       />
 
       {/* Search Input - hidden in selection mode */}
@@ -917,6 +952,13 @@ export function Timeline() {
             timelineControllerRef.current?.getThumbnailPosition(assetId) ?? null
           }
           onAssetChange={setSelectedAsset}
+        />
+      )}
+
+      {showShareModal && selectionCount > 0 && (
+        <AssetShareModal
+          assetIds={Array.from(selectedAssetIds)}
+          onClose={() => setShowShareModal(false)}
         />
       )}
     </div>
