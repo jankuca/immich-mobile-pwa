@@ -65,22 +65,6 @@ async function fetchAssetAsFile(assetId: string): Promise<File> {
 }
 
 /**
- * Download files by creating temporary download links
- */
-function downloadFiles(files: File[]) {
-  for (const file of files) {
-    const url = URL.createObjectURL(file)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = file.name
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
-  }
-}
-
-/**
  * Hook for managing asset selection state in timeline views.
  * Provides selection mode toggle and asset selection tracking.
  */
@@ -159,7 +143,6 @@ export function useAssetSelection(): AssetSelectionState {
       // Fetch all selected assets as files
       const assetIds = Array.from(selectedAssetIds)
       const files = await Promise.all(assetIds.map(fetchAssetAsFile))
-
       // Check if navigator.share supports files
       if (navigator.canShare?.({ files })) {
         await navigator.share({
@@ -167,8 +150,11 @@ export function useAssetSelection(): AssetSelectionState {
           title: `${files.length} photo${files.length > 1 ? 's' : ''}`,
         })
       } else {
-        // Fallback: download files directly
-        downloadFiles(files)
+        // navigator.canShare is not available - likely due to non-HTTPS connection
+        // Show an error message to the user
+        alert(
+          'Sharing is not available.\n\nThis feature requires a secure (HTTPS) connection. Please access this app over HTTPS to download photos.',
+        )
       }
     } catch (error) {
       // User cancelled the share or an error occurred
