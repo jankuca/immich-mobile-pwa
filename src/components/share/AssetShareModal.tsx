@@ -1,45 +1,18 @@
-import type { ComponentChildren } from 'preact'
 import { useCallback, useState } from 'preact/hooks'
 import { type SharedLink, type SharedLinkCreateParams, apiService } from '../../services/api'
+import {
+  EXPIRATION_OPTIONS,
+  type ExpirationOption,
+  FormField,
+  ShareModalWrapper,
+  ToggleRow,
+  getExpirationDate,
+  inputStyle,
+} from './ShareModalComponents'
 
 interface AssetShareModalProps {
   assetIds: string[]
   onClose: () => void
-}
-
-type ExpirationOption = 'never' | '30min' | '1hour' | '6hours' | '1day' | '7days' | '30days'
-
-const EXPIRATION_OPTIONS: { value: ExpirationOption; label: string }[] = [
-  { value: 'never', label: 'Never' },
-  { value: '30min', label: '30 minutes' },
-  { value: '1hour', label: '1 hour' },
-  { value: '6hours', label: '6 hours' },
-  { value: '1day', label: '1 day' },
-  { value: '7days', label: '7 days' },
-  { value: '30days', label: '30 days' },
-]
-
-const getExpirationDate = (option: ExpirationOption): string | null => {
-  if (option === 'never') {
-    return null
-  }
-  const now = new Date()
-  switch (option) {
-    case '30min':
-      return new Date(now.getTime() + 30 * 60 * 1000).toISOString()
-    case '1hour':
-      return new Date(now.getTime() + 60 * 60 * 1000).toISOString()
-    case '6hours':
-      return new Date(now.getTime() + 6 * 60 * 60 * 1000).toISOString()
-    case '1day':
-      return new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString()
-    case '7days':
-      return new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString()
-    case '30days':
-      return new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString()
-    default:
-      return null
-  }
 }
 
 export const AssetShareModal = ({ assetIds, onClose }: AssetShareModalProps) => {
@@ -87,154 +60,32 @@ export const AssetShareModal = ({ assetIds, onClose }: AssetShareModalProps) => 
     }
   }, [createdLink])
 
-  const handleBackdropClick = (e: MouseEvent) => {
-    if (e.target === e.currentTarget) {
-      onClose()
-    }
-  }
-
-  const inputStyle = {
-    width: '100%',
-    padding: 'var(--spacing-sm)',
-    border: '1px solid var(--color-gray-light)',
-    borderRadius: 'var(--radius-md)',
-    fontSize: 'var(--font-size-md)',
-    backgroundColor: 'var(--color-background)',
-    color: 'var(--color-text)',
-  }
-
   const photoCount = assetIds.length
   const photoLabel = photoCount === 1 ? '1 photo' : `${photoCount} photos`
+  const title = createdLink ? 'Link created' : `Share ${photoLabel}`
 
   return (
-    <div
-      class="share-modal-backdrop"
-      role="button"
-      tabIndex={0}
-      onClick={handleBackdropClick}
-      onKeyDown={(e) => {
-        if (e.key === 'Escape') {
-          onClose()
-        }
-      }}
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 'var(--z-index-modal)',
-        padding: 'var(--spacing-md)',
-      }}
-    >
-      <div
-        class="share-modal"
-        style={{
-          backgroundColor: 'var(--color-background)',
-          borderRadius: 'var(--radius-lg)',
-          width: '100%',
-          maxWidth: '400px',
-          maxHeight: '90vh',
-          overflow: 'auto',
-          boxShadow: 'var(--shadow-lg)',
-        }}
-      >
-        {/* Header */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: 'var(--spacing-md)',
-            borderBottom: '1px solid var(--color-gray-light)',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-sm)' }}>
-            <LinkIcon />
-            <h2
-              style={{
-                margin: 0,
-                fontSize: 'var(--font-size-lg)',
-                fontWeight: 'var(--font-weight-semibold)',
-              }}
-            >
-              {createdLink ? 'Link created' : `Share ${photoLabel}`}
-            </h2>
-          </div>
-          <button
-            onClick={onClose}
-            style={{
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              padding: 'var(--spacing-xs)',
-              color: 'var(--color-gray)',
-            }}
-          >
-            <CloseIcon />
-          </button>
-        </div>
-
-        {/* Content */}
-        <div style={{ padding: 'var(--spacing-md)' }}>
-          {createdLink ? (
-            <SuccessView onCopy={handleCopyLink} copySuccess={copySuccess} onClose={onClose} />
-          ) : (
-            <CreateForm
-              description={description}
-              setDescription={setDescription}
-              expiration={expiration}
-              setExpiration={setExpiration}
-              showMetadata={showMetadata}
-              setShowMetadata={setShowMetadata}
-              allowDownload={allowDownload}
-              setAllowDownload={setAllowDownload}
-              onCancel={onClose}
-              onCreate={handleCreateLink}
-              isCreating={isCreating}
-              inputStyle={inputStyle}
-            />
-          )}
-        </div>
-      </div>
-    </div>
+    <ShareModalWrapper title={title} onClose={onClose}>
+      {createdLink ? (
+        <SuccessView onCopy={handleCopyLink} copySuccess={copySuccess} onClose={onClose} />
+      ) : (
+        <CreateForm
+          description={description}
+          setDescription={setDescription}
+          expiration={expiration}
+          setExpiration={setExpiration}
+          showMetadata={showMetadata}
+          setShowMetadata={setShowMetadata}
+          allowDownload={allowDownload}
+          setAllowDownload={setAllowDownload}
+          onCancel={onClose}
+          onCreate={handleCreateLink}
+          isCreating={isCreating}
+        />
+      )}
+    </ShareModalWrapper>
   )
 }
-
-const LinkIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path
-      d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-    <path
-      d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-)
-
-const CloseIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path
-      d="M18 6L6 18M6 6l12 12"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-)
 
 interface SuccessViewProps {
   onCopy: () => void
@@ -322,7 +173,6 @@ interface CreateFormProps {
   onCancel: () => void
   onCreate: () => void
   isCreating: boolean
-  inputStyle: Record<string, string>
 }
 
 const CreateForm = ({
@@ -337,7 +187,6 @@ const CreateForm = ({
   onCancel,
   onCreate,
   isCreating,
-  inputStyle,
 }: CreateFormProps) => (
   <div>
     <p
@@ -374,42 +223,12 @@ const CreateForm = ({
       </select>
     </FormField>
 
-    <div style={{ marginBottom: 'var(--spacing-md)' }}>
-      <label
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 'var(--spacing-sm)',
-          cursor: 'pointer',
-          marginBottom: 'var(--spacing-sm)',
-        }}
-      >
-        <input
-          type="checkbox"
-          checked={showMetadata}
-          onChange={(e) => setShowMetadata((e.target as HTMLInputElement).checked)}
-        />
-        <span style={{ fontSize: 'var(--font-size-sm)' }}>Show metadata</span>
-      </label>
-      <label
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 'var(--spacing-sm)',
-          cursor: 'pointer',
-        }}
-      >
-        <input
-          type="checkbox"
-          checked={allowDownload}
-          onChange={(e) => setAllowDownload((e.target as HTMLInputElement).checked)}
-        />
-        <span style={{ fontSize: 'var(--font-size-sm)' }}>Allow download</span>
-      </label>
-    </div>
+    <ToggleRow label="Show metadata" checked={showMetadata} onChange={setShowMetadata} />
+    <ToggleRow label="Allow download" checked={allowDownload} onChange={setAllowDownload} />
 
-    <div style={{ display: 'flex', gap: 'var(--spacing-sm)' }}>
+    <div style={{ display: 'flex', gap: 'var(--spacing-sm)', marginTop: 'var(--spacing-md)' }}>
       <button
+        type="button"
         onClick={onCancel}
         style={{
           flex: 1,
@@ -425,6 +244,7 @@ const CreateForm = ({
         Cancel
       </button>
       <button
+        type="button"
         onClick={onCreate}
         disabled={isCreating}
         style={{
@@ -442,27 +262,5 @@ const CreateForm = ({
         {isCreating ? 'Creating...' : 'Create Link'}
       </button>
     </div>
-  </div>
-)
-
-interface FormFieldProps {
-  label: string
-  children: ComponentChildren
-}
-
-const FormField = ({ label, children }: FormFieldProps) => (
-  <div style={{ marginBottom: 'var(--spacing-md)' }}>
-    <label
-      style={{
-        display: 'block',
-        fontSize: 'var(--font-size-sm)',
-        fontWeight: 'var(--font-weight-medium)',
-        marginBottom: 'var(--spacing-xs)',
-        color: 'var(--color-text)',
-      }}
-    >
-      {label}
-    </label>
-    {children}
   </div>
 )
