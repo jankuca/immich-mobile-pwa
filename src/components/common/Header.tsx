@@ -95,7 +95,7 @@ export const Header = ({ title, showBackButton = false, leftAction, rightAction 
 
       {rightAction && (
         <button
-          class="ios-header-action"
+          class="ios-header-action ios-header-right-action"
           onClick={rightAction.onClick}
           style={{
             background: 'none',

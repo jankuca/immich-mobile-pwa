@@ -17,8 +17,10 @@
 /* Left action button */
 .person-header-left-action {
   position: absolute;
-  left: var(--spacing-md);
-  top: calc(env(safe-area-inset-top, 0px) + var(--spacing-md) + 10px);
+  left: var(--spacing-sm);
+  top: calc(env(safe-area-inset-top, 0px) + var(--spacing-sm));
+  width: 44px;
+  height: 44px;
   background: none;
   border: none;
   color: var(--color-primary);
@@ -32,8 +34,10 @@
 /* Right action button */
 .person-header-right-action {
   position: absolute;
-  right: var(--spacing-md);
-  top: calc(env(safe-area-inset-top, 0px) + var(--spacing-md) + 10px);
+  right: var(--spacing-sm);
+  top: calc(env(safe-area-inset-top, 0px) + var(--spacing-sm));
+  width: 44px;
+  height: 44px;
   background: none;
   border: none;
   color: var(--color-primary);

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
+import { Header } from '../../components/common/Header'
 import { PersonHeader } from '../../components/common/PersonHeader'
 import { PhotoViewer } from '../../components/photoView/PhotoViewer'
 import {
@@ -7,6 +8,7 @@ import {
   VirtualizedTimeline,
 } from '../../components/timeline/VirtualizedTimeline'
 import { useHashLocation } from '../../contexts/HashLocationContext'
+import { useAssetSelection } from '../../hooks/useAssetSelection'
 import type { ThumbnailPosition } from '../../hooks/useZoomTransition'
 import { type Asset, type Person, apiService } from '../../services/api'
 
@@ -26,6 +28,16 @@ export function PersonDetail({ id, personId }: PersonDetailProps) {
   const [allBuckets, setAllBuckets] = useState<TimelineBucket[]>([])
   const [totalAssetCount, setTotalAssetCount] = useState<number>(0)
   const { url, route } = useHashLocation()
+
+  // Selection state
+  const {
+    isSelectionMode,
+    selectedAssetIds,
+    selectionCount,
+    toggleSelectionMode,
+    exitSelectionMode,
+    toggleAssetSelection,
+  } = useAssetSelection()
 
   // Controller ref for VirtualizedTimeline imperative actions
   const timelineControllerRef = useRef<TimelineController | null>(null)
@@ -165,6 +177,58 @@ export function PersonDetail({ id, personId }: PersonDetailProps) {
     route('/people')
   }
 
+  // Stub download handler
+  const handleDownload = () => {
+    console.log('Download requested for:', Array.from(selectedAssetIds))
+    // TODO: Implement download functionality
+  }
+
+  // Icons
+  const closeIcon = (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path
+        d="M18 6L6 18"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+      <path
+        d="M6 6L18 18"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+    </svg>
+  )
+
+  const downloadIcon = (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path
+        d="M21 15V19C21 19.5304 20.7893 20.0391 20.4142 20.4142C20.0391 20.7893 19.5304 21 19 21H5C4.46957 21 3.96086 20.7893 3.58579 20.4142C3.21071 20.0391 3 19.5304 3 19V15"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+      <path
+        d="M7 10L12 15L17 10"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+      <path
+        d="M12 15V3"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+    </svg>
+  )
+
   const backIcon = (
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
       <path
@@ -186,11 +250,30 @@ export function PersonDetail({ id, personId }: PersonDetailProps) {
 
   return (
     <div class="ios-page">
-      <PersonHeader
-        person={person}
-        assetCount={totalAssetCount}
-        leftAction={{ icon: backIcon, onClick: handleBack }}
-      />
+      {isSelectionMode ? (
+        <Header
+          title={selectionCount === 0 ? 'Select' : `${selectionCount} selected`}
+          leftAction={{
+            icon: closeIcon,
+            onClick: exitSelectionMode,
+          }}
+          rightAction={
+            selectionCount > 0
+              ? {
+                  icon: downloadIcon,
+                  onClick: handleDownload,
+                }
+              : undefined
+          }
+        />
+      ) : (
+        <PersonHeader
+          person={person}
+          assetCount={totalAssetCount}
+          leftAction={{ icon: backIcon, onClick: handleBack }}
+          menuItems={[{ label: 'Select', onClick: toggleSelectionMode }]}
+        />
+      )}
 
       <div class="ios-content">
         {isLoading ? (
@@ -290,6 +373,9 @@ export function PersonDetail({ id, personId }: PersonDetailProps) {
             onAssetClick={handleAssetClick}
             anchorAssetId={selectedAsset?.id}
             controllerRef={timelineControllerRef}
+            isSelectionMode={isSelectionMode}
+            selectedAssetIds={selectedAssetIds}
+            onSelectionToggle={toggleAssetSelection}
           />
         ) : (
           <div

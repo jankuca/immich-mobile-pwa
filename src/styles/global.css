@@ -99,7 +99,7 @@ html, body {
   font-weight: var(--font-weight-semibold);
 }
 
-.ios-header-action:last-child {
+.ios-header-right-action {
   margin-right: var(--spacing-sm);
 }
 

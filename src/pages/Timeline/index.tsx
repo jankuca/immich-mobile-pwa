@@ -9,6 +9,7 @@ import {
   VirtualizedTimeline,
 } from '../../components/timeline/VirtualizedTimeline'
 import { useAuth } from '../../contexts/AuthContext'
+import { useAssetSelection } from '../../hooks/useAssetSelection'
 import { useTimelineSearch } from '../../hooks/useTimelineSearch'
 import type { ThumbnailPosition } from '../../hooks/useZoomTransition'
 import { type AssetTimelineItem, apiService } from '../../services/api'
@@ -48,6 +49,16 @@ export function Timeline() {
     searchResults,
     error: searchError,
   } = useTimelineSearch()
+
+  // Selection state
+  const {
+    isSelectionMode,
+    selectedAssetIds,
+    selectionCount,
+    toggleSelectionMode,
+    exitSelectionMode,
+    toggleAssetSelection,
+  } = useAssetSelection()
 
   // Determine if we're in search mode
   const isSearchMode = searchQuery.trim().length > 0 || searchResults !== null
@@ -608,54 +619,158 @@ export function Timeline() {
     return null
   }
 
+  // Stub download handler
+  const handleDownload = () => {
+    console.log('Download requested for:', Array.from(selectedAssetIds))
+    // TODO: Implement download functionality
+  }
+
+  // Close icon for selection mode
+  const closeIcon = (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path
+        d="M18 6L6 18"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+      <path
+        d="M6 6L18 18"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+    </svg>
+  )
+
+  // Download icon for selection mode
+  const downloadIcon = (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path
+        d="M21 15V19C21 19.5304 20.7893 20.0391 20.4142 20.4142C20.0391 20.7893 19.5304 21 19 21H5C4.46957 21 3.96086 20.7893 3.58579 20.4142C3.21071 20.0391 3 19.5304 3 19V15"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+      <path
+        d="M7 10L12 15L17 10"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+      <path
+        d="M12 15V3"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+    </svg>
+  )
+
+  // Get header title based on mode
+  const getHeaderTitle = () => {
+    if (isSelectionMode) {
+      return selectionCount === 0 ? 'Select' : `${selectionCount} selected`
+    }
+    if (isSearchMode) {
+      return 'Search'
+    }
+    return 'Timeline'
+  }
+
+  // Determine left action for header
+  const getLeftAction = () => {
+    if (isSelectionMode) {
+      return {
+        icon: closeIcon,
+        onClick: exitSelectionMode,
+      }
+    }
+    return undefined
+  }
+
+  // Determine right action for header
+  const getRightAction = () => {
+    if (isSelectionMode) {
+      // Show download button when items are selected
+      if (selectionCount > 0) {
+        return {
+          icon: downloadIcon,
+          onClick: handleDownload,
+        }
+      }
+      return undefined
+    }
+    if (isSearchMode) {
+      // Show logout button if not env auth
+      if (!isEnvAuth) {
+        return {
+          icon: (
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+              <path
+                d="M16 17l5-5-5-5"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+              <path
+                d="M21 12H9"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+          ),
+          onClick: handleLogout,
+        }
+      }
+      return undefined
+    }
+    // Normal mode - show Select text button
+    return {
+      icon: <span style={{ fontSize: 'var(--font-size-md)' }}>Select</span>,
+      onClick: toggleSelectionMode,
+    }
+  }
+
   return (
     <div class="ios-page has-search-input">
       <Header
-        title={isSearchMode ? 'Search' : 'Timeline'}
-        rightAction={
-          isEnvAuth
-            ? undefined
-            : {
-                icon: (
-                  <svg
-                    width="24"
-                    height="24"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path
-                      d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    />
-                    <path
-                      d="M16 17l5-5-5-5"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    />
-                    <path
-                      d="M21 12H9"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    />
-                  </svg>
-                ),
-                onClick: handleLogout,
-              }
-        }
+        title={getHeaderTitle()}
+        leftAction={getLeftAction()}
+        rightAction={getRightAction()}
       />
 
-      {/* Search Input */}
-      <SearchInputWrapper>
-        <SearchInput value={searchQuery} onChange={setSearchQuery} placeholder="Search photos..." />
-      </SearchInputWrapper>
+      {/* Search Input - hidden in selection mode */}
+      {!isSelectionMode && (
+        <SearchInputWrapper>
+          <SearchInput
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder="Search photos..."
+          />
+        </SearchInputWrapper>
+      )}
 
       <div class="ios-content">
         <style>{`
@@ -675,6 +790,9 @@ export function Timeline() {
             showDateHeaders={false}
             onAssetClick={handleAssetClick}
             anchorAssetId={selectedAsset?.id}
+            isSelectionMode={isSelectionMode}
+            selectedAssetIds={selectedAssetIds}
+            onSelectionToggle={toggleAssetSelection}
           />
         )}
 
@@ -777,13 +895,19 @@ export function Timeline() {
               onVisibleDateChange={handleVisibleDateChange}
               onBucketLoadRequest={handleBucketLoadRequest}
               controllerRef={timelineControllerRef}
+              isSelectionMode={isSelectionMode}
+              selectedAssetIds={selectedAssetIds}
+              onSelectionToggle={toggleAssetSelection}
             />
-            <TimelineScrubber
-              buckets={allBuckets}
-              visibleDate={visibleDate}
-              onScrub={handleScrub}
-              onScrubEnd={handleScrubEnd}
-            />
+            {/* Scrubber - hidden in selection mode */}
+            {!isSelectionMode && (
+              <TimelineScrubber
+                buckets={allBuckets}
+                visibleDate={visibleDate}
+                onScrub={handleScrub}
+                onScrubEnd={handleScrubEnd}
+              />
+            )}
           </>
         )}
       </div>

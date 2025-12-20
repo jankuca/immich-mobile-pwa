@@ -5,6 +5,11 @@ import { apiService } from '../../services/api'
 import './PersonHeader.css'
 import { SectionPill } from './SectionPill'
 
+interface MenuItem {
+  label: string
+  onClick: () => void
+}
+
 interface PersonHeaderProps {
   person: Person | null
   assetCount?: number
@@ -16,6 +21,8 @@ interface PersonHeaderProps {
     icon: ComponentChildren
     onClick: () => void
   }
+  /** Menu items for the dropdown (triggered by right action) */
+  menuItems?: MenuItem[]
 }
 
 export const PersonHeader = ({
@@ -23,10 +30,12 @@ export const PersonHeader = ({
   assetCount,
   leftAction,
   rightAction,
+  menuItems,
 }: PersonHeaderProps) => {
   const headerRef = useRef<HTMLElement>(null)
   const [scrollProgress, setScrollProgress] = useState(0)
   const [headerHeight, setHeaderHeight] = useState(0)
+  const [showDropdown, setShowDropdown] = useState(false)
 
   useEffect(() => {
     const header = headerRef.current
@@ -175,11 +184,89 @@ export const PersonHeader = ({
         )}
       </div>
 
-      {/* Right action - stays in place */}
-      {rightAction && (
-        <button class="person-header-right-action" onClick={rightAction.onClick} type="button">
-          {rightAction.icon}
-        </button>
+      {/* Right action - either a simple button or a menu trigger */}
+      {menuItems && menuItems.length > 0 ? (
+        <div class="person-header-right-action" style={{ zIndex: 100 }}>
+          <button
+            type="button"
+            onClick={() => setShowDropdown(!showDropdown)}
+            style={{
+              width: '44px',
+              height: '44px',
+              flexShrink: 0,
+              background: 'none',
+              border: 'none',
+              color: 'var(--color-primary)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            {/* More icon (three horizontal dots in a circle) */}
+            <svg
+              width="28"
+              height="28"
+              viewBox="0 0 28 28"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <circle cx="14" cy="14" r="13" stroke="currentColor" stroke-width="1.5" fill="none" />
+              <circle cx="8" cy="14" r="1.5" fill="currentColor" />
+              <circle cx="14" cy="14" r="1.5" fill="currentColor" />
+              <circle cx="20" cy="14" r="1.5" fill="currentColor" />
+            </svg>
+          </button>
+
+          {/* Dropdown menu */}
+          {showDropdown && (
+            <div
+              style={{
+                position: 'absolute',
+                top: '100%',
+                right: 0,
+                marginTop: 'var(--spacing-xs)',
+                backgroundColor: 'var(--color-background)',
+                borderRadius: 'var(--radius-md)',
+                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+                border: '1px solid rgba(var(--color-text-rgb), 0.1)',
+                minWidth: '150px',
+                zIndex: 1000,
+              }}
+            >
+              {menuItems.map((item, index) => (
+                <button
+                  key={index}
+                  type="button"
+                  onClick={() => {
+                    setShowDropdown(false)
+                    item.onClick()
+                  }}
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    padding: 'var(--spacing-md) var(--spacing-lg)',
+                    background: 'none',
+                    border: 'none',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    color: 'var(--color-text)',
+                    fontSize: 'var(--font-size-md)',
+                    fontWeight: 'var(--font-weight-regular)',
+                  }}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : (
+        rightAction && (
+          <button class="person-header-right-action" onClick={rightAction.onClick} type="button">
+            {rightAction.icon}
+          </button>
+        )
       )}
     </header>
   )

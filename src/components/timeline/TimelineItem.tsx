@@ -131,6 +131,12 @@ interface TimelineRowProps<A extends AssetTimelineItem> {
   onAssetClick: (asset: A, info: { position: ThumbnailPosition | null }) => void
   onThumbnailRegister: (assetId: string, getPosition: ThumbnailPositionGetter) => void
   onThumbnailUnregister: (assetId: string) => void
+  /** Whether selection mode is active */
+  isSelectionMode?: boolean | undefined
+  /** Set of selected asset IDs */
+  selectedAssetIds?: Set<string> | undefined
+  /** Callback when asset selection is toggled */
+  onSelectionToggle?: ((assetId: string) => void) | undefined
 }
 
 /**
@@ -145,6 +151,9 @@ export function TimelineRow<A extends AssetTimelineItem>({
   onAssetClick,
   onThumbnailRegister,
   onThumbnailUnregister,
+  isSelectionMode = false,
+  selectedAssetIds,
+  onSelectionToggle,
 }: TimelineRowProps<A>) {
   return (
     <div
@@ -164,6 +173,9 @@ export function TimelineRow<A extends AssetTimelineItem>({
           onClick={(info) => onAssetClick(asset, info)}
           onRegister={onThumbnailRegister}
           onUnregister={onThumbnailUnregister}
+          isSelectionMode={isSelectionMode}
+          isSelected={selectedAssetIds?.has(asset.id) ?? false}
+          onSelectionToggle={onSelectionToggle}
         />
       ))}
 

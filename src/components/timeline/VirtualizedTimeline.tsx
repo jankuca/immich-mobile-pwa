@@ -48,6 +48,12 @@ interface VirtualizedTimelineProps<A extends AssetTimelineItem> {
   onVisibleDateChange?: (date: string) => void
   /** Controller ref for imperative actions (getThumbnailPosition, scrollToBucket, etc.) */
   controllerRef?: TimelineControllerRef
+  /** Whether selection mode is active */
+  isSelectionMode?: boolean
+  /** Set of selected asset IDs */
+  selectedAssetIds?: Set<string>
+  /** Callback when asset selection is toggled */
+  onSelectionToggle?: (assetId: string) => void
 }
 
 export function VirtualizedTimeline<A extends AssetTimelineItem>({
@@ -62,6 +68,9 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
   anchorAssetId,
   onVisibleDateChange,
   controllerRef,
+  isSelectionMode = false,
+  selectedAssetIds,
+  onSelectionToggle,
 }: VirtualizedTimelineProps<A>) {
   // Group assets into sections by date
   const { sections, sectionsByBucket } = useSections({ assets, showDateHeaders, order })
@@ -259,6 +268,9 @@ export function VirtualizedTimeline<A extends AssetTimelineItem>({
         onAssetClick={onAssetClick}
         onThumbnailRegister={handleThumbnailRegister}
         onThumbnailUnregister={handleThumbnailUnregister}
+        isSelectionMode={isSelectionMode}
+        selectedAssetIds={selectedAssetIds}
+        onSelectionToggle={onSelectionToggle}
       />
     )
   }

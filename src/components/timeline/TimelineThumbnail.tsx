@@ -11,6 +11,12 @@ interface TimelineThumbnailProps {
   onClick: (info: { position: ThumbnailPosition | null }) => void
   onRegister?: (assetId: string, getPosition: ThumbnailPositionGetter) => void
   onUnregister?: (assetId: string) => void
+  /** Whether selection mode is active */
+  isSelectionMode?: boolean
+  /** Whether this asset is selected */
+  isSelected?: boolean
+  /** Callback when asset selection is toggled (in selection mode) */
+  onSelectionToggle?: (assetId: string) => void
 }
 
 export const TimelineThumbnail = ({
@@ -19,6 +25,9 @@ export const TimelineThumbnail = ({
   onClick,
   onRegister,
   onUnregister,
+  isSelectionMode = false,
+  isSelected = false,
+  onSelectionToggle,
 }: TimelineThumbnailProps) => {
   // Get the thumbnail URL
   const thumbnailUrl = apiService.getAssetThumbnailUrl(asset.id, 'webp')
@@ -53,8 +62,13 @@ export const TimelineThumbnail = ({
   }, [asset.id, getPosition, onRegister, onUnregister])
 
   const handleClick = () => {
-    // Update position right before click to ensure accuracy
-    onClick({ position: getPosition() })
+    if (isSelectionMode && onSelectionToggle) {
+      // In selection mode, toggle selection
+      onSelectionToggle(asset.id)
+    } else {
+      // Normal mode - open photo viewer
+      onClick({ position: getPosition() })
+    }
   }
 
   return (
@@ -135,8 +149,8 @@ export const TimelineThumbnail = ({
         </div>
       )}
 
-      {/* Favorite indicator */}
-      {asset.isFavorite && (
+      {/* Favorite indicator - hide when in selection mode */}
+      {asset.isFavorite && !isSelectionMode && (
         <div
           class="favorite-indicator"
           style={{
@@ -161,6 +175,45 @@ export const TimelineThumbnail = ({
               stroke-linejoin="round"
             />
           </svg>
+        </div>
+      )}
+
+      {/* Selection checkbox indicator */}
+      {isSelectionMode && (
+        <div
+          class="selection-indicator"
+          style={{
+            position: 'absolute',
+            bottom: 'var(--spacing-sm)',
+            right: 'var(--spacing-sm)',
+            width: '24px',
+            height: '24px',
+            borderRadius: '50%',
+            backgroundColor: isSelected ? 'var(--color-primary)' : 'rgba(255, 255, 255, 0.8)',
+            border: isSelected ? 'none' : '2px solid var(--color-gray)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.3)',
+          }}
+        >
+          {isSelected && (
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M20 6L9 17L4 12"
+                stroke="white"
+                stroke-width="3"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+          )}
         </div>
       )}
     </div>

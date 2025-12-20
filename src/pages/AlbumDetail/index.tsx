@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
 import { AlbumHeader } from '../../components/common/AlbumHeader'
+import { Header } from '../../components/common/Header'
 import { PhotoViewer } from '../../components/photoView/PhotoViewer'
 import { ShareModal } from '../../components/share/ShareModal'
 import {
@@ -8,6 +9,7 @@ import {
   VirtualizedTimeline,
 } from '../../components/timeline/VirtualizedTimeline'
 import { useHashLocation } from '../../contexts/HashLocationContext'
+import { useAssetSelection } from '../../hooks/useAssetSelection'
 import type { ThumbnailPosition } from '../../hooks/useZoomTransition'
 import { type Album, type Asset, apiService } from '../../services/api'
 
@@ -27,6 +29,16 @@ export function AlbumDetail({ id, albumId }: AlbumDetailProps) {
   const [allBuckets, setAllBuckets] = useState<TimelineBucket[]>([])
   const [showShareModal, setShowShareModal] = useState<boolean>(false)
   const { url, route } = useHashLocation()
+
+  // Selection state
+  const {
+    isSelectionMode,
+    selectedAssetIds,
+    selectionCount,
+    toggleSelectionMode,
+    exitSelectionMode,
+    toggleAssetSelection,
+  } = useAssetSelection()
 
   // Track loaded bucket count synchronously to prevent race conditions
   const loadedBucketCountRef = useRef<number>(0)
@@ -183,65 +195,108 @@ export function AlbumDetail({ id, albumId }: AlbumDetailProps) {
     route('/albums')
   }
 
+  // Stub download handler
+  const handleDownload = () => {
+    console.log('Download requested for:', Array.from(selectedAssetIds))
+    // TODO: Implement download functionality
+  }
+
+  // Icons for selection mode header
+  const closeIcon = (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path
+        d="M18 6L6 18"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+      <path
+        d="M6 6L18 18"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+    </svg>
+  )
+
+  const downloadIcon = (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path
+        d="M21 15V19C21 19.5304 20.7893 20.0391 20.4142 20.4142C20.0391 20.7893 19.5304 21 19 21H5C4.46957 21 3.96086 20.7893 3.58579 20.4142C3.21071 20.0391 3 19.5304 3 19V15"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+      <path
+        d="M7 10L12 15L17 10"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+      <path
+        d="M12 15V3"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+    </svg>
+  )
+
+  const backIcon = (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path
+        d="M19 12H5"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+      <path
+        d="M12 19L5 12L12 5"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+    </svg>
+  )
+
   return (
     <div class="ios-page">
-      <AlbumHeader
-        album={album}
-        leftAction={{
-          icon: (
-            <svg
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                d="M19 12H5"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-              <path
-                d="M12 19L5 12L12 5"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-            </svg>
-          ),
-          onClick: handleBack,
-        }}
-        rightAction={{
-          icon: (
-            <svg
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-              <path
-                d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-            </svg>
-          ),
-          onClick: () => setShowShareModal(true),
-        }}
-      />
+      {isSelectionMode ? (
+        <Header
+          title={selectionCount === 0 ? 'Select' : `${selectionCount} selected`}
+          leftAction={{
+            icon: closeIcon,
+            onClick: exitSelectionMode,
+          }}
+          rightAction={
+            selectionCount > 0
+              ? {
+                  icon: downloadIcon,
+                  onClick: handleDownload,
+                }
+              : undefined
+          }
+        />
+      ) : (
+        <AlbumHeader
+          album={album}
+          leftAction={{
+            icon: backIcon,
+            onClick: handleBack,
+          }}
+          menuItems={[
+            { label: 'Select', onClick: toggleSelectionMode },
+            { label: 'Share', onClick: () => setShowShareModal(true) },
+          ]}
+        />
+      )}
 
       <div class="ios-content">
         {isLoading ? (
@@ -341,6 +396,9 @@ export function AlbumDetail({ id, albumId }: AlbumDetailProps) {
             onAssetClick={handleAssetClick}
             anchorAssetId={selectedAsset?.id}
             controllerRef={timelineControllerRef}
+            isSelectionMode={isSelectionMode}
+            selectedAssetIds={selectedAssetIds}
+            onSelectionToggle={toggleAssetSelection}
           />
         ) : (
           <div
