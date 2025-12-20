@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'preact/hooks'
+import { useCallback, useEffect, useRef, useState } from 'preact/hooks'
 import { AlbumHeader } from '../../components/common/AlbumHeader'
 import { Header } from '../../components/common/Header'
 import { PhotoViewer } from '../../components/photoView/PhotoViewer'
@@ -113,71 +113,86 @@ export function AlbumDetail({ id, albumId }: AlbumDetailProps) {
   }, [effectiveId])
 
   // Function to load more buckets
-  const loadMoreBuckets = async (
-    buckets: TimelineBucket[],
-    startIndex: number,
-    albumId: string,
-    order?: 'asc' | 'desc',
-  ) => {
-    // Use ref for synchronous check to prevent race conditions
-    if (startIndex >= buckets.length || startIndex < loadedBucketCountRef.current) {
-      // Already loaded or past the end
-      return
-    }
-
-    // Mark as loading synchronously
-    const endIndex = Math.min(startIndex + bucketsPerLoad, buckets.length)
-    loadedBucketCountRef.current = endIndex
-
-    try {
-      // Get the next batch of buckets
-      const bucketsToLoad = buckets.slice(startIndex, endIndex)
-
-      const newAssets: Asset[] = []
-
-      // Load assets for each bucket
-      for (let i = 0; i < bucketsToLoad.length; i++) {
-        const bucket = bucketsToLoad[i]
-        if (!bucket) {
-          continue
-        }
-        const bucketIndex = startIndex + i
-        try {
-          const bucketAssets = await apiService.getTimeBucket({
-            timeBucket: bucket.timeBucket,
-            size: 'DAY',
-            isTrashed: false,
-            albumId,
-            ...(order && { order }),
-          })
-
-          if (Array.isArray(bucketAssets)) {
-            // Tag each asset with its bucket index for layout purposes
-            for (const asset of bucketAssets) {
-              ;(asset as Asset)._bucketIndex = bucketIndex
-            }
-            newAssets.push(...(bucketAssets as Asset[]))
-          } else {
-            console.warn(
-              `Unexpected response format for bucket ${bucket.timeBucket}:`,
-              bucketAssets,
-            )
-          }
-        } catch (bucketError) {
-          console.error(`Error fetching assets for bucket ${bucket.timeBucket}:`, bucketError)
-        }
+  const loadMoreBuckets = useCallback(
+    async (
+      buckets: TimelineBucket[],
+      startIndex: number,
+      albumId: string,
+      order?: 'asc' | 'desc',
+    ) => {
+      // Use ref for synchronous check to prevent race conditions
+      if (startIndex >= buckets.length || startIndex < loadedBucketCountRef.current) {
+        // Already loaded or past the end
+        return
       }
 
-      // Update state with new assets
-      setAssets((prevAssets) => [...prevAssets, ...newAssets])
-    } catch (err) {
-      console.error('Error loading more buckets:', err)
-      // Reset ref on error to allow retry
-      loadedBucketCountRef.current = startIndex
-    } finally {
-      setIsLoading(false)
-    }
-  }
+      // Mark as loading synchronously
+      const endIndex = Math.min(startIndex + bucketsPerLoad, buckets.length)
+      loadedBucketCountRef.current = endIndex
+
+      try {
+        // Get the next batch of buckets
+        const bucketsToLoad = buckets.slice(startIndex, endIndex)
+
+        const newAssets: Asset[] = []
+
+        // Load assets for each bucket
+        for (let i = 0; i < bucketsToLoad.length; i++) {
+          const bucket = bucketsToLoad[i]
+          if (!bucket) {
+            continue
+          }
+          const bucketIndex = startIndex + i
+          try {
+            const bucketAssets = await apiService.getTimeBucket({
+              timeBucket: bucket.timeBucket,
+              size: 'DAY',
+              isTrashed: false,
+              albumId,
+              ...(order && { order }),
+            })
+
+            if (Array.isArray(bucketAssets)) {
+              // Tag each asset with its bucket index for layout purposes
+              for (const asset of bucketAssets) {
+                ;(asset as Asset)._bucketIndex = bucketIndex
+              }
+              newAssets.push(...(bucketAssets as Asset[]))
+            } else {
+              console.warn(
+                `Unexpected response format for bucket ${bucket.timeBucket}:`,
+                bucketAssets,
+              )
+            }
+          } catch (bucketError) {
+            console.error(`Error fetching assets for bucket ${bucket.timeBucket}:`, bucketError)
+          }
+        }
+
+        // Update state with new assets
+        setAssets((prevAssets) => [...prevAssets, ...newAssets])
+      } catch (err) {
+        console.error('Error loading more buckets:', err)
+        // Reset ref on error to allow retry
+        loadedBucketCountRef.current = startIndex
+      } finally {
+        setIsLoading(false)
+      }
+    },
+    [],
+  )
+
+  // Handle bucket load request from VirtualizedTimeline (when scrolling into unloaded area)
+  const handleBucketLoadRequest = useCallback(
+    (bucketIndex: number) => {
+      if (!effectiveId || !album) {
+        return
+      }
+      // Load starting from the requested bucket
+      loadMoreBuckets(allBuckets, bucketIndex, effectiveId, album.order)
+    },
+    [effectiveId, album, allBuckets, loadMoreBuckets],
+  )
 
   // Handle asset selection
   const handleAssetClick = (asset: Asset, info: { position: ThumbnailPosition | null }) => {
@@ -416,6 +431,7 @@ export function AlbumDetail({ id, albumId }: AlbumDetailProps) {
             showDateHeaders={allBuckets.length > 1}
             {...(album?.order && { order: album.order })}
             onAssetClick={handleAssetClick}
+            onBucketLoadRequest={handleBucketLoadRequest}
             anchorAssetId={selectedAsset?.id}
             controllerRef={timelineControllerRef}
             isSelectionMode={isSelectionMode}
