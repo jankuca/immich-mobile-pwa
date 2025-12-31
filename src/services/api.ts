@@ -515,15 +515,15 @@ class ApiService {
 
   // Asset URLs - use the configured Immich API URL directly
   getAssetThumbnailUrl(assetId: string, format: 'webp' | 'jpeg' = 'webp'): string {
-    return `${this.baseUrl}/assets/${assetId}/thumbnail?format=${format}&key=${this.apiKey}`
+    return `${this.baseUrl}/assets/${assetId}/thumbnail?format=${format}&apiKey=${this.apiKey}`
   }
 
   getAssetUrl(assetId: string): string {
-    return `${this.baseUrl}/assets/${assetId}/original?key=${this.apiKey}`
+    return `${this.baseUrl}/assets/${assetId}/original?apiKey=${this.apiKey}`
   }
 
   getPersonThumbnailUrl(personId: string): string {
-    return `${this.baseUrl}/people/${personId}/thumbnail?key=${this.apiKey}`
+    return `${this.baseUrl}/people/${personId}/thumbnail?apiKey=${this.apiKey}`
   }
 
   // Server Config
