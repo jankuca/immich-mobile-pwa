@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'preact/hooks'
 import { Header } from '../../components/common/Header'
+import { LazyImage } from '../../components/common/LazyImage'
 import { SectionPill } from '../../components/common/SectionPill'
 import { HighlightedText } from '../../components/search/HighlightedText'
 import { SearchInput } from '../../components/search/SearchInput'
@@ -108,30 +109,33 @@ export function People() {
         font: 'inherit',
       }}
     >
-      <div
-        style={{
-          width: '100%',
-          maxWidth: '80px',
-          aspectRatio: '1',
-          borderRadius: '50%',
-          overflow: 'hidden',
-          backgroundColor: 'var(--color-gray-light)',
-          marginBottom: 'var(--spacing-xs)',
-        }}
-      >
-        {person.thumbnailPath && (
-          <img
-            src={apiService.getPersonThumbnailUrl(person.id)}
-            alt={person.name}
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-            }}
-            loading="lazy"
-          />
-        )}
-      </div>
+      {person.thumbnailPath ? (
+        <LazyImage
+          src={apiService.getPersonThumbnailUrl(person.id)}
+          alt={person.name}
+          style={{
+            width: '100%',
+            maxWidth: '80px',
+            aspectRatio: '1',
+            borderRadius: '50%',
+            overflow: 'hidden',
+            backgroundColor: 'var(--color-gray-light)',
+            marginBottom: 'var(--spacing-xs)',
+          }}
+        />
+      ) : (
+        <div
+          style={{
+            width: '100%',
+            maxWidth: '80px',
+            aspectRatio: '1',
+            borderRadius: '50%',
+            overflow: 'hidden',
+            backgroundColor: 'var(--color-gray-light)',
+            marginBottom: 'var(--spacing-xs)',
+          }}
+        />
+      )}
 
       <h3
         style={{
@@ -170,29 +174,31 @@ export function People() {
       }}
     >
       {/* Avatar */}
-      <div
-        style={{
-          width: SEARCH_RESULT_AVATAR_SIZE,
-          height: SEARCH_RESULT_AVATAR_SIZE,
-          borderRadius: '50%',
-          overflow: 'hidden',
-          backgroundColor: 'var(--color-gray-light)',
-          flexShrink: 0,
-        }}
-      >
-        {person.thumbnailPath && (
-          <img
-            src={apiService.getPersonThumbnailUrl(person.id)}
-            alt={person.name}
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-            }}
-            loading="lazy"
-          />
-        )}
-      </div>
+      {person.thumbnailPath ? (
+        <LazyImage
+          src={apiService.getPersonThumbnailUrl(person.id)}
+          alt={person.name}
+          style={{
+            width: SEARCH_RESULT_AVATAR_SIZE,
+            height: SEARCH_RESULT_AVATAR_SIZE,
+            borderRadius: '50%',
+            overflow: 'hidden',
+            backgroundColor: 'var(--color-gray-light)',
+            flexShrink: 0,
+          }}
+        />
+      ) : (
+        <div
+          style={{
+            width: SEARCH_RESULT_AVATAR_SIZE,
+            height: SEARCH_RESULT_AVATAR_SIZE,
+            borderRadius: '50%',
+            overflow: 'hidden',
+            backgroundColor: 'var(--color-gray-light)',
+            flexShrink: 0,
+          }}
+        />
+      )}
 
       {/* Name */}
       <HighlightedText
