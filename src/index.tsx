@@ -334,9 +334,15 @@ export function App() {
   )
 }
 
+import { apiService } from './services/api'
+
 const appNode = document.getElementById('app')
 if (!appNode) {
   throw new Error('Failed to find the root element')
 }
 
-render(<App />, appNode)
+// Initialize API service (load runtime config) before rendering the app
+// This ensures baseUrl is set correctly before any thumbnail URLs are generated
+apiService.initialize().then(() => {
+  render(<App />, appNode)
+})

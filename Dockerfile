@@ -23,9 +23,9 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install only production dependencies + express and http-proxy-middleware
+# Install only production dependencies + express for serving
 RUN npm ci --omit=dev && \
-    npm install express http-proxy-middleware
+    npm install express
 
 # Copy built assets from builder stage
 COPY --from=builder /app/dist ./dist

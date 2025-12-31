@@ -188,16 +188,22 @@ export interface ServerConfig {
   userDeleteDelay: number
 }
 
+interface RuntimeConfig {
+  immichApiUrl: string
+}
+
 class ApiService {
   private api: AxiosInstance
   private baseUrl: string
   private apiKey: string | null = null
   private serverConfig: ServerConfig | null = null
+  private runtimeConfig: RuntimeConfig | null = null
+  private runtimeConfigPromise: Promise<RuntimeConfig> | null = null
 
   private fullAssetCache: Record<string, Asset> = {}
 
   constructor() {
-    // Use the proxy URL (Vite will proxy requests to the Immich server)
+    // Default to proxy URL, will be updated with runtime config
     this.baseUrl = '/api'
 
     this.api = axios.create({
@@ -205,14 +211,19 @@ class ApiService {
       headers: {
         'Content-Type': 'application/json',
       },
-      // We don't need withCredentials since we're using API key
       withCredentials: false,
     })
 
-    // Add request interceptor to include API key
-    this.api.interceptors.request.use((config) => {
+    // Add request interceptor to ensure config is loaded and include API key
+    this.api.interceptors.request.use(async (config) => {
+      // Ensure runtime config is loaded before making any request
+      await this.loadRuntimeConfig()
+
+      // Update the request's baseURL to the loaded config
+      // (the default baseURL was set before config was loaded)
+      config.baseURL = this.baseUrl
+
       if (this.apiKey) {
-        // Set the API key in the headers for each request
         config.headers['x-api-key'] = this.apiKey
       } else {
         console.warn('No API key set for request:', config.url)
@@ -220,6 +231,42 @@ class ApiService {
 
       return config
     })
+  }
+
+  private loadRuntimeConfig(): Promise<RuntimeConfig> {
+    if (this.runtimeConfig) {
+      return Promise.resolve(this.runtimeConfig)
+    }
+
+    if (this.runtimeConfigPromise) {
+      return this.runtimeConfigPromise
+    }
+
+    this.runtimeConfigPromise = (async () => {
+      try {
+        const response = await fetch('/config.json')
+        if (response.ok) {
+          const config: RuntimeConfig = await response.json()
+          this.runtimeConfig = config
+          this.baseUrl = `${config.immichApiUrl}/api`
+          this.api.defaults.baseURL = this.baseUrl
+          console.log('Loaded runtime config, API URL:', this.baseUrl)
+          return config
+        }
+      } catch (error) {
+        console.warn('Failed to load runtime config, using proxy:', error)
+      }
+      // Fallback to proxy URL for development
+      this.runtimeConfig = { immichApiUrl: window.location.origin }
+      return this.runtimeConfig
+    })()
+
+    return this.runtimeConfigPromise
+  }
+
+  // Initialize the API service - call before using URL methods
+  async initialize(): Promise<void> {
+    await this.loadRuntimeConfig()
   }
 
   // Set API key for authentication
@@ -466,29 +513,17 @@ class ApiService {
     }
   }
 
-  // Asset URLs
+  // Asset URLs - use the configured Immich API URL directly
   getAssetThumbnailUrl(assetId: string, format: 'webp' | 'jpeg' = 'webp'): string {
-    // Use the current origin to ensure the URL works when accessed from different origins
-    const origin = window.location.origin
-    // Only include the API key if we have one (in pre-auth mode, the server adds it)
-    const keyParam = this.apiKey ? `&key=${this.apiKey}` : ''
-    return `${origin}/api/assets/${assetId}/thumbnail?format=${format}${keyParam}`
+    return `${this.baseUrl}/assets/${assetId}/thumbnail?format=${format}&key=${this.apiKey}`
   }
 
   getAssetUrl(assetId: string): string {
-    // Use the current origin to ensure the URL works when accessed from different origins
-    const origin = window.location.origin
-    // Only include the API key if we have one (in pre-auth mode, the server adds it)
-    const keyParam = this.apiKey ? `?key=${this.apiKey}` : ''
-    return `${origin}/api/assets/${assetId}/original${keyParam}`
+    return `${this.baseUrl}/assets/${assetId}/original?key=${this.apiKey}`
   }
 
   getPersonThumbnailUrl(personId: string): string {
-    // Use the current origin to ensure the URL works when accessed from different origins
-    const origin = window.location.origin
-    // Only include the API key if we have one (in pre-auth mode, the server adds it)
-    const keyParam = this.apiKey ? `?key=${this.apiKey}` : ''
-    return `${origin}/api/people/${personId}/thumbnail${keyParam}`
+    return `${this.baseUrl}/people/${personId}/thumbnail?key=${this.apiKey}`
   }
 
   // Server Config
